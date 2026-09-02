@@ -2,13 +2,35 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  color-scheme: light;
-}
+@layer base {
+  :root {
+    --background: 40 33% 97%;
+    --foreground: 220 14% 9%;
+    --card: 0 0% 100%;
+    --card-foreground: 220 14% 9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 14% 9%;
+    --primary: 228 97% 61%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 220 14% 96%;
+    --secondary-foreground: 220 14% 9%;
+    --muted: 220 14% 96%;
+    --muted-foreground: 220 9% 46%;
+    --destructive: 0 72% 42%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 228 97% 61%;
+    --radius: 0.75rem;
+  }
 
-body {
-  background: #faf9f6;
-  color: #14161a;
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground min-h-screen font-sans antialiased;
+  }
 }
 
 .btn {

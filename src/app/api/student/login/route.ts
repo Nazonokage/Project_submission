@@ -4,6 +4,7 @@ import { students } from '@/lib/schema';
 import { and, eq } from 'drizzle-orm';
 import { jsonError } from '@/lib/helpers';
 import { signStudentToken, setStudentCookie } from '@/lib/auth';
+import { verifyPassword } from '@/lib/password';
 
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
@@ -18,16 +19,16 @@ export async function POST(req: NextRequest) {
   const [student] = await db
     .select()
     .from(students)
-    .where(
-      and(
-        eq(students.classId, classId),
-        eq(students.idNumber, idNumber),
-        eq(students.password, password)
-      )
-    )
+    .where(and(eq(students.classId, classId), eq(students.idNumber, idNumber)))
     .limit(1);
 
   if (!student) return jsonError('Invalid ID number or password', 401);
+
+  const stored = student.password || '';
+  const passwordOk = stored.startsWith('$2')
+    ? await verifyPassword(password, stored)
+    : stored === password;
+  if (!passwordOk) return jsonError('Invalid ID number or password', 401);
 
   const token = await signStudentToken({ studentId: student.id, classId });
   await setStudentCookie(token);

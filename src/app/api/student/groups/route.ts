@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { groups, projectSlots, studentGroupSlots, students } from '@/lib/schema';
+import { groups, groupLeaveRequests, studentGroupSlots, students } from '@/lib/schema';
 import { and, eq } from 'drizzle-orm';
 import { getStudentSession } from '@/lib/auth';
 import { assertSlotInClass, jsonError } from '@/lib/helpers';
@@ -27,7 +27,24 @@ export async function GET(req: NextRequest) {
 
   if (existing) {
     const members = await getGroupMembers(existing.group.id);
-    return NextResponse.json({ group: existing.group, members });
+    let leaveRequest = null;
+    try {
+      const [row] = await db
+        .select()
+        .from(groupLeaveRequests)
+        .where(
+          and(
+            eq(groupLeaveRequests.groupId, existing.group.id),
+            eq(groupLeaveRequests.studentId, session.studentId),
+            eq(groupLeaveRequests.status, 'pending')
+          )
+        )
+        .limit(1);
+      leaveRequest = row ?? null;
+    } catch (err) {
+      console.error('Could not load leave requests (has the migration been run?)', err);
+    }
+    return NextResponse.json({ group: existing.group, members, leaveRequest });
   }
 
   if (slot.groupSize === 1) {
@@ -43,10 +60,10 @@ export async function GET(req: NextRequest) {
     });
 
     const members = await getGroupMembers(group.id);
-    return NextResponse.json({ group, members });
+    return NextResponse.json({ group, members, leaveRequest: null });
   }
 
-  return NextResponse.json({ group: null, members: [] });
+  return NextResponse.json({ group: null, members: [], leaveRequest: null });
 }
 
 // POST: create a new (multi-member) group for a slot and auto-join the creator.
@@ -86,7 +103,7 @@ export async function POST(req: NextRequest) {
   });
 
   const members = await getGroupMembers(group.id);
-  return NextResponse.json({ group, members }, { status: 201 });
+  return NextResponse.json({ group, members, leaveRequest: null }, { status: 201 });
 }
 
 async function getGroupMembers(groupId: string) {

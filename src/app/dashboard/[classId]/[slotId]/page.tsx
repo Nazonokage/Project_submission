@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
+import { LeaveRequestsPanel, type LeaveRequestRow } from '@/components/dashboard/leave-requests-panel';
 
 type Title = {
   id: string;
@@ -26,12 +27,18 @@ export default function VerificationQueuePage() {
   const [titles, setTitles] = useState<Title[]>([]);
   const [filter, setFilter] = useState<'pending' | 'verified' | 'rejected' | ''>('pending');
   const [loading, setLoading] = useState(true);
+  const [comments, setComments] = useState<Record<string, string>>({});
+  const [leaveRequests, setLeaveRequests] = useState<LeaveRequestRow[]>([]);
 
   async function load() {
     setLoading(true);
     const qs = filter ? `?status=${filter}` : '';
-    const res = await fetch(`/api/dashboard/${classId}/${slotId}/titles${qs}`);
-    if (res.ok) setTitles((await res.json()).titles);
+    const [titlesRes, leavesRes] = await Promise.all([
+      fetch(`/api/dashboard/${classId}/${slotId}/titles${qs}`),
+      fetch(`/api/classes/${classId}/leave-requests?status=pending&slotId=${slotId}`),
+    ]);
+    if (titlesRes.ok) setTitles((await titlesRes.json()).titles);
+    if (leavesRes.ok) setLeaveRequests((await leavesRes.json()).requests || []);
     setLoading(false);
   }
 
@@ -44,7 +51,10 @@ export default function VerificationQueuePage() {
     await fetch(`/api/dashboard/titles/${titleId}/verify`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ decision }),
+      body: JSON.stringify({
+        decision,
+        comment: decision === 'rejected' ? comments[titleId] : undefined,
+      }),
     });
     load();
   }
@@ -57,6 +67,15 @@ export default function VerificationQueuePage() {
         </Link>
         <h1 className="text-xl font-semibold mt-1">Verification queue</h1>
       </div>
+
+      {leaveRequests.length > 0 && (
+        <section className="space-y-3">
+          <h2 className="text-sm font-medium uppercase tracking-wide text-muted">
+            Leave requests awaiting confirmation
+          </h2>
+          <LeaveRequestsPanel requests={leaveRequests} onChanged={load} compact />
+        </section>
+      )}
 
       <div className="flex gap-2">
         {(['pending', 'verified', 'rejected', ''] as const).map((s) => (
@@ -107,13 +126,21 @@ export default function VerificationQueuePage() {
                 </p>
               )}
               {t.status === 'pending' && (
-                <div className="flex gap-2 pt-1">
-                  <button className="btn-primary" onClick={() => decide(t.id, 'verified')}>
-                    Approve
-                  </button>
-                  <button className="btn-danger" onClick={() => decide(t.id, 'rejected')}>
-                    Reject
-                  </button>
+                <div className="space-y-2 pt-1">
+                  <input
+                    className="input"
+                    placeholder="Optional reject comment (shown to the group)"
+                    value={comments[t.id] || ''}
+                    onChange={(e) => setComments((cur) => ({ ...cur, [t.id]: e.target.value }))}
+                  />
+                  <div className="flex gap-2">
+                    <button className="btn-primary" onClick={() => decide(t.id, 'verified')}>
+                      Approve
+                    </button>
+                    <button className="btn-danger" onClick={() => decide(t.id, 'rejected')}>
+                      Reject
+                    </button>
+                  </div>
                 </div>
               )}
             </div>

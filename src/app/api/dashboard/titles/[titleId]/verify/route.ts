@@ -23,12 +23,14 @@ export async function PATCH(
   if (decision !== 'verified' && decision !== 'rejected') {
     return jsonError('decision must be "verified" or "rejected"', 422);
   }
+  const comment = typeof body?.comment === 'string' ? body.comment.trim() : '';
 
   const [row] = await db
     .update(titles)
     .set({
       status: decision,
       verifiedAt: decision === 'verified' ? new Date() : null,
+      rejectionReason: decision === 'rejected' ? comment || null : null,
       updatedAt: new Date(),
     })
     .where(eq(titles.id, title.id))

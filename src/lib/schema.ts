@@ -17,6 +17,7 @@ export const professors = pgTable('professors', {
   name: text('name').notNull(),
   email: text('email').notNull().unique(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  lastLoginAt: timestamp('last_login_at', { withTimezone: true }),
 });
 
 // ============================================================
@@ -81,6 +82,8 @@ export const students = pgTable(
     idNumber: text('id_number').notNull(),
     password: text('password').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    isActive: boolean('is_active').notNull().default(true),
+    lastLoginAt: timestamp('last_login_at', { withTimezone: true }),
   },
   (t) => ({
     classIdNumberUnique: unique().on(t.classId, t.idNumber),
@@ -150,6 +153,32 @@ export const groupInvites = pgTable('group_invites', {
 });
 
 // ============================================================
+// GROUP LEAVE REQUESTS  (professor must confirm)
+// ============================================================
+export const groupLeaveRequests = pgTable('group_leave_requests', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  groupId: uuid('group_id')
+    .notNull()
+    .references(() => groups.id, { onDelete: 'cascade' }),
+  classId: uuid('class_id')
+    .notNull()
+    .references(() => classes.id, { onDelete: 'cascade' }),
+  slotId: uuid('slot_id')
+    .notNull()
+    .references(() => projectSlots.id, { onDelete: 'cascade' }),
+  studentId: uuid('student_id')
+    .notNull()
+    .references(() => students.id, { onDelete: 'cascade' }),
+  reason: text('reason'),
+  status: text('status').notNull().default('pending'), // pending | approved | declined | cancelled
+  resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+  resolvedByProfId: uuid('resolved_by_prof_id').references(() => professors.id, {
+    onDelete: 'set null',
+  }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+// ============================================================
 // TITLES
 // ============================================================
 export const titles = pgTable('titles', {
@@ -179,11 +208,50 @@ export const titles = pgTable('titles', {
   deploymentUrl: text('deployment_url'),
   repoLastChecked: timestamp('repo_last_checked', { withTimezone: true }),
   verifiedAt: timestamp('verified_at', { withTimezone: true }),
+  rejectionReason: text('rejection_reason'),
+  progressStatus: text('progress_status').notNull().default('planning'), // planning | in_progress | review | done
+  lastCommitSha: text('last_commit_sha'),
+  lastCommitMessage: text('last_commit_message'),
+  lastCommitAt: timestamp('last_commit_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   updatedByStudentId: uuid('updated_by_student_id').references(() => students.id, {
     onDelete: 'set null',
   }),
+});
+
+// ============================================================
+// ACTIVITY LOG
+// ============================================================
+// ============================================================
+// PROJECT UPDATES  (progress notes + commit logs)
+// ============================================================
+export const projectUpdates = pgTable('project_updates', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  classId: uuid('class_id')
+    .notNull()
+    .references(() => classes.id, { onDelete: 'cascade' }),
+  slotId: uuid('slot_id')
+    .notNull()
+    .references(() => projectSlots.id, { onDelete: 'cascade' }),
+  groupId: uuid('group_id')
+    .notNull()
+    .references(() => groups.id, { onDelete: 'cascade' }),
+  titleId: uuid('title_id')
+    .notNull()
+    .references(() => titles.id, { onDelete: 'cascade' }),
+  postedByStudentId: uuid('posted_by_student_id').references(() => students.id, {
+    onDelete: 'set null',
+  }),
+  postedByProfId: uuid('posted_by_prof_id').references(() => professors.id, {
+    onDelete: 'set null',
+  }),
+  kind: text('kind').notNull().default('progress'), // progress | commit | milestone | note
+  headline: text('headline'),
+  body: text('body').notNull(),
+  commitSha: text('commit_sha'),
+  commitUrl: text('commit_url'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
 // ============================================================

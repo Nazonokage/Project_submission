@@ -3,7 +3,6 @@ import { db } from '@/lib/db';
 import { students } from '@/lib/schema';
 import { getProfSession } from '@/lib/auth';
 import { assertClassOwnedByProf, generatePassword, jsonError } from '@/lib/helpers';
-
 // Body: { names: string[] } — one name per line, already split client-side,
 // or { text: string } — raw .txt contents (one name per line).
 export async function POST(req: NextRequest, { params }: { params: { classId: string } }) {

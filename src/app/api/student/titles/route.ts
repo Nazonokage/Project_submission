@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { projectSlots, studentGroupSlots, titles } from '@/lib/schema';
-import { and, eq, ilike, ne, sql } from 'drizzle-orm';
+import { groups, studentGroupSlots, titles } from '@/lib/schema';
+import { and, eq, ilike } from 'drizzle-orm';
 import { getStudentSession } from '@/lib/auth';
 import { assertSlotInClass, jsonError } from '@/lib/helpers';
 
@@ -45,11 +45,20 @@ export async function POST(req: NextRequest) {
   if (slot.locked) return jsonError('This project slot is locked', 409);
 
   const [membership] = await db
-    .select()
+    .select({ membership: studentGroupSlots, group: groups })
     .from(studentGroupSlots)
+    .innerJoin(groups, eq(groups.id, studentGroupSlots.groupId))
     .where(and(eq(studentGroupSlots.studentId, session.studentId), eq(studentGroupSlots.slotId, slotId)))
     .limit(1);
-  if (!membership) return jsonError('You must belong to a locked group before submitting titles', 403);
+  if (!membership) return jsonError('You must belong to a group before submitting titles', 403);
+
+  const existingTitles = await db
+    .select({ id: titles.id })
+    .from(titles)
+    .where(eq(titles.groupId, membership.group.id));
+  if (existingTitles.length >= slot.titlesAllowedMax) {
+    return jsonError(`This group already has the maximum of ${slot.titlesAllowedMax} titles`, 409);
+  }
 
   if (slot.requireTechStack && techStack.length === 0) {
     return jsonError('At least one tech stack tag is required', 422);
@@ -76,7 +85,7 @@ export async function POST(req: NextRequest) {
     .values({
       classId: session.classId,
       slotId,
-      groupId: membership.groupId,
+      groupId: membership.group.id,
       text,
       description,
       techStack,

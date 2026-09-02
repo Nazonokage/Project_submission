@@ -20,6 +20,10 @@ export function jsonError(message: string, status = 400) {
   return NextResponse.json({ error: message }, { status });
 }
 
+export function isUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+}
+
 // Confirms this class belongs to this prof. Returns the class row or null.
 export async function assertClassOwnedByProf(classId: string, profId: string) {
   const [row] = await db

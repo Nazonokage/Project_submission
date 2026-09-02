@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
+import { LeaveRequestsPanel, type LeaveRequestRow } from '@/components/dashboard/leave-requests-panel';
 
 type Slot = {
   id: string;
@@ -18,22 +19,25 @@ type Student = { id: string; name: string; idNumber: string; password: string };
 
 export default function ClassPage() {
   const { classId } = useParams<{ classId: string }>();
-  const [tab, setTab] = useState<'slots' | 'roster'>('slots');
+  const [tab, setTab] = useState<'slots' | 'roster' | 'leaves'>('slots');
   const [cls, setCls] = useState<{ name: string; term: string } | null>(null);
   const [slots, setSlots] = useState<Slot[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
+  const [leaveRequests, setLeaveRequests] = useState<LeaveRequestRow[]>([]);
   const [loading, setLoading] = useState(true);
 
   async function loadAll() {
     setLoading(true);
-    const [clsRes, slotsRes, studentsRes] = await Promise.all([
+    const [clsRes, slotsRes, studentsRes, leavesRes] = await Promise.all([
       fetch(`/api/classes/${classId}`),
       fetch(`/api/classes/${classId}/slots`),
       fetch(`/api/classes/${classId}/students`),
+      fetch(`/api/classes/${classId}/leave-requests?status=pending`),
     ]);
     if (clsRes.ok) setCls((await clsRes.json()).class);
     if (slotsRes.ok) setSlots((await slotsRes.json()).slots);
     if (studentsRes.ok) setStudents((await studentsRes.json()).students);
+    if (leavesRes.ok) setLeaveRequests((await leavesRes.json()).requests || []);
     setLoading(false);
   }
 
@@ -85,14 +89,24 @@ export default function ClassPage() {
         >
           Student roster ({students.length})
         </button>
+        <button
+          className={`px-3 py-2 text-sm font-medium border-b-2 ${
+            tab === 'leaves' ? 'border-accent text-accent' : 'border-transparent text-muted'
+          }`}
+          onClick={() => setTab('leaves')}
+        >
+          Leave requests{leaveRequests.length > 0 ? ` (${leaveRequests.length})` : ''}
+        </button>
       </div>
 
       {loading ? (
         <p className="text-sm text-muted">Loading…</p>
       ) : tab === 'slots' ? (
         <SlotsTab classId={classId} slots={slots} onChange={loadAll} />
-      ) : (
+      ) : tab === 'roster' ? (
         <RosterTab classId={classId} students={students} onChange={loadAll} />
+      ) : (
+        <LeaveRequestsPanel requests={leaveRequests} onChanged={loadAll} />
       )}
     </main>
   );
