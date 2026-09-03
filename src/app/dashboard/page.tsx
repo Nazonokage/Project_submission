@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { defaultAcademicTerm, termPresets } from '@/lib/term';
 
 type ClassRow = { id: string; name: string; term: string; createdAt: string };
 
@@ -12,8 +13,9 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState('');
-  const [term, setTerm] = useState('');
+  const [term, setTerm] = useState(defaultAcademicTerm());
   const [error, setError] = useState<string | null>(null);
+  const presets = termPresets();
 
   async function load() {
     setLoading(true);
@@ -29,6 +31,13 @@ export default function DashboardPage() {
     load();
   }, []);
 
+  function openForm() {
+    setShowForm((s) => {
+      if (!s && !term) setTerm(defaultAcademicTerm());
+      return !s;
+    });
+  }
+
   async function createClass(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -43,7 +52,7 @@ export default function DashboardPage() {
       return;
     }
     setName('');
-    setTerm('');
+    setTerm(defaultAcademicTerm());
     setShowForm(false);
     load();
   }
@@ -58,7 +67,7 @@ export default function DashboardPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">Your classes</h1>
         <div className="flex gap-2">
-          <button className="btn-primary" onClick={() => setShowForm((s) => !s)}>
+          <button className="btn-primary" onClick={openForm}>
             New class
           </button>
           <button className="btn-secondary" onClick={logout}>
@@ -85,10 +94,30 @@ export default function DashboardPage() {
               <input
                 className="input"
                 required
-                placeholder="AY 2026-2027, 1st Sem"
+                list="term-presets"
+                placeholder={defaultAcademicTerm()}
                 value={term}
                 onChange={(e) => setTerm(e.target.value)}
               />
+              <datalist id="term-presets">
+                {presets.map((p) => (
+                  <option key={p} value={p} />
+                ))}
+              </datalist>
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                {presets.slice(0, 4).map((p) => (
+                  <button
+                    key={p}
+                    type="button"
+                    className={`text-xs rounded-full border px-2 py-0.5 ${
+                      term === p ? 'border-accent bg-accent/10 text-ink' : 'border-line text-muted'
+                    }`}
+                    onClick={() => setTerm(p)}
+                  >
+                    {p.replace(/^AY /, '')}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
           {error && <p className="text-sm text-danger">{error}</p>}

@@ -4,6 +4,7 @@ import { groups, groupLeaveRequests, studentGroupSlots, students } from '@/lib/s
 import { and, eq } from 'drizzle-orm';
 import { getStudentSession } from '@/lib/auth';
 import { assertSlotInClass, jsonError } from '@/lib/helpers';
+import { isSchemaDrift } from '@/lib/pg-errors';
 
 // GET: returns this student's group for the given slot.
 // If the slot is solo (groupSize === 1) and the student has no group yet,
@@ -42,7 +43,7 @@ export async function GET(req: NextRequest) {
         .limit(1);
       leaveRequest = row ?? null;
     } catch (err) {
-      console.error('Could not load leave requests (has the migration been run?)', err);
+      if (!isSchemaDrift(err)) console.error('Could not load leave requests', err);
     }
     return NextResponse.json({ group: existing.group, members, leaveRequest });
   }

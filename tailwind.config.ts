@@ -6,20 +6,22 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        ink: '#14161a',
-        paper: '#faf9f6',
+        ink: '#2C2522',
+        paper: '#FDF6E3',
         accent: {
-          DEFAULT: '#3b5bfd',
+          DEFAULT: '#E07A5F',
           foreground: '#ffffff',
         },
         muted: {
-          DEFAULT: '#6b7280',
+          DEFAULT: '#6b5f57',
           foreground: 'hsl(var(--muted-foreground))',
         },
-        line: '#e5e7eb',
-        warn: '#b45309',
-        danger: '#b91c1c',
-        ok: '#15803d',
+        line: '#D4C5B0',
+        warn: '#8a6a2a',
+        danger: '#b85c4a',
+        ok: '#5e8a74',
+        sage: '#81B29A',
+        sand: '#F2CC8F',
         border: 'hsl(var(--border))',
         input: 'hsl(var(--input))',
         ring: 'hsl(var(--ring))',
@@ -48,8 +50,8 @@ const config: Config = {
       },
       borderRadius: {
         lg: 'var(--radius)',
-        md: 'calc(var(--radius) - 2px)',
-        sm: 'calc(var(--radius) - 4px)',
+        md: 'calc(var(--radius) - 4px)',
+        sm: 'calc(var(--radius) - 8px)',
       },
       fontFamily: {
         sans: ['ui-sans-serif', 'system-ui', 'sans-serif'],

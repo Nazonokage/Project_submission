@@ -8,7 +8,9 @@
     "start": "next start",
     "lint": "next lint",
     "db:generate": "drizzle-kit generate",
-    "db:push": "drizzle-kit push"
+    "db:push": "drizzle-kit push",
+    "db:pm": "node scripts/apply-sql.mjs add_pm_schema.sql",
+    "db:health": "node scripts/schema-health.mjs"
   },
   "dependencies": {
     "@neondatabase/serverless": "^0.10.4",

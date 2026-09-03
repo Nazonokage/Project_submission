@@ -3,7 +3,17 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
+import { toast } from 'sonner';
 import { LeaveRequestsPanel, type LeaveRequestRow } from '@/components/dashboard/leave-requests-panel';
+import {
+  DEFAULT_SLOT_RULES,
+  loadClassDefaults,
+  saveClassDefaults,
+  SlotRulesFields,
+  SlotSettingsPanel,
+  type SlotRules,
+} from '@/components/dashboard/slot-settings';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 type Slot = {
   id: string;
@@ -12,6 +22,10 @@ type Slot = {
   titlesRequiredMin: number;
   titlesAllowedMax: number;
   duplicateCheck: 'strict' | 'warn';
+  requireTechStack: boolean;
+  requireTargetUsers: boolean;
+  requireDeploymentUrl: boolean;
+  deadline: string | null;
   locked: boolean;
 };
 
@@ -24,6 +38,7 @@ export default function ClassPage() {
   const [slots, setSlots] = useState<Slot[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequestRow[]>([]);
+  const [leaveSchemaMissing, setLeaveSchemaMissing] = useState(false);
   const [loading, setLoading] = useState(true);
 
   async function loadAll() {
@@ -37,7 +52,11 @@ export default function ClassPage() {
     if (clsRes.ok) setCls((await clsRes.json()).class);
     if (slotsRes.ok) setSlots((await slotsRes.json()).slots);
     if (studentsRes.ok) setStudents((await studentsRes.json()).students);
-    if (leavesRes.ok) setLeaveRequests((await leavesRes.json()).requests || []);
+    if (leavesRes.ok) {
+      const data = await leavesRes.json();
+      setLeaveRequests(data.requests || []);
+      setLeaveSchemaMissing(!!data.schemaMissing);
+    }
     setLoading(false);
   }
 
@@ -106,7 +125,17 @@ export default function ClassPage() {
       ) : tab === 'roster' ? (
         <RosterTab classId={classId} students={students} onChange={loadAll} />
       ) : (
-        <LeaveRequestsPanel requests={leaveRequests} onChanged={loadAll} />
+        <div className="space-y-3">
+          {leaveSchemaMissing && (
+            <Alert variant="warning">
+              <AlertDescription>
+                Leave requests are not available yet. Run <code className="font-mono text-xs">add_pm_schema.sql</code> on
+                Neon so the <code className="font-mono text-xs">group_leave_requests</code> table exists.
+              </AlertDescription>
+            </Alert>
+          )}
+          <LeaveRequestsPanel requests={leaveRequests} onChanged={loadAll} />
+        </div>
       )}
     </main>
   );
@@ -123,9 +152,13 @@ function SlotsTab({
 }) {
   const [showForm, setShowForm] = useState(false);
   const [label, setLabel] = useState('');
-  const [groupSize, setGroupSize] = useState(1);
-  const [duplicateCheck, setDuplicateCheck] = useState<'strict' | 'warn'>('warn');
+  const [rules, setRules] = useState<SlotRules>(DEFAULT_SLOT_RULES);
   const [error, setError] = useState<string | null>(null);
+  const [openId, setOpenId] = useState<string | null>(null);
+
+  useEffect(() => {
+    setRules(loadClassDefaults(classId));
+  }, [classId]);
 
   async function createSlot(e: React.FormEvent) {
     e.preventDefault();
@@ -133,7 +166,7 @@ function SlotsTab({
     const res = await fetch(`/api/classes/${classId}/slots`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ label, groupSize, duplicateCheck }),
+      body: JSON.stringify({ label, ...rules }),
     });
     const data = await res.json();
     if (!res.ok) {
@@ -141,7 +174,6 @@ function SlotsTab({
       return;
     }
     setLabel('');
-    setGroupSize(1);
     setShowForm(false);
     onChange();
   }
@@ -172,33 +204,23 @@ function SlotsTab({
               onChange={(e) => setLabel(e.target.value)}
             />
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="label">Group size (1 = solo)</label>
-              <input
-                type="number"
-                min={1}
-                className="input"
-                value={groupSize}
-                onChange={(e) => setGroupSize(Number(e.target.value))}
-              />
-            </div>
-            <div>
-              <label className="label">Duplicate title check</label>
-              <select
-                className="input"
-                value={duplicateCheck}
-                onChange={(e) => setDuplicateCheck(e.target.value as 'strict' | 'warn')}
-              >
-                <option value="warn">Warn only</option>
-                <option value="strict">Block on match</option>
-              </select>
-            </div>
+          <SlotRulesFields rules={rules} onChange={setRules} />
+          <div className="flex flex-wrap gap-2">
+            <button type="submit" className="btn-primary">
+              Create slot
+            </button>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => {
+                saveClassDefaults(classId, rules);
+                toast.success('These rules will be used for new slots in this class');
+              }}
+            >
+              Save as class defaults
+            </button>
           </div>
           {error && <p className="text-sm text-danger">{error}</p>}
-          <button type="submit" className="btn-primary">
-            Create slot
-          </button>
         </form>
       )}
 
@@ -207,23 +229,49 @@ function SlotsTab({
       ) : (
         <div className="grid gap-3">
           {slots.map((s) => (
-            <div key={s.id} className="card flex items-center justify-between">
-              <div>
-                <p className="font-medium">{s.label}</p>
-                <p className="text-sm text-muted">
-                  {s.groupSize === 1 ? 'Solo' : `Groups of ${s.groupSize}`} · duplicate check:{' '}
-                  {s.duplicateCheck}
-                  {s.locked && ' · locked'}
-                </p>
+            <div key={s.id} className="card space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="font-medium">{s.label}</p>
+                  <p className="text-sm text-muted">
+                    {s.groupSize === 1 ? 'Solo' : `Groups of ${s.groupSize}`} · titles {s.titlesRequiredMin}–
+                    {s.titlesAllowedMax} · duplicate check: {s.duplicateCheck}
+                    {s.locked && ' · locked'}
+                  </p>
+                </div>
+                <div className="flex gap-2 shrink-0">
+                  <Link href={`/dashboard/${classId}/${s.id}`} className="btn-secondary">
+                    Verification queue
+                  </Link>
+                  <button
+                    className="btn-secondary"
+                    onClick={() => setOpenId(openId === s.id ? null : s.id)}
+                  >
+                    {openId === s.id ? 'Hide rules' : 'Rules'}
+                  </button>
+                  <button className="btn-danger" onClick={() => removeSlot(s.id)}>
+                    Delete
+                  </button>
+                </div>
               </div>
-              <div className="flex gap-2">
-                <Link href={`/dashboard/${classId}/${s.id}`} className="btn-secondary">
-                  Verification queue
-                </Link>
-                <button className="btn-danger" onClick={() => removeSlot(s.id)}>
-                  Delete
-                </button>
-              </div>
+              {openId === s.id && (
+                <SlotSettingsPanel
+                  classId={classId}
+                  slotId={s.id}
+                  initial={{
+                    groupSize: s.groupSize,
+                    titlesRequiredMin: s.titlesRequiredMin,
+                    titlesAllowedMax: s.titlesAllowedMax,
+                    duplicateCheck: s.duplicateCheck,
+                    requireTechStack: s.requireTechStack,
+                    requireTargetUsers: s.requireTargetUsers,
+                    requireDeploymentUrl: s.requireDeploymentUrl,
+                    deadline: s.deadline,
+                    locked: s.locked,
+                  }}
+                  onSaved={onChange}
+                />
+              )}
             </div>
           ))}
         </div>

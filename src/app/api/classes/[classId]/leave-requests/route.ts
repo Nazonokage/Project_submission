@@ -4,6 +4,7 @@ import { groupLeaveRequests, groups, projectSlots, students } from '@/lib/schema
 import { and, desc, eq } from 'drizzle-orm';
 import { getProfSession } from '@/lib/auth';
 import { assertClassOwnedByProf, jsonError } from '@/lib/helpers';
+import { isSchemaDrift } from '@/lib/pg-errors';
 
 export async function GET(req: NextRequest, { params }: { params: { classId: string } }) {
   const prof = await getProfSession();
@@ -35,6 +36,7 @@ export async function GET(req: NextRequest, { params }: { params: { classId: str
       .orderBy(desc(groupLeaveRequests.createdAt));
 
     return NextResponse.json({
+      schemaMissing: false,
       requests: rows.map((row) => ({
         id: row.request.id,
         status: row.request.status,
@@ -46,7 +48,11 @@ export async function GET(req: NextRequest, { params }: { params: { classId: str
       })),
     });
   } catch (err) {
-    console.error('Could not load leave requests (has the migration been run?)', err);
-    return NextResponse.json({ requests: [] });
+    if (isSchemaDrift(err)) {
+      console.warn('group_leave_requests missing; run add_pm_schema.sql on Neon.');
+      return NextResponse.json({ requests: [], schemaMissing: true });
+    }
+    console.error('Could not load leave requests', err);
+    return jsonError('Could not load leave requests', 500);
   }
 }

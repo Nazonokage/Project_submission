@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { titles, groups, students, studentGroupSlots } from '@/lib/schema';
-import { and, eq } from 'drizzle-orm';
+import { titles, students, studentGroupSlots } from '@/lib/schema';
+import { eq } from 'drizzle-orm';
 import { getProfSession } from '@/lib/auth';
 import { assertClassOwnedByProf, assertSlotInClass, jsonError } from '@/lib/helpers';
+import { selectTitles, titleConditions } from '@/lib/titles-query';
 
 export async function GET(
   req: NextRequest,
@@ -20,13 +21,13 @@ export async function GET(
 
   const statusFilter = req.nextUrl.searchParams.get('status'); // 'pending' | 'verified' | 'rejected' | null (all)
 
-  const conditions = [eq(titles.classId, params.classId), eq(titles.slotId, params.slotId)];
-  if (statusFilter) conditions.push(eq(titles.status, statusFilter));
-
-  const rows = await db
-    .select()
-    .from(titles)
-    .where(and(...conditions));
+  const rows = await selectTitles(
+    titleConditions([
+      eq(titles.classId, params.classId),
+      eq(titles.slotId, params.slotId),
+      statusFilter ? eq(titles.status, statusFilter) : undefined,
+    ])
+  );
 
   const withMembers = await Promise.all(
     rows.map(async (t) => {

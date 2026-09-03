@@ -4,24 +4,26 @@
 
 @layer base {
   :root {
-    --background: 40 33% 97%;
-    --foreground: 220 14% 9%;
-    --card: 0 0% 100%;
-    --card-foreground: 220 14% 9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 220 14% 9%;
-    --primary: 228 97% 61%;
+    --background: 44 87% 94%;
+    --foreground: 18 13% 15%;
+    --card: 44 65% 89%;
+    --card-foreground: 18 13% 15%;
+    --popover: 44 70% 92%;
+    --popover-foreground: 18 13% 15%;
+    --primary: 13 68% 63%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 220 14% 96%;
-    --secondary-foreground: 220 14% 9%;
-    --muted: 220 14% 96%;
-    --muted-foreground: 220 9% 46%;
-    --destructive: 0 72% 42%;
+    --secondary: 40 45% 90%;
+    --secondary-foreground: 18 13% 15%;
+    --muted: 35 20% 88%;
+    --muted-foreground: 20 8% 40%;
+    --destructive: 8 62% 46%;
     --destructive-foreground: 0 0% 100%;
-    --border: 220 13% 91%;
-    --input: 220 13% 91%;
-    --ring: 228 97% 61%;
-    --radius: 0.75rem;
+    --border: 35 29% 76%;
+    --input: 35 29% 76%;
+    --ring: 13 68% 55%;
+    --ok: 151 24% 42%;
+    --warn: 37 70% 42%;
+    --radius: 1rem;
   }
 
   * {
@@ -34,22 +36,22 @@
 }
 
 .btn {
-  @apply inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed;
+  @apply inline-flex items-center justify-center rounded-xl px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed;
 }
 .btn-primary {
   @apply btn bg-accent text-white hover:bg-accent/90;
 }
 .btn-secondary {
-  @apply btn bg-white border border-line text-ink hover:bg-gray-50;
+  @apply btn bg-card border border-line text-ink hover:bg-secondary;
 }
 .btn-danger {
   @apply btn bg-danger text-white hover:bg-danger/90;
 }
 .card {
-  @apply bg-white border border-line rounded-lg p-5;
+  @apply bg-card border border-line rounded-xl p-5;
 }
 .input {
-  @apply w-full rounded-md border border-line px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/40;
+  @apply w-full rounded-xl border border-line bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/40;
 }
 .label {
   @apply block text-xs font-medium text-muted mb-1;

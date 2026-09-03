@@ -4,6 +4,7 @@ import { groups, studentGroupSlots, titles } from '@/lib/schema';
 import { and, eq, ilike } from 'drizzle-orm';
 import { getStudentSession } from '@/lib/auth';
 import { assertSlotInClass, jsonError } from '@/lib/helpers';
+import { selectTitles } from '@/lib/titles-query';
 
 // GET: titles belonging to the student's group for a slot
 export async function GET(req: NextRequest) {
@@ -20,7 +21,7 @@ export async function GET(req: NextRequest) {
     .limit(1);
   if (!membership) return NextResponse.json({ titles: [] });
 
-  const rows = await db.select().from(titles).where(eq(titles.groupId, membership.groupId));
+  const rows = await selectTitles(eq(titles.groupId, membership.groupId));
   return NextResponse.json({ titles: rows });
 }
 

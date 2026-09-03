@@ -45,6 +45,7 @@ export async function POST(req: NextRequest, { params }: { params: { classId: st
       requireDeploymentUrl: !!body?.requireDeploymentUrl,
       requireTechStack: body?.requireTechStack ?? true,
       requireTargetUsers: !!body?.requireTargetUsers,
+      locked: !!body?.locked,
     })
     .returning();
 

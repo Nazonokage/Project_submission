@@ -12,6 +12,8 @@ export type LeaveRequest = {
   createdAt: string;
 };
 
+export type ProgressStatus = 'planning' | 'in_progress' | 'review' | 'done';
+
 export type ProjectTitle = {
   id: string;
   text: string;
@@ -22,6 +24,7 @@ export type ProjectTitle = {
   repoUrl: string | null;
   deploymentUrl: string | null;
   rejectionReason?: string | null;
+  progressStatus?: ProgressStatus | string | null;
 };
 
 export type SlotInfo = {

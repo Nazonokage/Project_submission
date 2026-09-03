@@ -19,7 +19,9 @@ import {
 } from '@/components/ui/dialog';
 import { StatusBadge } from './status-badge';
 import { TechStackInput } from './tech-stack-input';
+import { ProgressSelect } from './progress-select';
 import type { ProjectTitle } from './types';
+import type { ProgressStatus } from '@/lib/progress';
 
 export function TitleCard({
   title,
@@ -34,12 +36,32 @@ export function TitleCard({
 }) {
   const [editOpen, setEditOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [progressBusy, setProgressBusy] = useState(false);
   const [text, setText] = useState(title.text);
   const [description, setDescription] = useState(title.description);
   const [techStack, setTechStack] = useState(title.techStack || []);
   const [targetUsers, setTargetUsers] = useState(title.targetUsers || '');
   const [repoUrl, setRepoUrl] = useState(title.repoUrl || '');
   const [deploymentUrl, setDeploymentUrl] = useState(title.deploymentUrl || '');
+
+  async function saveProgress(next: ProgressStatus) {
+    setProgressBusy(true);
+    try {
+      const res = await fetch(`/api/student/titles/${title.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ progressStatus: next }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not update progress');
+      toast.success('Progress updated');
+      onUpdated?.();
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Could not update progress');
+    } finally {
+      setProgressBusy(false);
+    }
+  }
 
   async function saveEdit() {
     setSaving(true);
@@ -89,6 +111,11 @@ export function TitleCard({
           <p className="font-medium leading-snug">{title.text}</p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
+          <ProgressSelect
+            value={title.progressStatus}
+            disabled={progressBusy}
+            onChange={saveProgress}
+          />
           <StatusBadge kind="title" status={title.status} />
           {editable && (
             <Button type="button" variant="ghost" size="icon" onClick={() => setEditOpen(true)}>

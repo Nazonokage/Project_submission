@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { titles, groups, students, studentGroupSlots } from '@/lib/schema';
-import { and, eq, or, ilike, sql } from 'drizzle-orm';
+import { titles, students, studentGroupSlots } from '@/lib/schema';
+import { eq, or, ilike, sql } from 'drizzle-orm';
 import { getStudentSession } from '@/lib/auth';
 import { jsonError } from '@/lib/helpers';
+import { selectTitles, titleConditions } from '@/lib/titles-query';
 
 // GET verified titles for a slot within the student's own class, with optional search
 export async function GET(req: NextRequest) {
@@ -31,10 +32,7 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  const rows = await db
-    .select()
-    .from(titles)
-    .where(and(...conditions));
+  const rows = await selectTitles(titleConditions(conditions));
 
   // Attach group member names for display
   const withMembers = await Promise.all(
