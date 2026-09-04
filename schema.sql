@@ -15,6 +15,22 @@ CREATE TABLE "classes" (
 	"term" text NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
+CREATE TABLE "feedback" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+	"class_id" uuid NOT NULL,
+	"slot_id" uuid,
+	"title_id" uuid,
+	"report_id" uuid,
+	"group_id" uuid,
+	"given_by_prof_id" uuid NOT NULL,
+	"type" text NOT NULL,
+	"body" text NOT NULL,
+	"status" text DEFAULT 'open' NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "feedback_status_check" CHECK ((status = ANY (ARRAY['open'::text, 'resolved'::text]))),
+	CONSTRAINT "feedback_type_check" CHECK ((type = ANY (ARRAY['comment'::text, 'request_changes'::text, 'approval'::text])))
+);
 CREATE TABLE "group_invites" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
 	"group_id" uuid NOT NULL,
@@ -95,6 +111,12 @@ CREATE TABLE "project_updates" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "project_updates_kind_check" CHECK ((kind = ANY (ARRAY['progress'::text, 'commit'::text, 'milestone'::text, 'note'::text])))
 );
+CREATE TABLE "rate_limits" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+	"key" text NOT NULL,
+	"action" text NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
 CREATE TABLE "student_group_slots" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
 	"student_id" uuid NOT NULL,
@@ -112,6 +134,23 @@ CREATE TABLE "students" (
 	"is_active" boolean DEFAULT true NOT NULL,
 	"last_login_at" timestamp with time zone,
 	CONSTRAINT "students_class_id_id_number_key" UNIQUE("class_id","id_number")
+);
+CREATE TABLE "title_reports" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+	"title_id" uuid NOT NULL,
+	"group_id" uuid NOT NULL,
+	"class_id" uuid NOT NULL,
+	"slot_id" uuid NOT NULL,
+	"submitted_by_student_id" uuid,
+	"repo_url" text,
+	"deployment_url" text,
+	"version" text,
+	"changelog" text,
+	"progress_summary" text,
+	"extra_links" text[],
+	"is_editable" boolean DEFAULT true NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 CREATE TABLE "titles" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -138,6 +177,7 @@ CREATE TABLE "titles" (
 	"last_commit_sha" text,
 	"last_commit_message" text,
 	"last_commit_at" timestamp with time zone,
+	"deleted_at" timestamp with time zone,
 	CONSTRAINT "titles_added_by_check" CHECK ((added_by = ANY (ARRAY['student'::text, 'prof'::text]))),
 	CONSTRAINT "titles_progress_status_check" CHECK ((progress_status = ANY (ARRAY['planning'::text, 'in_progress'::text, 'review'::text, 'done'::text]))),
 	CONSTRAINT "titles_status_check" CHECK ((status = ANY (ARRAY['pending'::text, 'verified'::text, 'rejected'::text])))
@@ -240,6 +280,10 @@ CREATE UNIQUE INDEX "activity_log_pkey" ON "activity_log" ("id");
 CREATE INDEX "idx_activity_class" ON "activity_log" ("class_id","created_at");
 CREATE UNIQUE INDEX "classes_pkey" ON "classes" ("id");
 CREATE INDEX "idx_classes_prof_id" ON "classes" ("prof_id");
+CREATE UNIQUE INDEX "feedback_pkey" ON "feedback" ("id");
+CREATE INDEX "idx_feedback_class" ON "feedback" ("class_id","created_at");
+CREATE INDEX "idx_feedback_group" ON "feedback" ("group_id","created_at");
+CREATE INDEX "idx_feedback_title" ON "feedback" ("title_id","created_at");
 CREATE UNIQUE INDEX "group_invites_pkey" ON "group_invites" ("id");
 CREATE INDEX "idx_invites_invited_student" ON "group_invites" ("invited_student_id","slot_id");
 CREATE UNIQUE INDEX "group_leave_requests_pkey" ON "group_leave_requests" ("id");
@@ -248,6 +292,7 @@ CREATE UNIQUE INDEX "idx_leave_requests_one_pending" ON "group_leave_requests" (
 CREATE UNIQUE INDEX "groups_pkey" ON "groups" ("id");
 CREATE INDEX "idx_groups_class_slot" ON "groups" ("class_id","slot_id");
 CREATE INDEX "idx_otps_email" ON "professor_otps" ("email");
+CREATE INDEX "idx_otps_email_created" ON "professor_otps" ("email","created_at");
 CREATE INDEX "idx_otps_expires_at" ON "professor_otps" ("expires_at");
 CREATE UNIQUE INDEX "professor_otps_pkey" ON "professor_otps" ("id");
 CREATE UNIQUE INDEX "professors_email_key" ON "professors" ("email");
@@ -257,12 +302,19 @@ CREATE UNIQUE INDEX "project_slots_pkey" ON "project_slots" ("id");
 CREATE INDEX "idx_project_updates_class" ON "project_updates" ("class_id","created_at");
 CREATE INDEX "idx_project_updates_title" ON "project_updates" ("title_id","created_at");
 CREATE UNIQUE INDEX "project_updates_pkey" ON "project_updates" ("id");
+CREATE INDEX "idx_rate_limits_key_created" ON "rate_limits" ("key","created_at");
+CREATE UNIQUE INDEX "rate_limits_pkey" ON "rate_limits" ("id");
 CREATE INDEX "idx_sgs_student_slot" ON "student_group_slots" ("student_id","slot_id");
 CREATE UNIQUE INDEX "student_group_slots_pkey" ON "student_group_slots" ("id");
 CREATE UNIQUE INDEX "student_group_slots_student_id_slot_id_key" ON "student_group_slots" ("student_id","slot_id");
 CREATE INDEX "idx_students_class_id" ON "students" ("class_id");
 CREATE UNIQUE INDEX "students_class_id_id_number_key" ON "students" ("class_id","id_number");
 CREATE UNIQUE INDEX "students_pkey" ON "students" ("id");
+CREATE INDEX "idx_title_reports_class_slot" ON "title_reports" ("class_id","slot_id");
+CREATE INDEX "idx_title_reports_group" ON "title_reports" ("group_id");
+CREATE INDEX "idx_title_reports_title" ON "title_reports" ("title_id","created_at");
+CREATE UNIQUE INDEX "title_reports_pkey" ON "title_reports" ("id");
+CREATE INDEX "idx_titles_deleted_at" ON "titles" ("deleted_at");
 CREATE INDEX "idx_titles_group_slot" ON "titles" ("group_id","slot_id");
 CREATE INDEX "idx_titles_status" ON "titles" ("class_id","slot_id","status");
 CREATE UNIQUE INDEX "titles_pkey" ON "titles" ("id");
@@ -289,6 +341,12 @@ CREATE INDEX "verification_identifier_idx" ON "neon_auth"."verification" ("ident
 CREATE UNIQUE INDEX "verification_pkey" ON "neon_auth"."verification" ("id");
 ALTER TABLE "activity_log" ADD CONSTRAINT "activity_log_class_id_fkey" FOREIGN KEY ("class_id") REFERENCES "classes"("id") ON DELETE SET NULL;
 ALTER TABLE "classes" ADD CONSTRAINT "classes_prof_id_fkey" FOREIGN KEY ("prof_id") REFERENCES "professors"("id") ON DELETE CASCADE;
+ALTER TABLE "feedback" ADD CONSTRAINT "feedback_class_id_fkey" FOREIGN KEY ("class_id") REFERENCES "classes"("id") ON DELETE CASCADE;
+ALTER TABLE "feedback" ADD CONSTRAINT "feedback_given_by_prof_id_fkey" FOREIGN KEY ("given_by_prof_id") REFERENCES "professors"("id") ON DELETE CASCADE;
+ALTER TABLE "feedback" ADD CONSTRAINT "feedback_group_id_fkey" FOREIGN KEY ("group_id") REFERENCES "groups"("id") ON DELETE CASCADE;
+ALTER TABLE "feedback" ADD CONSTRAINT "feedback_report_id_fkey" FOREIGN KEY ("report_id") REFERENCES "title_reports"("id") ON DELETE SET NULL;
+ALTER TABLE "feedback" ADD CONSTRAINT "feedback_slot_id_fkey" FOREIGN KEY ("slot_id") REFERENCES "project_slots"("id") ON DELETE CASCADE;
+ALTER TABLE "feedback" ADD CONSTRAINT "feedback_title_id_fkey" FOREIGN KEY ("title_id") REFERENCES "titles"("id") ON DELETE CASCADE;
 ALTER TABLE "group_invites" ADD CONSTRAINT "group_invites_class_id_fkey" FOREIGN KEY ("class_id") REFERENCES "classes"("id") ON DELETE CASCADE;
 ALTER TABLE "group_invites" ADD CONSTRAINT "group_invites_group_id_fkey" FOREIGN KEY ("group_id") REFERENCES "groups"("id") ON DELETE CASCADE;
 ALTER TABLE "group_invites" ADD CONSTRAINT "group_invites_invited_by_student_id_fkey" FOREIGN KEY ("invited_by_student_id") REFERENCES "students"("id") ON DELETE CASCADE;
@@ -312,6 +370,11 @@ ALTER TABLE "student_group_slots" ADD CONSTRAINT "student_group_slots_group_id_f
 ALTER TABLE "student_group_slots" ADD CONSTRAINT "student_group_slots_slot_id_fkey" FOREIGN KEY ("slot_id") REFERENCES "project_slots"("id") ON DELETE CASCADE;
 ALTER TABLE "student_group_slots" ADD CONSTRAINT "student_group_slots_student_id_fkey" FOREIGN KEY ("student_id") REFERENCES "students"("id") ON DELETE CASCADE;
 ALTER TABLE "students" ADD CONSTRAINT "students_class_id_fkey" FOREIGN KEY ("class_id") REFERENCES "classes"("id") ON DELETE CASCADE;
+ALTER TABLE "title_reports" ADD CONSTRAINT "title_reports_class_id_fkey" FOREIGN KEY ("class_id") REFERENCES "classes"("id") ON DELETE CASCADE;
+ALTER TABLE "title_reports" ADD CONSTRAINT "title_reports_group_id_fkey" FOREIGN KEY ("group_id") REFERENCES "groups"("id") ON DELETE CASCADE;
+ALTER TABLE "title_reports" ADD CONSTRAINT "title_reports_slot_id_fkey" FOREIGN KEY ("slot_id") REFERENCES "project_slots"("id") ON DELETE CASCADE;
+ALTER TABLE "title_reports" ADD CONSTRAINT "title_reports_submitted_by_student_id_fkey" FOREIGN KEY ("submitted_by_student_id") REFERENCES "students"("id") ON DELETE SET NULL;
+ALTER TABLE "title_reports" ADD CONSTRAINT "title_reports_title_id_fkey" FOREIGN KEY ("title_id") REFERENCES "titles"("id") ON DELETE CASCADE;
 ALTER TABLE "titles" ADD CONSTRAINT "titles_added_by_prof_id_fkey" FOREIGN KEY ("added_by_prof_id") REFERENCES "professors"("id") ON DELETE SET NULL;
 ALTER TABLE "titles" ADD CONSTRAINT "titles_class_id_fkey" FOREIGN KEY ("class_id") REFERENCES "classes"("id") ON DELETE CASCADE;
 ALTER TABLE "titles" ADD CONSTRAINT "titles_group_id_fkey" FOREIGN KEY ("group_id") REFERENCES "groups"("id") ON DELETE CASCADE;

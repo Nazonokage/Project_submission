@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import { professorOtps } from '@/lib/schema';
 import { generateOtp, jsonError } from '@/lib/helpers';
 import { sendOtpEmail } from '@/lib/mailer';
+import { assertOtpRateLimit } from '@/lib/rate-limit';
 
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
@@ -11,6 +12,9 @@ export async function POST(req: NextRequest) {
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return jsonError('A valid email is required', 422);
   }
+
+  const limited = await assertOtpRateLimit(email);
+  if (limited) return limited;
 
   const otp = generateOtp();
 

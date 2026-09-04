@@ -4,6 +4,7 @@ import { groups, studentGroupSlots, titles } from '@/lib/schema';
 import { and, eq, ilike } from 'drizzle-orm';
 import { getStudentSession } from '@/lib/auth';
 import { assertSlotInClass, jsonError } from '@/lib/helpers';
+import { assertActionRateLimit } from '@/lib/rate-limit';
 import { selectTitles } from '@/lib/titles-query';
 
 // GET: titles belonging to the student's group for a slot
@@ -44,6 +45,14 @@ export async function POST(req: NextRequest) {
   const slot = await assertSlotInClass(slotId, session.classId);
   if (!slot) return jsonError('Slot not found', 404);
   if (slot.locked) return jsonError('This project slot is locked', 409);
+
+  const limited = await assertActionRateLimit({
+    key: `student:${session.studentId}`,
+    action: 'title_submit',
+    max: 8,
+    message: 'Too many title submissions. Wait a few minutes and try again.',
+  });
+  if (limited) return limited;
 
   const [membership] = await db
     .select({ membership: studentGroupSlots, group: groups })

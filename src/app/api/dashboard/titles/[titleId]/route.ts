@@ -150,6 +150,14 @@ export async function DELETE(_req: NextRequest, { params }: { params: { titleId:
     console.error('Could not write activity log', err);
   }
 
-  await db.delete(titles).where(eq(titles.id, title.id));
+  try {
+    await db.update(titles).set({ deletedAt: new Date(), updatedAt: new Date() }).where(eq(titles.id, title.id));
+  } catch (err) {
+    if (isUndefinedColumn(err)) {
+      await db.delete(titles).where(eq(titles.id, title.id));
+    } else {
+      throw err;
+    }
+  }
   return NextResponse.json({ ok: true });
 }

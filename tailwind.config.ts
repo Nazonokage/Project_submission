@@ -6,20 +6,20 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        ink: '#2C2522',
-        paper: '#FDF6E3',
+        ink: 'hsl(var(--foreground))',
+        paper: 'hsl(var(--background))',
         accent: {
           DEFAULT: '#E07A5F',
           foreground: '#ffffff',
         },
         muted: {
-          DEFAULT: '#6b5f57',
+          DEFAULT: 'hsl(var(--muted-foreground))',
           foreground: 'hsl(var(--muted-foreground))',
         },
-        line: '#D4C5B0',
-        warn: '#8a6a2a',
-        danger: '#b85c4a',
-        ok: '#5e8a74',
+        line: 'hsl(var(--border))',
+        warn: 'hsl(var(--warn))',
+        danger: 'hsl(var(--destructive))',
+        ok: 'hsl(var(--ok))',
         sage: '#81B29A',
         sand: '#F2CC8F',
         border: 'hsl(var(--border))',

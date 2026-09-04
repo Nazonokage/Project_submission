@@ -218,6 +218,70 @@ export const titles = pgTable('titles', {
   updatedByStudentId: uuid('updated_by_student_id').references(() => students.id, {
     onDelete: 'set null',
   }),
+  deletedAt: timestamp('deleted_at', { withTimezone: true }),
+});
+
+// ============================================================
+// TITLE REPORTS  (version reports after a title is verified)
+// ============================================================
+export const titleReports = pgTable('title_reports', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  titleId: uuid('title_id')
+    .notNull()
+    .references(() => titles.id, { onDelete: 'cascade' }),
+  groupId: uuid('group_id')
+    .notNull()
+    .references(() => groups.id, { onDelete: 'cascade' }),
+  classId: uuid('class_id')
+    .notNull()
+    .references(() => classes.id, { onDelete: 'cascade' }),
+  slotId: uuid('slot_id')
+    .notNull()
+    .references(() => projectSlots.id, { onDelete: 'cascade' }),
+  submittedByStudentId: uuid('submitted_by_student_id').references(() => students.id, {
+    onDelete: 'set null',
+  }),
+  repoUrl: text('repo_url'),
+  deploymentUrl: text('deployment_url'),
+  version: text('version'),
+  changelog: text('changelog'),
+  progressSummary: text('progress_summary'),
+  extraLinks: text('extra_links').array(),
+  isEditable: boolean('is_editable').notNull().default(true),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+// ============================================================
+// FEEDBACK  (professor / PM comments on titles and reports)
+// ============================================================
+export const feedback = pgTable('feedback', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  classId: uuid('class_id')
+    .notNull()
+    .references(() => classes.id, { onDelete: 'cascade' }),
+  slotId: uuid('slot_id').references(() => projectSlots.id, { onDelete: 'cascade' }),
+  titleId: uuid('title_id').references(() => titles.id, { onDelete: 'cascade' }),
+  reportId: uuid('report_id').references(() => titleReports.id, { onDelete: 'set null' }),
+  groupId: uuid('group_id').references(() => groups.id, { onDelete: 'cascade' }),
+  givenByProfId: uuid('given_by_prof_id')
+    .notNull()
+    .references(() => professors.id, { onDelete: 'cascade' }),
+  type: text('type').notNull(), // comment | request_changes | approval
+  body: text('body').notNull(),
+  status: text('status').notNull().default('open'), // open | resolved
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+// ============================================================
+// RATE LIMITS
+// ============================================================
+export const rateLimits = pgTable('rate_limits', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  key: text('key').notNull(),
+  action: text('action').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
 // ============================================================

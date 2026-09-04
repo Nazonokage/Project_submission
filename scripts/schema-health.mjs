@@ -35,7 +35,7 @@ const expectedColumns = [
   'last_commit_message',
   'last_commit_at',
 ];
-const expectedTables = ['group_leave_requests', 'project_updates'];
+const expectedTables = ['group_leave_requests', 'project_updates', 'feedback', 'rate_limits', 'title_reports'];
 
 const cols = await sql`
   SELECT column_name

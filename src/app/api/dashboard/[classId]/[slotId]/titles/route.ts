@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { titles, students, studentGroupSlots } from '@/lib/schema';
-import { eq } from 'drizzle-orm';
+import { titles, students, studentGroupSlots, titleReports } from '@/lib/schema';
+import { desc, eq, inArray } from 'drizzle-orm';
 import { getProfSession } from '@/lib/auth';
 import { assertClassOwnedByProf, assertSlotInClass, jsonError } from '@/lib/helpers';
+import { isSchemaDrift } from '@/lib/pg-errors';
 import { selectTitles, titleConditions } from '@/lib/titles-query';
 
 export async function GET(
@@ -40,5 +41,32 @@ export async function GET(
     })
   );
 
-  return NextResponse.json({ titles: withMembers });
+  const latestByTitle = new Map<string, { version: string | null; progressSummary: string | null; createdAt: Date }>();
+  try {
+    const ids = withMembers.map((t) => t.id);
+    if (ids.length > 0) {
+      const reports = await db
+        .select({
+          titleId: titleReports.titleId,
+          version: titleReports.version,
+          progressSummary: titleReports.progressSummary,
+          createdAt: titleReports.createdAt,
+        })
+        .from(titleReports)
+        .where(inArray(titleReports.titleId, ids))
+        .orderBy(desc(titleReports.createdAt));
+      for (const r of reports) {
+        if (!latestByTitle.has(r.titleId)) latestByTitle.set(r.titleId, r);
+      }
+    }
+  } catch (err) {
+    if (!isSchemaDrift(err)) throw err;
+  }
+
+  return NextResponse.json({
+    titles: withMembers.map((t) => ({
+      ...t,
+      latestReport: latestByTitle.get(t.id) || null,
+    })),
+  });
 }

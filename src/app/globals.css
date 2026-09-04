@@ -24,6 +24,30 @@
     --ok: 151 24% 42%;
     --warn: 37 70% 42%;
     --radius: 1rem;
+    --paper-noise: rgba(80, 50, 20, 0.04);
+  }
+
+  .dark {
+    --background: 20 14% 10%;
+    --foreground: 40 24% 92%;
+    --card: 22 12% 14%;
+    --card-foreground: 40 24% 92%;
+    --popover: 22 12% 16%;
+    --popover-foreground: 40 24% 92%;
+    --primary: 13 62% 58%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 22 10% 18%;
+    --secondary-foreground: 40 20% 88%;
+    --muted: 22 8% 18%;
+    --muted-foreground: 32 12% 68%;
+    --destructive: 8 55% 48%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 28 12% 26%;
+    --input: 28 12% 26%;
+    --ring: 13 62% 55%;
+    --ok: 151 22% 55%;
+    --warn: 37 60% 58%;
+    --paper-noise: rgba(255, 230, 180, 0.03);
   }
 
   * {
@@ -32,6 +56,40 @@
 
   body {
     @apply bg-background text-foreground min-h-screen font-sans antialiased;
+    background-image:
+      radial-gradient(var(--paper-noise) 0.6px, transparent 0.6px),
+      linear-gradient(180deg, hsl(var(--background)), hsl(var(--background)));
+    background-size: 3px 3px, auto;
+  }
+
+  input[type='checkbox'] {
+    appearance: none;
+    width: 1.05rem;
+    height: 1.05rem;
+    border: 2px solid hsl(var(--border));
+    border-radius: 4px;
+    background: hsl(var(--card));
+    box-shadow: 1px 1px 0 hsl(var(--border));
+    display: inline-block;
+    vertical-align: middle;
+    position: relative;
+  }
+
+  input[type='checkbox']:checked {
+    background: hsl(var(--primary));
+    border-color: hsl(var(--primary));
+  }
+
+  input[type='checkbox']:checked::after {
+    content: '';
+    position: absolute;
+    left: 4px;
+    top: 0px;
+    width: 5px;
+    height: 9px;
+    border: solid white;
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
   }
 }
 
@@ -49,6 +107,7 @@
 }
 .card {
   @apply bg-card border border-line rounded-xl p-5;
+  box-shadow: 2px 3px 0 hsl(var(--border) / 0.55);
 }
 .input {
   @apply w-full rounded-xl border border-line bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent/40;
@@ -58,4 +117,10 @@
 }
 .badge {
   @apply inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium;
+}
+
+.doodle-border {
+  border: 2px solid hsl(var(--border));
+  border-radius: 18px 14px 20px 12px;
+  box-shadow: 3px 4px 0 hsl(var(--border) / 0.45);
 }

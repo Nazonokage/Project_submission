@@ -1,4 +1,4 @@
-import { and, type SQL } from 'drizzle-orm';
+import { and, isNull, type SQL } from 'drizzle-orm';
 import { db } from './db';
 import { titles } from './schema';
 import { isUndefinedColumn } from './pg-errors';
@@ -36,26 +36,24 @@ function withProgressDefaults<T extends Record<string, unknown>>(row: T) {
   };
 }
 
+function withNotDeleted(conditions: SQL | undefined) {
+  return conditions ? and(conditions, isNull(titles.deletedAt)) : isNull(titles.deletedAt);
+}
+
 export async function selectTitles(conditions: SQL | undefined) {
   try {
-    return await db
-      .select()
-      .from(titles)
-      .where(conditions);
+    return await db.select().from(titles).where(withNotDeleted(conditions));
   } catch (err) {
     if (!isUndefinedColumn(err)) throw err;
     console.warn('titles PM columns missing; using core columns only. Run add_pm_schema.sql on Neon.');
-    const rows = await db
-      .select(TITLE_CORE_COLUMNS)
-      .from(titles)
-      .where(conditions);
+    const rows = await db.select(TITLE_CORE_COLUMNS).from(titles).where(conditions);
     return rows.map((row) => withProgressDefaults(row));
   }
 }
 
 export async function selectTitleBy(conditions: SQL) {
   try {
-    const [row] = await db.select().from(titles).where(conditions).limit(1);
+    const [row] = await db.select().from(titles).where(withNotDeleted(conditions)).limit(1);
     return row ?? null;
   } catch (err) {
     if (!isUndefinedColumn(err)) throw err;

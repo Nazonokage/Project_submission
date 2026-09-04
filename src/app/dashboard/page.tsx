@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { defaultAcademicTerm, termPresets } from '@/lib/term';
+import { ThemeToggle } from '@/components/theme-toggle';
 
 type ClassRow = { id: string; name: string; term: string; createdAt: string };
 
@@ -67,6 +68,7 @@ export default function DashboardPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">Your classes</h1>
         <div className="flex gap-2">
+          <ThemeToggle />
           <button className="btn-primary" onClick={openForm}>
             New class
           </button>

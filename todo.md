@@ -1,176 +1,94 @@
 # Project-Submissions — TODO
 
-Last updated: 2026-09-03
+**Current Version: v1.4 feature audit**  
+**Next Target: v1.5**  
+Last updated: 2026-09-04
 
 ---
 
-## Legend
-- [ ] Pending
-- [x] Done
-- [~] In progress / partially done
-- 🔥 High priority
-- 🟡 Medium
-- 🟢 Low / Nice-to-have
+## Audit summary
+- The project has already shipped several v1.4-era features in the codebase.
+- The old checklist was stale and did not reflect the current state of the app.
+- Verified with a fresh build: `npm run build` completed successfully.
+
+## Implemented in the current codebase
+
+- [x] OTP rate limiting (max 5 per email in 15 minutes)
+- [x] Action rate limiting for title/report submissions via `rate_limits`
+- [x] Dark mode + persisted theme preference (`localStorage`)
+- [x] Professor class page defaulting to the Board tab
+- [x] Student click-through from roster to Board with group highlight
+- [x] CSV export for class slot data
+- [x] Professor / PM feedback system (`feedback` table + APIs + UI)
+- [x] Version reports / progress reports (`title_reports`)
+- [x] Report locking and edit controls (`is_editable`)
+- [x] Professor title management (edit/delete/progress/verify)
+- [x] Schema additions for feedback, rate limiting, title reports, and project updates
 
 ---
 
-## 1. Database & Schema Stability 🔥
+## Still pending / not fully applied
 
-- [x] Base schema (`schema.sql`) exists
-- [x] Run `add_pm_schema.sql` on Neon
-  - [x] Confirm these exist: `progress_status`, `last_commit_sha`, `last_commit_message`, `last_commit_at`
-  - [x] Confirm tables exist: `group_leave_requests`, `project_updates`
-  - [x] Verify no more `42703` or `42P01` errors
-- [ ] Decide long-term approach:
-  - Option A: Keep using raw SQL migration files
-  - Option B: Fully switch to Drizzle (`db:generate` + `db:push`)
-- [x] Schema health-check script (`npm run db:health`)
+### High priority
+- [ ] Convert the student “Submit Title” flow into a modal instead of a full tab
+- [ ] Make the student verified view the default tab in the slot dashboard
+- [ ] Finish the full board-driven reports workflow (post from board, show summary on cards)
+- [ ] Polish the notebook / doodle design pass beyond the current paper theme
+- [ ] Confirm the long-term migration strategy: raw SQL vs full Drizzle migrations
+- [ ] Finish any remaining report-editing/locking edge cases for the student workflow
 
----
-
-## 2. Critical Bug Fixes 🔥
-
-- [x] Titles list endpoint no longer returns 500
-- [x] Leave requests load without errors
-- [x] Friendly warning in UI if leave-requests table is missing
-
----
-
-## 3. UX Improvements
-
-### 3.1 Term Auto-fill
-- [x] Auto-fill term when creating a class
-- [x] Manual edit + common presets still available
-
-### 3.2 Student Login Experience
-- [x] Searchable combobox (name or ID number)
-- [x] Auto-fill ID Number + focus password
-- [x] Optional quick-pick / recently used list
-
-### 3.3 Professor Project Rule Configuration
-- [x] Clean settings panel per project slot
-- [x] Class-level default rules that new slots inherit
-
----
-
-## 4. Doodle Theme 🎨
-
-- [x] Apply new color palette
-- [x] Update `globals.css` + `tailwind.config.ts`
-- [x] Softer borders + larger border-radius
-- [ ] Optional later: subtle paper texture
-
----
-
-## 5. Project Management Features
-
-### 5.1 Progress Status
-- [x] Show `progress_status` in UI
-- [x] Students + professors can update status
-- [x] Log changes in activity / project_updates
-
-### 5.2 Leave Requests
-- [x] Student can request to leave a group
-- [x] Professor can approve / decline
-- [x] Pending list on class dashboard
-
-### 5.3 Project Updates / Reports
-- [x] Basic progress notes on status change
-- [ ] **Student Reports (after verification)** 🔥
-  - Students can submit structured reports once title is verified
-  - Fields ideas (inspired by your spreadsheet):
-    - GitHub / Repo URL
-    - Deployment / Live URL
-    - Version / Changelog notes
-    - Progress summary / what was done
-    - Screenshots or extra links (optional)
-  - Students can edit their own reports (if professor allows it)
-- [ ] Professor can view all reports cleanly
-
----
-
-## 6. Professor Title Controls 🔥
-
-- [x] Professor can **edit** any title (text, description, tech stack, target users, status, progress, etc.)
-- [x] Professor can **delete** a title (with confirmation)
-- [x] Optional: soft-delete vs hard-delete decision
-  - Hard-delete for now (cascade progress notes). Soft-delete can wait until archive exists.
-- [x] Log edit/delete actions in activity_log
-
----
-
-## 7. Export System (Spreadsheet-inspired) 🔥
-
-Goal: Let professors export something useful like the Activities.xlsx you showed, but adapted for **groups**.
-
-- [ ] Export options on class / slot level:
-  - CSV / Excel download
-  - Columns ideas (group-aware):
-    - Group Name / Group ID
-    - Member names + Student IDs
-    - Title
-    - Status (pending / verified / rejected)
-    - Progress Status
-    - Repo URL
-    - Deployment URL
-    - Latest Report / Version notes
-    - Submitted At / Last Updated
-    - Verified At
-- [ ] Support both:
-  - Flat list (one row per title)
-  - Grouped view (one row per group with members listed)
-- [ ] Filter before export (by slot, status, progress, etc.)
-- [ ] Nice filename: `ClassName_SlotLabel_YYYY-MM-DD.xlsx`
-
----
-
-## 8. Kanban Board
-
-- [x] Board view using `progress_status` (professor side)
-- [x] Cards show title + group members
-- [x] Status dropdown
-- [ ] Student board view
-- [ ] Drag-and-drop between columns
-
----
-
-## 9. Open Items from Original Plan
-
+### Medium / later
+- [ ] Student kanban drag-and-drop
+- [ ] GitHub commit tracking + ping flow
 - [ ] Fuzzy duplicate matching (`pg_trgm`)
-- [ ] Tech-stack autocomplete from previous titles
-- [ ] OTP cleanup (delete expired rows)
-- [ ] GitHub last-commit ping
-- [ ] Titles CSV export → expand into the fuller Export System above
+- [ ] Tech-stack autocomplete
+- [ ] Better loading/empty states across the app
+- [ ] Export polish and per-group/report filters
+- [ ] Mobile navigation / archive / activity feed improvements
 
 ---
 
-## 10. Polish & Nice-to-haves 🟢
+## Project status
 
-- [ ] Better empty states
-- [ ] Loading skeletons
-- [ ] Consistent toast notifications
-- [ ] Mobile responsiveness pass
-- [ ] Archive / soft-delete for old classes
-- [ ] Better activity log viewer
+### Done now
+- Professor auth + OTP flow
+- Student auth + group flow
+- Project slots + rules + locking
+- Title submission + duplicate checks
+- Verification queue + approve/reject
+- Reports and feedback system
+- Export and board navigation
+- Dark mode and persisted theme preference
 
----
-
-## Suggested Order of Work (Updated)
-
-1. ~~DB migration + stability~~ ✅
-2. ~~Core UX (login, term, rules, theme)~~ ✅
-3. ~~Progress + Leave Requests + basic Kanban~~ ✅
-4. ~~Professor title edit + delete~~ ✅
-5. **Student Reports system** (post-verification updates)
-6. **Export system** (spreadsheet-style, group-aware)
-7. Student Kanban view + drag-and-drop
-8. Remaining open items + polish
+### Still not complete from the original v1.4 plan
+- Submit Title modal
+- Verified-as-default student view
+- Full Kanban reporting UX
+- Final notebook aesthetic pass
+- Long-term migration cleanup
 
 ---
 
 ## Notes
 
-- Keep the “no real student accounts” philosophy.
-- Prefer simple and reliable solutions.
-- Every new feature should solve a clear professor or student pain point.
-- Schema health: `npm run db:health`
+- The project is in a stronger state than the old todo suggested.
+- The app is already building successfully; remaining work is mostly refinement and polish rather than core feature construction.
+- Keep the no-real-student-account model, simple DB logic, and professor-focused workflows.
+
+---
+
+## Old backlog kept for reference
+
+### GitHub Commits (v1.5)
+- [ ] Manual + automatic commit checks
+- [ ] Soft background ping on board open
+- [ ] Public repo fetch + save commit metadata
+- [ ] Show commit info on board cards
+
+### Other v1.5+ ideas
+- [ ] Student drag-and-drop kanban
+- [ ] Fuzzy duplicate matching
+- [ ] Tech-stack autocomplete
+- [ ] OTP cleanup job
+- [ ] Better skeletons, filters, and mobile behavior
+- [ ] Archive classes and threaded feedback

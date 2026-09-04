@@ -1,17 +1,25 @@
-## [1.3.0] - 2026-09-03
+## [1.4.0] - 2026-09-04
 
 ### Added
-- Professor can now **edit** any title (text, description, tech stack, target users, status, progress, etc.)
-- Professor can now **delete** titles (hard delete for now)
-- Activity log entries for title edits and deletions
-- Improved title management controls on the professor side
+- OTP rate limiting with a 5-attempt-per-15-minute cap
+- Action rate limiting for title and report submissions via `rate_limits`
+- Dark mode support with persistent theme storage in `localStorage`
+- Professor board-first class view with tab routing and student highlight navigation
+- Version reports / progress report flow for verified titles
+- Professor and PM feedback system for titles and reports
+- CSV export for class slot progress data
+- Improved title management controls for professor review and verification
 
 ### Changed
-- Title actions are now more complete for professors
-- Hard-delete is used temporarily (soft-delete planned for later when archive feature exists)
+- Updated the professor dashboard to use the Board tab as the default entry point
+- Added stronger reporting and feedback support across title review flows
+- Refreshed the project checklist to match the actual implemented state
 
-### Still Pending (for v1.4+)
-- Full Student Reports system (`title_reports` table)
-- Group-aware Export (CSV/Excel inspired by Activities spreadsheet)
-- Student Kanban view
-- Drag-and-drop on Kanban
+### Fixed
+- Clarified the project status by aligning the docs and task list with the working codebase
+
+### Still Pending
+- Convert the student title submission flow to a modal-based UX
+- Default the student verified tab to the first visible view
+- Final notebook-style visual polish
+- Future v1.5 ideas such as GitHub commit tracking and student drag-and-drop board improvements

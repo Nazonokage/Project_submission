@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { students } from '@/lib/schema';
+import { students, studentGroupSlots } from '@/lib/schema';
 import { eq, asc } from 'drizzle-orm';
 import { getProfSession } from '@/lib/auth';
 import { assertClassOwnedByProf, generatePassword, jsonError } from '@/lib/helpers';
@@ -18,7 +18,26 @@ export async function GET(_req: NextRequest, { params }: { params: { classId: st
     .where(eq(students.classId, params.classId))
     .orderBy(asc(students.name));
 
-  return NextResponse.json({ students: rows });
+  const memberships = await db
+    .select({
+      studentId: studentGroupSlots.studentId,
+      groupId: studentGroupSlots.groupId,
+      slotId: studentGroupSlots.slotId,
+    })
+    .from(studentGroupSlots)
+    .innerJoin(students, eq(students.id, studentGroupSlots.studentId))
+    .where(eq(students.classId, params.classId));
+
+  const byStudent = new Map<string, { groupId: string; slotId: string }[]>();
+  for (const m of memberships) {
+    const list = byStudent.get(m.studentId) || [];
+    list.push({ groupId: m.groupId, slotId: m.slotId });
+    byStudent.set(m.studentId, list);
+  }
+
+  return NextResponse.json({
+    students: rows.map((s) => ({ ...s, memberships: byStudent.get(s.id) || [] })),
+  });
 }
 
 export async function POST(req: NextRequest, { params }: { params: { classId: string } }) {

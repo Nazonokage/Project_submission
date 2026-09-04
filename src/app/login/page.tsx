@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { ThemeToggle } from '@/components/theme-toggle';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -31,6 +32,9 @@ export default function LoginPage() {
 
   return (
     <main className="min-h-screen flex items-center justify-center px-6">
+      <div className="absolute top-4 right-4">
+        <ThemeToggle />
+      </div>
       <form onSubmit={submit} className="card max-w-sm w-full space-y-4">
         <div>
           <h1 className="text-lg font-semibold">Professor login</h1>

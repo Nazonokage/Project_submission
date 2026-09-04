@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { ThemeToggle } from '@/components/theme-toggle';
 
 export function StudentHeader({
   title,
@@ -32,6 +33,7 @@ export function StudentHeader({
       </div>
       <div className="flex items-center gap-2">
         {actions}
+        <ThemeToggle />
         {onLogout && (
           <Button type="button" variant="outline" size="sm" onClick={onLogout}>
             <LogOut className="h-4 w-4" />
