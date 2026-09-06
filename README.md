@@ -62,23 +62,29 @@ npm run dev
   manual add, inline edit, CSV export
 - **Groups**: solo auto-assign on first visit to a solo slot; multi-member create +
   invite + accept/decline (accepting auto-declines other pending invites); auto-locks
-  when full; "students without a group" list
-- **Titles**: submission with live ILIKE duplicate check, strict/warn modes,
-  required-field enforcement per slot, editing (any group member, resets to
-  pending on edit), prof direct-add with optional auto-verify
-- **Verification**: prof queue filterable by status, approve/reject, activity log
-- **Repo tracking**: repo/deployment URL submission unlocked after verification
-- **Verified titles view**: searchable across title/description/tech stack/target users
-- **CSV export**: client-side via a Blob download (roster); titles export can be
-  added the same way if you want it wired into the verification queue too
+  when full; "students without a group" list; leave request flow with prof approval
+- **4-Tab Student Slot Dashboard (`/c/[classId]/[slotId]`)**:
+  - **`Titles` (Default)**: Class-wide verified titles list for browsing ideas and preventing duplicate work.
+  - **Smart default**: Defaults to `Titles` when exploring, auto-switches to `Submissions` once a title is verified.
+  - **`Submissions`**: Manage group title proposals. When 0 verified titles exist, the submit form is shown inline; once 1+ verified titles exist, the form turns into a modal dialog.
+  - **Full Title Editing**: Students can edit title text, description, tech stack, and target users for all titles (pending, rejected, and verified).
+  - **Progress Reports**: Inline on verified title cards (showing latest reports + expandable list + version report submission modal).
+  - **`Board`**: Kanban board (`Planning` · `In Progress` · `Review` · `Done`) for verified titles with multi-title dropdown selector.
+  - **Project Updates**: Activity feed inside the Board where group members can post, edit, and soft-delete progress updates, milestone entries, and notes.
+  - **`My Group`**: Group management, member list, invitations, and leave requests.
+- **Verification & Review**:
+  - Prof queue filterable by status, approve/reject with rejection reason feedback.
+  - Professor title review modal showing version reports, lock/unlock toggles, student project updates with deleted/edited flags, and feedback comments.
+- **Dark Mode & Theming**: Persisted dark mode preference across professor and student pages.
+- **CSV export**: Client-side roster and slot data exports.
 
-## What's not wired up yet (per "Open Decisions" in plan.md — your call)
+## What's not wired up yet (per "Open Decisions" in plan.md)
 
 - Fuzzy duplicate matching (`pg_trgm`) — currently plain `ILIKE`
 - Tech-stack autocomplete from previously-used class tags — currently free-text tags
 - OTP row cleanup (cron or on-login) — expired rows are just ignored by the `expires_at` check, not deleted
-- GitHub last-commit ping for `repo_last_checked`
-- Titles CSV export button (roster export is done; titles export is the same pattern)
+- GitHub commit tracking & background repo ping (`last_commit_sha`, `last_commit_at`)
+- Student drag-and-drop Kanban (currently uses column select dropdown)
 
 ## Folder structure
 
@@ -87,14 +93,22 @@ src/
 ├── app/
 │   ├── page.tsx                          landing
 │   ├── login/, login/verify/             prof OTP auth
-│   ├── dashboard/                        prof: classes, slots, roster, verification
-│   ├── c/[classId]/                      student: login, slot dashboard, verified list
-│   └── api/                              all routes (auth, classes, student, dashboard)
+│   ├── dashboard/                        prof: classes, slots, roster, board, verification
+│   ├── c/[classId]/                      student: login, slot dashboard (4 tabs), verified list
+│   └── api/                              all routes (auth, classes, student, dashboard, prof)
+│       ├── student/updates/              student update logs (GET, POST, PATCH, DELETE)
+│       ├── student/titles/[titleId]/     title CRUD, repo URLs, version reports
+│       └── prof/updates/                 professor update history view
+├── components/
+│   ├── dashboard/                        prof components (progress board, title review, slot settings)
+│   ├── student/                          student components (title card, group members, tech stack, progress)
+│   └── ui/                               reusable UI components (buttons, cards, dialogs, tabs)
 ├── lib/
-│   ├── db.ts          Neon client (drizzle-orm/neon-http)
-│   ├── schema.ts       Drizzle tables mirroring schema.sql
-│   ├── auth.ts         JWT helpers (prof + student sessions)
-│   ├── mailer.ts        Nodemailer OTP email
-│   └── helpers.ts        OTP/password generation, ownership checks
-└── middleware.ts         protects /dashboard/* and /c/[classId]/*
+│   ├── db.ts                             Neon client (drizzle-orm/neon-http)
+│   ├── schema.ts                         Drizzle tables mirroring database
+│   ├── auth.ts                           JWT helpers (prof + student sessions)
+│   ├── mailer.ts                         Nodemailer OTP email
+│   ├── progress.ts                       Progress statuses & labels
+│   └── project-updates.ts                Progress change logging helper
+└── middleware.ts                         protects /dashboard/* and /c/[classId]/*
 ```

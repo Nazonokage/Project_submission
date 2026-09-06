@@ -1,94 +1,48 @@
-# Project-Submissions — TODO
+# Project-Submissions — TODO & Roadmap
 
-**Current Version: v1.4 feature audit**  
-**Next Target: v1.5**  
-Last updated: 2026-09-04
-
----
-
-## Audit summary
-- The project has already shipped several v1.4-era features in the codebase.
-- The old checklist was stale and did not reflect the current state of the app.
-- Verified with a fresh build: `npm run build` completed successfully.
-
-## Implemented in the current codebase
-
-- [x] OTP rate limiting (max 5 per email in 15 minutes)
-- [x] Action rate limiting for title/report submissions via `rate_limits`
-- [x] Dark mode + persisted theme preference (`localStorage`)
-- [x] Professor class page defaulting to the Board tab
-- [x] Student click-through from roster to Board with group highlight
-- [x] CSV export for class slot data
-- [x] Professor / PM feedback system (`feedback` table + APIs + UI)
-- [x] Version reports / progress reports (`title_reports`)
-- [x] Report locking and edit controls (`is_editable`)
-- [x] Professor title management (edit/delete/progress/verify)
-- [x] Schema additions for feedback, rate limiting, title reports, and project updates
+**Current Version: v1.5 (Shipped)**  
+**Next Target: v1.5.1 / v1.6**  
+Last updated: 2026-09-06
 
 ---
 
-## Still pending / not fully applied
+## ✅ Shipped in v1.5
 
-### High priority
-- [ ] Convert the student “Submit Title” flow into a modal instead of a full tab
-- [ ] Make the student verified view the default tab in the slot dashboard
-- [ ] Finish the full board-driven reports workflow (post from board, show summary on cards)
-- [ ] Polish the notebook / doodle design pass beyond the current paper theme
-- [ ] Confirm the long-term migration strategy: raw SQL vs full Drizzle migrations
-- [ ] Finish any remaining report-editing/locking edge cases for the student workflow
-
-### Medium / later
-- [ ] Student kanban drag-and-drop
-- [ ] GitHub commit tracking + ping flow
-- [ ] Fuzzy duplicate matching (`pg_trgm`)
-- [ ] Tech-stack autocomplete
-- [ ] Better loading/empty states across the app
-- [ ] Export polish and per-group/report filters
-- [ ] Mobile navigation / archive / activity feed improvements
+- [x] **4-Tab Student Dashboard**: Restructured into `Titles`, `Submissions`, `Board`, `My Group`
+- [x] **Smart Tab Routing**: Defaults to `Titles` for ideation, auto-switches to `Submissions` when title is verified
+- [x] **Modal Title Submission**: Converts submit form into a modal dialog once group has 1+ verified titles
+- [x] **Full Verified Editing**: Allowed students to edit title text, description, tech stack, and target users post-verification
+- [x] **Student Kanban Board**: 4 progress columns (`Planning`, `In Progress`, `Review`, `Done`) with multi-title selector
+- [x] **Project Updates Activity Feed**: Student log entries (`progress`, `milestone`, `note`) with edit and soft-delete support
+- [x] **Inline Progress Reports**: Displayed on verified title cards with modal submission dialog
+- [x] **Database Schema Additions**: `project_updates.updated_at`, `project_updates.deleted_at`, `title_reports.documentation` (JSONB)
+- [x] **Professor Audit Trail**: `TitleReviewDialog` displays student project updates, edit timestamps, and soft-deleted flags
+- [x] **React Hydration Fix**: Resolved SSR/client mismatch on student login link generation in `ClassPage` (`dashboard/[classId]`)
 
 ---
 
-## Project status
+## 🎯 Next Tasks (Upcoming Sprints)
 
-### Done now
-- Professor auth + OTP flow
-- Student auth + group flow
-- Project slots + rules + locking
-- Title submission + duplicate checks
-- Verification queue + approve/reject
-- Reports and feedback system
-- Export and board navigation
-- Dark mode and persisted theme preference
+### Sprint 1: Kanban & Updates Polish (v1.5.1)
+- [ ] **Live Snippets on Kanban Cards**: Show update counts (`💬 3 updates`) and latest update preview directly on cards (both student & prof boards)
+- [ ] **Drag-and-Drop Interaction**: Native pointer/HTML5 drag-and-drop for Kanban columns on both boards
+- [ ] **Real-time Refresh / Polling**: Auto-refresh updates feed on board transitions without manual reload
 
-### Still not complete from the original v1.4 plan
-- Submit Title modal
-- Verified-as-default student view
-- Full Kanban reporting UX
-- Final notebook aesthetic pass
-- Long-term migration cleanup
+### Sprint 2: Academic Documentation UI (v1.5.2)
+- [ ] **Structured Docs Builder**: Interactive form inside progress reports for JSONB fields:
+  - Abstract
+  - Statement of the Problem
+  - Scope & Limitations
+  - Key Objectives & Deliverables
+- [ ] **Professor Document Review**: Dedicated document viewing pane in `TitleReviewDialog`
 
----
+### Sprint 3: GitHub & Automation (v1.6)
+- [ ] **GitHub Commit Auto-Sync**: Background ping to fetch latest commits from public/private repos into the updates feed
+- [ ] **Commit Cards**: Show commit SHA, author, message, and branch badge on Kanban cards
+- [ ] **Fuzzy Duplicate Detection**: Integrate `pg_trgm` similarity check on title submissions
+- [ ] **Tech-Stack Autocomplete**: Curate suggestions based on tags previously used in the class
 
-## Notes
-
-- The project is in a stronger state than the old todo suggested.
-- The app is already building successfully; remaining work is mostly refinement and polish rather than core feature construction.
-- Keep the no-real-student-account model, simple DB logic, and professor-focused workflows.
-
----
-
-## Old backlog kept for reference
-
-### GitHub Commits (v1.5)
-- [ ] Manual + automatic commit checks
-- [ ] Soft background ping on board open
-- [ ] Public repo fetch + save commit metadata
-- [ ] Show commit info on board cards
-
-### Other v1.5+ ideas
-- [ ] Student drag-and-drop kanban
-- [ ] Fuzzy duplicate matching
-- [ ] Tech-stack autocomplete
-- [ ] OTP cleanup job
-- [ ] Better skeletons, filters, and mobile behavior
-- [ ] Archive classes and threaded feedback
+### Polish & Maintenance
+- [ ] **Notebook / Doodle Aesthetic**: Refine paper styling, hand-drawn badges, pencil borders, and sketch empty states
+- [ ] **Mobile Responsive Pass**: Optimized Kanban board horizontal scrolling and drawer panels on mobile devices
+- [ ] **Archive & History**: Class archiving and term-based historical viewing

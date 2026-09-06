@@ -160,6 +160,17 @@ export type ReportRow = {
   createdAt: string;
 };
 
+export type UpdateItem = {
+  id: string;
+  kind: string;
+  headline: string | null;
+  body: string;
+  studentName?: string | null;
+  createdAt: string;
+  updatedAt?: string | null;
+  deletedAt?: string | null;
+};
+
 export function TitleReviewDialog({
   titleId,
   titleText,
@@ -174,6 +185,7 @@ export function TitleReviewDialog({
   asProfessor?: boolean;
 }) {
   const [reports, setReports] = useState<ReportRow[]>([]);
+  const [updates, setUpdates] = useState<UpdateItem[]>([]);
   const [notes, setNotes] = useState<FeedbackItem[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -182,11 +194,19 @@ export function TitleReviewDialog({
     const reportsUrl = asProfessor
       ? `/api/dashboard/titles/${titleId}/reports`
       : `/api/student/titles/${titleId}/reports`;
+    const updatesUrl = asProfessor
+      ? `/api/prof/updates?titleId=${titleId}`
+      : `/api/student/updates?titleId=${titleId}`;
     const feedbackUrl = asProfessor
       ? `/api/dashboard/feedback?titleId=${titleId}`
       : `/api/student/titles/${titleId}/feedback`;
-    const [reportsRes, feedbackRes] = await Promise.all([fetch(reportsUrl), fetch(feedbackUrl)]);
+    const [reportsRes, updatesRes, feedbackRes] = await Promise.all([
+      fetch(reportsUrl),
+      fetch(updatesUrl),
+      fetch(feedbackUrl),
+    ]);
     if (reportsRes.ok) setReports((await reportsRes.json()).reports || []);
+    if (updatesRes.ok) setUpdates((await updatesRes.json()).updates || []);
     if (feedbackRes.ok) setNotes((await feedbackRes.json()).feedback || []);
     setLoading(false);
   }
@@ -216,7 +236,7 @@ export function TitleReviewDialog({
       <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{titleText}</DialogTitle>
-          <DialogDescription>Version reports and feedback for this title.</DialogDescription>
+          <DialogDescription>Version reports, project updates, and feedback for this title.</DialogDescription>
         </DialogHeader>
         {loading ? (
           <p className="text-sm text-muted">Loading…</p>
@@ -234,7 +254,7 @@ export function TitleReviewDialog({
                       {!r.isEditable ? ' · locked' : ''}
                     </p>
                     {r.progressSummary && <p className="text-sm">{r.progressSummary}</p>}
-                    {r.changelog && <p className="text-xs text-muted">{r.changelog}</p>}
+                    {r.changelog && <p className="text-xs text-muted whitespace-pre-wrap">{r.changelog}</p>}
                     {asProfessor && (
                       <button
                         type="button"
@@ -244,6 +264,39 @@ export function TitleReviewDialog({
                         {r.isEditable ? 'Lock report' : 'Unlock report'}
                       </button>
                     )}
+                  </div>
+                ))
+              )}
+            </section>
+            <section className="space-y-2">
+              <h3 className="text-sm font-medium">Project Updates</h3>
+              {updates.length === 0 ? (
+                <p className="text-sm text-muted">No updates logged yet.</p>
+              ) : (
+                updates.map((u) => (
+                  <div
+                    key={u.id}
+                    className={`rounded-lg border p-3 space-y-1 ${
+                      u.deletedAt ? 'border-destructive/30 bg-destructive/5 opacity-75' : 'border-line'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <div className="flex items-center gap-1.5">
+                        <span className="badge text-xs uppercase">{u.kind}</span>
+                        {u.headline && <span className="font-medium text-xs">{u.headline}</span>}
+                        {u.updatedAt && <span className="text-[11px] text-muted">(edited)</span>}
+                        {u.deletedAt && (
+                          <span className="badge text-[10px] bg-destructive/20 text-destructive">
+                            deleted
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-[11px] text-muted">
+                        {u.studentName ? `${u.studentName} · ` : ''}
+                        {new Date(u.createdAt).toLocaleString()}
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted whitespace-pre-wrap">{u.body}</p>
                   </div>
                 ))
               )}

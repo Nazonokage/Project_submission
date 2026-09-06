@@ -6,6 +6,7 @@ import {
   boolean,
   integer,
   unique,
+  jsonb,
 } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 
@@ -250,6 +251,7 @@ export const titleReports = pgTable('title_reports', {
   isEditable: boolean('is_editable').notNull().default(true),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  documentation: jsonb('documentation'), // flexible academic doc fields e.g. { abstract, statement_of_problem }
 });
 
 // ============================================================
@@ -316,6 +318,8 @@ export const projectUpdates = pgTable('project_updates', {
   commitSha: text('commit_sha'),
   commitUrl: text('commit_url'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }),
+  deletedAt: timestamp('deleted_at', { withTimezone: true }),
 });
 
 // ============================================================

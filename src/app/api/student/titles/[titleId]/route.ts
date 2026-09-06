@@ -32,10 +32,6 @@ export async function PATCH(req: NextRequest, { params }: { params: { titleId: s
     Array.isArray(body?.techStack) ||
     typeof body?.targetUsers === 'string';
 
-  if (editingCopy && title.status === 'verified') {
-    return jsonError('Verified titles cannot be edited', 409);
-  }
-
   const patch: Record<string, unknown> = { updatedAt: new Date(), updatedByStudentId: session.studentId };
   if (typeof body?.text === 'string') patch.text = body.text.trim();
   if (typeof body?.description === 'string') patch.description = body.description.trim();

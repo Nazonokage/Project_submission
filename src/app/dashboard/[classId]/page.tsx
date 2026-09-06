@@ -70,6 +70,13 @@ export default function ClassPage() {
   const [reviewing, setReviewing] = useState<Title | null>(null);
   const [highlightStudentId, setHighlightStudentId] = useState<string | null>(null);
   const [comments, setComments] = useState<Record<string, string>>({});
+  const [studentLoginLink, setStudentLoginLink] = useState<string>('');
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setStudentLoginLink(`${window.location.origin}/c/${classId}/login`);
+    }
+  }, [classId]);
 
   async function loadAll() {
     setLoading(true);
@@ -201,9 +208,6 @@ export default function ClassPage() {
     router.replace(`/dashboard/${classId}?tab=board&slot=${membership.slotId}&highlight=${student.id}`);
   }
 
-  const studentLoginLink =
-    typeof window !== 'undefined' ? `${window.location.origin}/c/${classId}/login` : '';
-
   const tabs: { id: Tab; label: string }[] = [
     { id: 'board', label: 'Board' },
     { id: 'verified', label: 'Verified Titles' },
@@ -211,6 +215,15 @@ export default function ClassPage() {
     { id: 'settings', label: 'Settings / Rules' },
     { id: 'leaves', label: `Leave Requests${leaveRequests.length ? ` (${leaveRequests.length})` : ''}` },
   ];
+
+  function copyLoginLink() {
+    const link =
+      studentLoginLink || (typeof window !== 'undefined' ? `${window.location.origin}/c/${classId}/login` : '');
+    if (link) {
+      navigator.clipboard.writeText(link);
+      toast.success('Login link copied to clipboard');
+    }
+  }
 
   return (
     <main className={`${tab === 'board' ? 'max-w-6xl' : 'max-w-4xl'} mx-auto px-6 py-10 space-y-6`}>
@@ -228,9 +241,9 @@ export default function ClassPage() {
       <div className="card flex items-center justify-between text-sm">
         <div>
           <p className="font-medium">Student login link</p>
-          <p className="text-muted">{studentLoginLink}</p>
+          <p className="text-muted">{studentLoginLink || `/c/${classId}/login`}</p>
         </div>
-        <button className="btn-secondary" onClick={() => navigator.clipboard.writeText(studentLoginLink)}>
+        <button className="btn-secondary" onClick={copyLoginLink}>
           Copy
         </button>
       </div>
