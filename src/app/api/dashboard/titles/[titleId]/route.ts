@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { activityLog, titles } from '@/lib/schema';
-import { eq } from 'drizzle-orm';
+import { activityLog, documentationFieldTemplates, titles } from '@/lib/schema';
+import { asc, eq } from 'drizzle-orm';
 import { getProfSession } from '@/lib/auth';
 import { assertClassOwnedByProf, jsonError } from '@/lib/helpers';
 import { isUndefinedColumn } from '@/lib/pg-errors';
@@ -19,6 +19,25 @@ function isTitleStatus(value: unknown): value is TitleStatus {
 function optionalTrimmed(value: unknown): string | undefined {
   if (typeof value !== 'string') return undefined;
   return value.trim();
+}
+
+export async function GET(_req: NextRequest, { params }: { params: { titleId: string } }) {
+  const prof = await getProfSession();
+  if (!prof) return jsonError('Not authenticated', 401);
+
+  const title = await selectTitleBy(eq(titles.id, params.titleId));
+  if (!title) return jsonError('Title not found', 404);
+
+  const cls = await assertClassOwnedByProf(title.classId, prof.profId);
+  if (!cls) return jsonError('Not authorized', 403);
+
+  const templates = await db
+    .select()
+    .from(documentationFieldTemplates)
+    .where(eq(documentationFieldTemplates.slotId, title.slotId))
+    .orderBy(asc(documentationFieldTemplates.sortOrder));
+
+  return NextResponse.json({ title, docFields: templates });
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: { titleId: string } }) {

@@ -38,12 +38,15 @@ export async function POST(req: NextRequest) {
   const headline = (body?.headline as string | undefined)?.trim();
   const updateBody = (body?.body as string | undefined)?.trim();
   const kind = (body?.kind as string | undefined) ?? 'progress';
+  const changelog = (body?.changelog as string | undefined)?.trim() || null;
+  const commitSha = (body?.commitSha as string | undefined)?.trim() || null;
+  const commitUrl = (body?.commitUrl as string | undefined)?.trim() || null;
 
   if (!titleId) return jsonError('titleId is required', 400);
   if (!headline) return jsonError('headline is required', 400);
   if (!updateBody) return jsonError('body is required', 400);
-  if (!['progress', 'milestone', 'note'].includes(kind)) {
-    return jsonError('kind must be progress, milestone, or note', 422);
+  if (!['progress', 'commit', 'milestone', 'note'].includes(kind)) {
+    return jsonError('kind must be progress, commit, milestone, or note', 422);
   }
 
   const [title] = await db
@@ -80,6 +83,9 @@ export async function POST(req: NextRequest) {
       kind,
       headline,
       body: updateBody,
+      changelog,
+      commitSha,
+      commitUrl,
     })
     .returning();
 

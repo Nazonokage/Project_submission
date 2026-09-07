@@ -1,3 +1,15 @@
+## [1.6.1] - 2026-09-07
+
+### Added & Changed
+- **Documentation / Report / Update UX Split (Phase 11)**:
+  - **Persistent Project Documentation**: Decoupled deliverables (Abstract, Problem Statement, Scope, etc.) from version reports, saving them directly at the title level (`titles.documentation`).
+  - **Lightweight Version Reports**: Progress reports now focus strictly on version milestones, changelogs, summaries, and deployment links (`title_reports`).
+  - **Informational Completion Badges**: Real-time status badge showing "Documentation: complete" or "N field(s) missing" without blocking partial saves.
+  - **Commit & Changelog Support on Board**: Added `commit` kind to project updates feed with optional Commit SHA, Commit URL, and Changelog textarea.
+  - **Professor Structured Documentation Review**: `TitleReviewDialog` now renders persistent Project Documentation in its own dedicated section with explicit "Not yet filled" indicators for incomplete fields.
+
+---
+
 ## [1.7.0] - 2026-09-07
 
 ### Added

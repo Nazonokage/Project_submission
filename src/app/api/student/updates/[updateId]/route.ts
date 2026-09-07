@@ -37,9 +37,12 @@ export async function PATCH(req: NextRequest, { params }: { params: { updateId: 
   const patch: Record<string, unknown> = { updatedAt: new Date() };
   if (typeof body?.headline === 'string') patch.headline = body.headline.trim();
   if (typeof body?.body === 'string') patch.body = body.body.trim();
-  if (typeof body?.kind === 'string' && ['progress', 'milestone', 'note'].includes(body.kind)) {
+  if (typeof body?.kind === 'string' && ['progress', 'commit', 'milestone', 'note'].includes(body.kind)) {
     patch.kind = body.kind;
   }
+  if (typeof body?.changelog === 'string') patch.changelog = body.changelog.trim() || null;
+  if (typeof body?.commitSha === 'string') patch.commitSha = body.commitSha.trim() || null;
+  if (typeof body?.commitUrl === 'string') patch.commitUrl = body.commitUrl.trim() || null;
 
   const [row] = await db
     .update(projectUpdates)

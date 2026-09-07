@@ -21,6 +21,7 @@ export const TITLE_CORE_COLUMNS = {
   repoLastChecked: titles.repoLastChecked,
   verifiedAt: titles.verifiedAt,
   rejectionReason: titles.rejectionReason,
+  documentation: titles.documentation,
   createdAt: titles.createdAt,
   updatedAt: titles.updatedAt,
   updatedByStudentId: titles.updatedByStudentId,

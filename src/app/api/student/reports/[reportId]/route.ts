@@ -37,9 +37,6 @@ export async function PATCH(req: NextRequest, { params }: { params: { reportId: 
         .filter((v): v is string => typeof v === 'string' && v.trim().length > 0)
         .map((v) => v.trim());
     }
-    if (body?.documentation !== undefined) {
-      patch.documentation = body.documentation;
-    }
 
     const [row] = await db.update(titleReports).set(patch).where(eq(titleReports.id, report.id)).returning();
     return NextResponse.json({ report: row });

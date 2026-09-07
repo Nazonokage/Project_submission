@@ -238,6 +238,7 @@ export const titles = pgTable('titles', {
   lastCommitSha: text('last_commit_sha'),
   lastCommitMessage: text('last_commit_message'),
   lastCommitAt: timestamp('last_commit_at', { withTimezone: true }),
+  documentation: jsonb('documentation'), // flexible academic doc fields e.g. { abstract, statement_of_problem }
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   updatedByStudentId: uuid('updated_by_student_id').references(() => students.id, {
@@ -306,7 +307,6 @@ export const titleReports = pgTable('title_reports', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   deletedAt: timestamp('deleted_at', { withTimezone: true }),
-  documentation: jsonb('documentation'), // flexible academic doc fields e.g. { abstract, statement_of_problem }
 });
 
 // ============================================================
@@ -368,6 +368,7 @@ export const projectUpdates = pgTable('project_updates', {
   kind: text('kind').notNull().default('progress'), // progress | commit | milestone | note
   headline: text('headline'),
   body: text('body').notNull(),
+  changelog: text('changelog'),
   commitSha: text('commit_sha'),
   commitUrl: text('commit_url'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

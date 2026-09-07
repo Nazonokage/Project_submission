@@ -27,6 +27,7 @@ export type ProjectTitle = {
   deploymentUrl: string | null;
   rejectionReason?: string | null;
   progressStatus?: ProgressStatus | string | null;
+  documentation?: Record<string, unknown> | null;
 };
 
 export type SlotInfo = {

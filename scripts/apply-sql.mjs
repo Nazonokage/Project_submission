@@ -32,5 +32,13 @@ if (!url) {
 
 const sql = neon(url);
 const file = readFileSync(sqlPath, 'utf8');
-await sql.query(file);
+const statements = file
+  .split(';')
+  .map((s) => s.trim())
+  .filter((s) => s.length > 0);
+
+for (const stmt of statements) {
+  await sql(stmt);
+}
 console.log(`Applied ${sqlPath}`);
+

@@ -158,7 +158,6 @@ export type ReportRow = {
   extraLinks: string[] | null;
   isEditable: boolean;
   createdAt: string;
-  documentation?: Record<string, unknown> | null;
 };
 
 export type TaskItemRow = {
@@ -178,10 +177,21 @@ export type UpdateItem = {
   kind: string;
   headline: string | null;
   body: string;
+  changelog?: string | null;
+  commitSha?: string | null;
+  commitUrl?: string | null;
   studentName?: string | null;
   createdAt: string;
   updatedAt?: string | null;
   deletedAt?: string | null;
+};
+
+type DocFieldTemplate = {
+  id: string;
+  fieldKey: string;
+  label: string;
+  fieldType: string;
+  required: boolean;
 };
 
 export function TitleReviewDialog({
@@ -201,10 +211,15 @@ export function TitleReviewDialog({
   const [tasks, setTasks] = useState<TaskItemRow[]>([]);
   const [updates, setUpdates] = useState<UpdateItem[]>([]);
   const [notes, setNotes] = useState<FeedbackItem[]>([]);
+  const [titleDoc, setTitleDoc] = useState<Record<string, unknown> | null>(null);
+  const [docFields, setDocFields] = useState<DocFieldTemplate[]>([]);
   const [loading, setLoading] = useState(true);
 
   async function load() {
     setLoading(true);
+    const titleUrl = asProfessor
+      ? `/api/dashboard/titles/${titleId}`
+      : `/api/student/titles/${titleId}`;
     const reportsUrl = asProfessor
       ? `/api/dashboard/titles/${titleId}/reports`
       : `/api/student/titles/${titleId}/reports`;
@@ -217,12 +232,18 @@ export function TitleReviewDialog({
     const feedbackUrl = asProfessor
       ? `/api/dashboard/feedback?titleId=${titleId}`
       : `/api/student/titles/${titleId}/feedback`;
-    const [reportsRes, tasksRes, updatesRes, feedbackRes] = await Promise.all([
+    const [titleRes, reportsRes, tasksRes, updatesRes, feedbackRes] = await Promise.all([
+      fetch(titleUrl),
       fetch(reportsUrl),
       fetch(tasksUrl),
       fetch(updatesUrl),
       fetch(feedbackUrl),
     ]);
+    if (titleRes.ok) {
+      const data = await titleRes.json();
+      setTitleDoc(data.title?.documentation || null);
+      setDocFields(data.docFields || []);
+    }
     if (reportsRes.ok) setReports((await reportsRes.json()).reports || []);
     if (tasksRes.ok) setTasks((await tasksRes.json()).tasks || []);
     if (updatesRes.ok) setUpdates((await updatesRes.json()).updates || []);
@@ -255,12 +276,60 @@ export function TitleReviewDialog({
       <DialogContent className="max-w-xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{titleText}</DialogTitle>
-          <DialogDescription>Version reports, tasks, project updates, and feedback for this title.</DialogDescription>
+          <DialogDescription>Project documentation, version reports, tasks, updates, and feedback for this title.</DialogDescription>
         </DialogHeader>
         {loading ? (
           <p className="text-sm text-muted">Loading…</p>
         ) : (
           <div className="space-y-5">
+            {/* Project Documentation Section */}
+            <section className="space-y-2">
+              <h3 className="text-sm font-semibold flex items-center gap-2">
+                Project Documentation
+              </h3>
+              <div className="rounded-lg border border-line p-3 space-y-3 bg-secondary/15 text-sm">
+                {docFields.length > 0 ? (
+                  docFields.map((field) => {
+                    const rawVal = titleDoc ? titleDoc[field.fieldKey] : null;
+                    const hasVal = rawVal !== null && rawVal !== undefined && String(rawVal).trim().length > 0;
+                    return (
+                      <div key={field.id} className="space-y-1">
+                        <p className="text-xs font-medium text-ink">
+                          {field.label}{' '}
+                          {field.required ? (
+                            <span className="text-warn text-[11px] font-normal">(required)</span>
+                          ) : (
+                            <span className="text-muted text-[11px] font-normal">(optional)</span>
+                          )}
+                        </p>
+                        {hasVal ? (
+                          <p className="text-xs text-muted whitespace-pre-wrap">{String(rawVal)}</p>
+                        ) : (
+                          <p className="text-xs text-muted-foreground/70 italic">Not yet filled</p>
+                        )}
+                      </div>
+                    );
+                  })
+                ) : titleDoc && Object.keys(titleDoc).length > 0 ? (
+                  Object.entries(titleDoc).map(([k, v]) => {
+                    const hasVal = v !== null && v !== undefined && String(v).trim().length > 0;
+                    return (
+                      <div key={k} className="space-y-1">
+                        <p className="text-xs font-medium text-ink capitalize">{k.replace(/_/g, ' ')}</p>
+                        {hasVal ? (
+                          <p className="text-xs text-muted whitespace-pre-wrap">{String(v)}</p>
+                        ) : (
+                          <p className="text-xs text-muted-foreground/70 italic">Not yet filled</p>
+                        )}
+                      </div>
+                    );
+                  })
+                ) : (
+                  <p className="text-xs text-muted italic">No documentation recorded yet.</p>
+                )}
+              </div>
+            </section>
+
             {/* Reports Section */}
             <section className="space-y-2">
               <h3 className="text-sm font-semibold flex items-center gap-2">
@@ -283,15 +352,28 @@ export function TitleReviewDialog({
                     </div>
                     {r.progressSummary && <p className="text-sm">{r.progressSummary}</p>}
                     {r.changelog && <p className="text-xs text-muted whitespace-pre-wrap">{r.changelog}</p>}
-                    {r.documentation && typeof r.documentation === 'object' && Object.keys(r.documentation).length > 0 && (
-                      <div className="pt-2 border-t border-line/60 space-y-1">
-                        <p className="text-xs font-semibold text-muted uppercase tracking-wide">Documentation Details</p>
-                        {Object.entries(r.documentation).map(([k, v]) => (
-                          <div key={k} className="text-xs">
-                            <span className="font-medium text-ink capitalize">{k.replace(/_/g, ' ')}: </span>
-                            <span className="text-muted whitespace-pre-wrap">{String(v)}</span>
-                          </div>
-                        ))}
+                    {(r.repoUrl || r.deploymentUrl) && (
+                      <div className="flex items-center gap-3 pt-1 text-xs">
+                        {r.repoUrl && (
+                          <a
+                            href={r.repoUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-primary hover:underline"
+                          >
+                            Repo
+                          </a>
+                        )}
+                        {r.deploymentUrl && (
+                          <a
+                            href={r.deploymentUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-primary hover:underline"
+                          >
+                            Live
+                          </a>
+                        )}
                       </div>
                     )}
                     {asProfessor && (
@@ -365,6 +447,22 @@ export function TitleReviewDialog({
                       <div className="flex items-center gap-1.5">
                         <span className="badge text-xs uppercase">{u.kind}</span>
                         {u.headline && <span className="font-medium text-xs">{u.headline}</span>}
+                        {u.commitSha && (
+                          u.commitUrl ? (
+                            <a
+                              href={u.commitUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="font-mono text-xs text-primary hover:underline bg-primary/10 px-1 rounded"
+                            >
+                              {u.commitSha.slice(0, 7)}
+                            </a>
+                          ) : (
+                            <span className="font-mono text-xs bg-secondary px-1 rounded text-muted-foreground">
+                              {u.commitSha.slice(0, 7)}
+                            </span>
+                          )
+                        )}
                         {u.updatedAt && <span className="text-[11px] text-muted">(edited)</span>}
                         {u.deletedAt && (
                           <span className="badge text-[10px] bg-destructive/20 text-destructive">
@@ -378,6 +476,14 @@ export function TitleReviewDialog({
                       </span>
                     </div>
                     <p className="text-xs text-muted whitespace-pre-wrap">{u.body}</p>
+                    {u.changelog && (
+                      <div className="pt-1">
+                        <p className="text-[11px] font-medium text-ink/80">Changelog:</p>
+                        <p className="text-xs text-muted whitespace-pre-wrap bg-secondary/30 p-2 rounded mt-0.5">
+                          {u.changelog}
+                        </p>
+                      </div>
+                    )}
                   </div>
                 ))
               )}

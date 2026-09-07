@@ -126,3 +126,50 @@
 - [x] Run `fix_schema_drift.sql` against the dev DB — `sort_order` added, `field_type` CHECK widened to `text/textarea/url/date`
 - [x] Run `node scripts/schema-health.mjs` to confirm clean — all 17 tables + key columns verified, `tasks.sort_order` present
 - [ ] Manually test: drag a task card between columns (exercises `sort_order`), and add a `url`-type or `date`-type documentation field (exercises the widened CHECK)
+
+---
+
+## Phase 11 — Documentation/Report/Update UX Split (2026-09-07) (completed)
+
+> Screenshots of the live report modal (Image 2) showed the real problem: a
+> student logging a routine progress update was being forced to also fill
+> out Abstract / Statement of the Problem / Key Objectives — fields that
+> describe the whole project, not one version. Confirmed direction: docs
+> are per-title (persistent), reports stay lightweight, and the Board's
+> updates need real commit/changelog support since that's the actual
+> "pass along updates" mechanism.
+
+### 11.1 — Schema
+- [x] `ALTER TABLE titles ADD COLUMN documentation jsonb` — persistent per-title doc
+- [x] `ALTER TABLE title_reports DROP COLUMN documentation` — no longer per-version
+- [x] `ALTER TABLE project_updates ADD COLUMN changelog text` — lets a quick update carry a short "what changed" list
+- [x] Run `phase11_schema.sql`, then `node scripts/schema-health.mjs` (add `titles.documentation`, `project_updates.changelog` to its checks; remove `title_reports.documentation` from them)
+
+### 11.2 — API routes
+- [x] `PATCH /api/student/titles/[titleId]` — accept `documentation` updates independent of report submission
+- [x] `POST /api/student/titles/[titleId]/documentation` (or fold into the PATCH above) — save persistent doc fields
+  - **No hard validation block.** For every `field_key` in that slot's `documentation_field_templates`, write the submitted value, or `null` if the student left it blank — every defined key is always present in the jsonb (never just omitted), so a prof reviewing later can tell "left blank" apart from "this field doesn't exist for this slot"
+  - Response includes a `missingRequiredCount` (or list of missing required `field_key`s) so the frontend can show the indicator without recomputing it client-side
+- [x] `title_reports` POST/PATCH — remove the `documentation` validation entirely; reports become version tag + summary + changelog + optional repo/deploy override only
+- [x] `POST /api/student/updates` — accept optional `changelog`, `commitSha`, `commitUrl` alongside existing `headline`/`body`/`kind`; allow `kind: 'commit'`
+
+### 11.3 — Frontend: title-card.tsx
+- [x] New **"Project Documentation"** section (separate from "Progress Reports") — dynamic form from `documentation_field_templates`, own save action, persistent across reports
+- [x] Remove the `required` attribute from doc-field inputs — save button always works, no browser-level block
+- [x] Slim the **"Submit Report"** dialog — remove the entire Documentation Deliverables block; keep version/summary/changelog/repo/deploy only
+- [x] Show "Documentation: complete" or "N field(s) missing" indicator near the panel, driven by the API's `missingRequiredCount` — informational only, never blocks saving
+
+### 11.4 — Frontend: Board "Add update" (slot-dashboard.tsx)
+- [x] Add `commit` as a selectable `kind` (dropdown currently only has progress/milestone/note despite the DB always allowing `commit`)
+- [x] When `kind === 'commit'`: show optional Commit SHA + Commit URL fields
+- [x] Add optional **Changelog** textarea (maps to the new `project_updates.changelog`), available for any kind, not just commit
+
+### 11.5 — Prof review (TitleReviewDialog)
+- [x] Render the title-level Project Documentation as its own section, separate from the version reports list
+- [x] Render `null` values as "Not yet filled" (muted text) rather than blank — makes incomplete fields visible to the prof, not just the student
+- [x] Version reports list stays as-is but without documentation fields attached
+
+### 11.6 — Cleanup
+- [x] Run `npm run build` — confirm zero type errors
+- [ ] Manual test: submit a quick progress report without touching documentation at all; separately edit the Project Documentation panel and confirm it doesn't require a new report to save
+

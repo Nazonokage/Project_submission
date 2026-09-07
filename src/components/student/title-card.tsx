@@ -1,7 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
-import { ChevronDown, ChevronUp, ExternalLink, FileText, Loader2, Pencil, Plus } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { BookOpen, ChevronDown, ChevronUp, ExternalLink, FileText, Loader2, Pencil, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
@@ -36,7 +36,6 @@ export type TitleReportItem = {
   isEditable: boolean;
   createdAt: string;
   updatedAt: string;
-  documentation?: Record<string, unknown> | null;
 };
 
 type DocField = {
@@ -71,6 +70,29 @@ export function TitleCard({
   const [repoUrl, setRepoUrl] = useState(title.repoUrl || '');
   const [deploymentUrl, setDeploymentUrl] = useState(title.deploymentUrl || '');
 
+  // Persistent Project Documentation state
+  const [docTemplates, setDocTemplates] = useState<DocField[]>([]);
+  const [docValues, setDocValues] = useState<Record<string, string>>(() => {
+    const initial: Record<string, string> = {};
+    if (title.documentation && typeof title.documentation === 'object') {
+      for (const [k, v] of Object.entries(title.documentation)) {
+        initial[k] = v !== null && v !== undefined ? String(v) : '';
+      }
+    }
+    return initial;
+  });
+  const [savingDoc, setSavingDoc] = useState(false);
+
+  useEffect(() => {
+    if (title.documentation && typeof title.documentation === 'object') {
+      const updated: Record<string, string> = {};
+      for (const [k, v] of Object.entries(title.documentation)) {
+        updated[k] = v !== null && v !== undefined ? String(v) : '';
+      }
+      setDocValues(updated);
+    }
+  }, [title.documentation]);
+
   // Reports state
   const [reports, setReports] = useState<TitleReportItem[]>([]);
   const [reportsLoading, setReportsLoading] = useState(false);
@@ -83,10 +105,6 @@ export function TitleCard({
   const [reportRepoUrl, setReportRepoUrl] = useState('');
   const [reportDeployUrl, setReportDeployUrl] = useState('');
   const [reportExtraLinks, setReportExtraLinks] = useState('');
-
-  // Custom doc field templates & form values
-  const [docTemplates, setDocTemplates] = useState<DocField[]>([]);
-  const [docValues, setDocValues] = useState<Record<string, string>>({});
 
   const loadDocTemplates = useCallback(async () => {
     if (!effectiveSlotId) return;
@@ -102,10 +120,16 @@ export function TitleCard({
   }, [effectiveSlotId]);
 
   useEffect(() => {
-    if (reportDialogOpen) {
-      loadDocTemplates();
-    }
-  }, [reportDialogOpen, loadDocTemplates]);
+    loadDocTemplates();
+  }, [loadDocTemplates]);
+
+  const missingRequiredCount = useMemo(() => {
+    return docTemplates.filter((t) => {
+      if (!t.required) return false;
+      const val = docValues[t.fieldKey];
+      return !val || !val.trim();
+    }).length;
+  }, [docTemplates, docValues]);
 
   const loadReports = useCallback(async () => {
     if (title.status !== 'verified') return;
@@ -187,22 +211,30 @@ export function TitleCard({
     }
   }
 
+  async function saveProjectDocumentation() {
+    setSavingDoc(true);
+    try {
+      const res = await fetch(`/api/student/titles/${title.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ documentation: docValues }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not save documentation');
+      toast.success('Project documentation saved');
+      onUpdated?.();
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Could not save documentation');
+    } finally {
+      setSavingDoc(false);
+    }
+  }
+
   async function submitReport(e: React.FormEvent) {
     e.preventDefault();
     if (!reportVersion.trim() || !reportSummary.trim() || !reportChangelog.trim()) {
       toast.error('Version, summary, and changelog are required');
       return;
-    }
-
-    // Validate required documentation fields
-    for (const t of docTemplates) {
-      if (t.required) {
-        const val = docValues[t.fieldKey];
-        if (!val || !val.trim()) {
-          toast.error(`"${t.label}" is a required deliverable`);
-          return;
-        }
-      }
     }
 
     setSubmittingReport(true);
@@ -222,7 +254,6 @@ export function TitleCard({
           repoUrl: reportRepoUrl.trim() || undefined,
           deploymentUrl: reportDeployUrl.trim() || undefined,
           extraLinks: links.length > 0 ? links : undefined,
-          documentation: Object.keys(docValues).length > 0 ? docValues : undefined,
         }),
       });
 
@@ -236,7 +267,6 @@ export function TitleCard({
       setReportRepoUrl('');
       setReportDeployUrl('');
       setReportExtraLinks('');
-      setDocValues({});
       setReportDialogOpen(false);
       await loadReports();
       onUpdated?.();
@@ -334,6 +364,77 @@ export function TitleCard({
               </div>
             </div>
 
+            {/* Persistent Project Documentation Section */}
+            {docTemplates.length > 0 && (
+              <div className="pt-2 border-t space-y-3">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <div className="flex items-center gap-2">
+                    <BookOpen className="h-4 w-4 text-muted" />
+                    <span className="text-sm font-medium">Project Documentation</span>
+                    {missingRequiredCount === 0 ? (
+                      <Badge variant="secondary" className="text-xs text-ok bg-sage/20 border-sage/40">
+                        Documentation: complete
+                      </Badge>
+                    ) : (
+                      <Badge variant="secondary" className="text-xs text-warn bg-amber-500/10 border-amber-500/30">
+                        {missingRequiredCount} field{missingRequiredCount === 1 ? '' : 's'} missing
+                      </Badge>
+                    )}
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={saveProjectDocumentation}
+                    disabled={savingDoc}
+                  >
+                    {savingDoc && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />}
+                    Save Documentation
+                  </Button>
+                </div>
+
+                <div className="space-y-3 bg-secondary/15 rounded-lg p-3 border border-border/60">
+                  {docTemplates.map((field) => (
+                    <div key={field.id} className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor={`doc-field-${field.fieldKey}`} className="text-xs font-medium">
+                          {field.label}{' '}
+                          {field.required ? (
+                            <span className="text-warn font-normal">(required)</span>
+                          ) : (
+                            <span className="text-muted font-normal">(optional)</span>
+                          )}
+                        </Label>
+                        {!docValues[field.fieldKey]?.trim() && field.required && (
+                          <span className="text-[11px] text-warn">Missing</span>
+                        )}
+                      </div>
+                      {field.fieldType === 'textarea' ? (
+                        <Textarea
+                          id={`doc-field-${field.fieldKey}`}
+                          className="min-h-16 text-sm"
+                          placeholder={`Enter ${field.label.toLowerCase()}...`}
+                          value={docValues[field.fieldKey] || ''}
+                          onChange={(e) =>
+                            setDocValues((prev) => ({ ...prev, [field.fieldKey]: e.target.value }))
+                          }
+                        />
+                      ) : (
+                        <Input
+                          id={`doc-field-${field.fieldKey}`}
+                          type={field.fieldType === 'date' ? 'date' : field.fieldType === 'url' ? 'url' : 'text'}
+                          placeholder={field.fieldType === 'url' ? 'https://...' : `Enter ${field.label.toLowerCase()}...`}
+                          value={docValues[field.fieldKey] || ''}
+                          onChange={(e) =>
+                            setDocValues((prev) => ({ ...prev, [field.fieldKey]: e.target.value }))
+                          }
+                        />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Progress Reports Subsection */}
             <div className="pt-2 border-t space-y-3">
               <div className="flex items-center justify-between">
@@ -395,16 +496,6 @@ export function TitleCard({
                       )}
                       {r.changelog && (
                         <p className="text-xs text-muted line-clamp-2 whitespace-pre-wrap">{r.changelog}</p>
-                      )}
-                      {r.documentation && typeof r.documentation === 'object' && Object.keys(r.documentation).length > 0 && (
-                        <div className="pt-1.5 space-y-1">
-                          {Object.entries(r.documentation).map(([k, v]) => (
-                            <div key={k} className="text-xs">
-                              <span className="font-medium text-ink capitalize">{k.replace(/_/g, ' ')}: </span>
-                              <span className="text-muted line-clamp-2">{String(v)}</span>
-                            </div>
-                          ))}
-                        </div>
                       )}
                       {(r.repoUrl || r.deploymentUrl) && (
                         <div className="flex items-center gap-3 pt-1 text-xs">
@@ -555,37 +646,6 @@ export function TitleCard({
                 />
               </div>
             </div>
-            {docTemplates.length > 0 && (
-              <div className="pt-2 border-t space-y-3">
-                <p className="text-xs font-semibold text-ink uppercase tracking-wide">Documentation Deliverables</p>
-                {docTemplates.map((field) => (
-                  <div key={field.id} className="space-y-1.5">
-                    <Label htmlFor={`doc-field-${field.fieldKey}`}>
-                      {field.label} {field.required ? <span className="text-warn font-normal">(required)</span> : <span className="text-muted font-normal">(optional)</span>}
-                    </Label>
-                    {field.fieldType === 'textarea' ? (
-                      <Textarea
-                        id={`doc-field-${field.fieldKey}`}
-                        required={field.required}
-                        className="min-h-16 text-sm"
-                        placeholder={`Enter ${field.label.toLowerCase()}...`}
-                        value={docValues[field.fieldKey] || ''}
-                        onChange={(e) => setDocValues((prev) => ({ ...prev, [field.fieldKey]: e.target.value }))}
-                      />
-                    ) : (
-                      <Input
-                        id={`doc-field-${field.fieldKey}`}
-                        type={field.fieldType === 'date' ? 'date' : field.fieldType === 'url' ? 'url' : 'text'}
-                        required={field.required}
-                        placeholder={field.fieldType === 'url' ? 'https://...' : `Enter ${field.label.toLowerCase()}...`}
-                        value={docValues[field.fieldKey] || ''}
-                        onChange={(e) => setDocValues((prev) => ({ ...prev, [field.fieldKey]: e.target.value }))}
-                      />
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
             <DialogFooter className="pt-2">
               <Button type="button" variant="outline" onClick={() => setReportDialogOpen(false)}>
                 Cancel

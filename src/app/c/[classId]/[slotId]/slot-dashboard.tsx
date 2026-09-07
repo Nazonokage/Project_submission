@@ -54,6 +54,9 @@ type ProjectUpdate = {
   kind: string;
   headline: string | null;
   body: string;
+  changelog: string | null;
+  commitSha: string | null;
+  commitUrl: string | null;
   postedByStudentId: string | null;
   createdAt: string;
   updatedAt: string | null;
@@ -975,16 +978,45 @@ function AddTaskDialog({
 
 function UpdateEntry({ update, myStudentId, onEdit, onDelete }: { update: ProjectUpdate; myStudentId: string | null; onEdit: (u: ProjectUpdate) => void; onDelete: (id: string) => void; }) {
   const isOwn = update.postedByStudentId === myStudentId;
-  const kindColors: Record<string, string> = { progress: 'bg-accent/15 text-accent', milestone: 'bg-sage/30 text-ok', note: 'bg-sand/70 text-ink' };
+  const kindColors: Record<string, string> = {
+    progress: 'bg-accent/15 text-accent',
+    commit: 'bg-primary/15 text-primary',
+    milestone: 'bg-sage/30 text-ok',
+    note: 'bg-sand/70 text-ink',
+  };
   return (
     <div className="flex gap-3 text-sm border-b last:border-0 pb-3 last:pb-0">
-      <div className="flex-1 space-y-0.5">
+      <div className="flex-1 space-y-1">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className={`badge text-xs ${kindColors[update.kind] ?? ''}`}>{update.kind}</span>
+          <span className={`badge text-xs uppercase ${kindColors[update.kind] ?? ''}`}>{update.kind}</span>
           {update.headline && <span className="font-medium">{update.headline}</span>}
+          {update.commitSha && (
+            update.commitUrl ? (
+              <a
+                href={update.commitUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="font-mono text-xs text-primary hover:underline bg-primary/10 px-1.5 py-0.5 rounded inline-flex items-center gap-1"
+              >
+                {update.commitSha.slice(0, 7)}
+              </a>
+            ) : (
+              <span className="font-mono text-xs bg-secondary/80 px-1.5 py-0.5 rounded text-muted-foreground">
+                {update.commitSha.slice(0, 7)}
+              </span>
+            )
+          )}
           {update.updatedAt && <span className="text-xs text-muted">(edited)</span>}
         </div>
         <p className="text-muted">{update.body}</p>
+        {update.changelog && (
+          <div className="pt-1">
+            <p className="text-xs font-medium text-ink/80">Changelog:</p>
+            <p className="text-xs text-muted whitespace-pre-wrap bg-secondary/20 p-2 rounded border border-border/40 mt-0.5">
+              {update.changelog}
+            </p>
+          </div>
+        )}
         <p className="text-xs text-muted">{new Date(update.createdAt).toLocaleString()}</p>
       </div>
       {isOwn && (
@@ -1000,7 +1032,10 @@ function UpdateEntry({ update, myStudentId, onEdit, onDelete }: { update: Projec
 function AddUpdateDialog({ open, titleId, onClose, onSuccess }: { open: boolean; titleId: string; onClose: () => void; onSuccess: () => Promise<void>; }) {
   const [headline, setHeadline] = useState('');
   const [body, setBody] = useState('');
-  const [kind, setKind] = useState<'progress' | 'milestone' | 'note'>('progress');
+  const [kind, setKind] = useState<'progress' | 'commit' | 'milestone' | 'note'>('progress');
+  const [changelog, setChangelog] = useState('');
+  const [commitSha, setCommitSha] = useState('');
+  const [commitUrl, setCommitUrl] = useState('');
   const [saving, setSaving] = useState(false);
 
   async function save() {
@@ -1011,12 +1046,20 @@ function AddUpdateDialog({ open, titleId, onClose, onSuccess }: { open: boolean;
       const res = await fetch('/api/student/updates', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ titleId, headline: headline.trim(), body: body.trim(), kind }),
+        body: JSON.stringify({
+          titleId,
+          headline: headline.trim(),
+          body: body.trim(),
+          kind,
+          changelog: changelog.trim() || undefined,
+          commitSha: commitSha.trim() || undefined,
+          commitUrl: commitUrl.trim() || undefined,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Could not post update');
       toast.success('Update posted');
-      setHeadline(''); setBody(''); setKind('progress');
+      setHeadline(''); setBody(''); setKind('progress'); setChangelog(''); setCommitSha(''); setCommitUrl('');
       await onSuccess();
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Could not post update');
@@ -1034,6 +1077,7 @@ function AddUpdateDialog({ open, titleId, onClose, onSuccess }: { open: boolean;
             <Label>Type</Label>
             <select className="input py-1 text-sm w-full" value={kind} onChange={(e) => setKind(e.target.value as typeof kind)}>
               <option value="progress">Progress</option>
+              <option value="commit">Commit</option>
               <option value="milestone">Milestone</option>
               <option value="note">Note</option>
             </select>
@@ -1045,6 +1089,22 @@ function AddUpdateDialog({ open, titleId, onClose, onSuccess }: { open: boolean;
           <div className="space-y-1.5">
             <Label>Details</Label>
             <Textarea className="min-h-20" placeholder="What was done? Any blockers?" value={body} onChange={(e) => setBody(e.target.value)} />
+          </div>
+          {kind === 'commit' && (
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1.5">
+                <Label>Commit SHA (optional)</Label>
+                <Input placeholder="e.g. 7f3b89a" value={commitSha} onChange={(e) => setCommitSha(e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Commit URL (optional)</Label>
+                <Input placeholder="https://github.com/..." value={commitUrl} onChange={(e) => setCommitUrl(e.target.value)} />
+              </div>
+            </div>
+          )}
+          <div className="space-y-1.5">
+            <Label>Changelog (optional)</Label>
+            <Textarea className="min-h-16" placeholder="List what changed or key highlights..." value={changelog} onChange={(e) => setChangelog(e.target.value)} />
           </div>
         </div>
         <DialogFooter>
@@ -1059,7 +1119,10 @@ function AddUpdateDialog({ open, titleId, onClose, onSuccess }: { open: boolean;
 function EditUpdateDialog({ update, onClose, onSuccess }: { update: ProjectUpdate; onClose: () => void; onSuccess: () => Promise<void>; }) {
   const [headline, setHeadline] = useState(update.headline ?? '');
   const [body, setBody] = useState(update.body);
-  const [kind, setKind] = useState(update.kind as 'progress' | 'milestone' | 'note');
+  const [kind, setKind] = useState(update.kind as 'progress' | 'commit' | 'milestone' | 'note');
+  const [changelog, setChangelog] = useState(update.changelog ?? '');
+  const [commitSha, setCommitSha] = useState(update.commitSha ?? '');
+  const [commitUrl, setCommitUrl] = useState(update.commitUrl ?? '');
   const [saving, setSaving] = useState(false);
 
   async function save() {
@@ -1068,7 +1131,14 @@ function EditUpdateDialog({ update, onClose, onSuccess }: { update: ProjectUpdat
       const res = await fetch(`/api/student/updates/${update.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ headline: headline.trim(), body: body.trim(), kind }),
+        body: JSON.stringify({
+          headline: headline.trim(),
+          body: body.trim(),
+          kind,
+          changelog: changelog.trim() || null,
+          commitSha: commitSha.trim() || null,
+          commitUrl: commitUrl.trim() || null,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Could not update');
@@ -1090,6 +1160,7 @@ function EditUpdateDialog({ update, onClose, onSuccess }: { update: ProjectUpdat
             <Label>Type</Label>
             <select className="input py-1 text-sm w-full" value={kind} onChange={(e) => setKind(e.target.value as typeof kind)}>
               <option value="progress">Progress</option>
+              <option value="commit">Commit</option>
               <option value="milestone">Milestone</option>
               <option value="note">Note</option>
             </select>
@@ -1101,6 +1172,22 @@ function EditUpdateDialog({ update, onClose, onSuccess }: { update: ProjectUpdat
           <div className="space-y-1.5">
             <Label>Details</Label>
             <Textarea className="min-h-20" value={body} onChange={(e) => setBody(e.target.value)} />
+          </div>
+          {kind === 'commit' && (
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1.5">
+                <Label>Commit SHA (optional)</Label>
+                <Input placeholder="e.g. 7f3b89a" value={commitSha} onChange={(e) => setCommitSha(e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Commit URL (optional)</Label>
+                <Input placeholder="https://github.com/..." value={commitUrl} onChange={(e) => setCommitUrl(e.target.value)} />
+              </div>
+            </div>
+          )}
+          <div className="space-y-1.5">
+            <Label>Changelog (optional)</Label>
+            <Textarea className="min-h-16" placeholder="List what changed or key highlights..." value={changelog} onChange={(e) => setChangelog(e.target.value)} />
           </div>
         </div>
         <DialogFooter>
