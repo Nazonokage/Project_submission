@@ -52,3 +52,15 @@ Last updated: 2026-09-07
 ### Polish & Maintenance
 - Notebook/doodle aesthetic pass
 - Term-based class archiving & historical exports
+---
+
+## ✅ Schema Drift Audit (2026-09-07) — Resolved
+
+Re-checked the repo after v1.7/v1.5.2 shipped — both features were real and working code,
+but the DB was missing two things the code needed:
+- `tasks.sort_order` (drag-and-drop ordering) — added
+- `documentation_field_templates.field_type` CHECK constraint — widened to `text/textarea/url/date`
+
+Fix applied via `fix_schema_drift.sql`, verified clean with `npm run db:health`.
+Only remaining step: manual click-test of drag-and-drop + a `url`/`date` doc field.
+*(Detail: `task.md` → "Phase 10")*

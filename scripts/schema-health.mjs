@@ -80,7 +80,7 @@ const checkColumns = async (table, cols) => {
 
 console.log('\n--- Checking Key Columns ---');
 await checkColumns('titles', ['progress_status', 'last_commit_sha', 'last_commit_message', 'last_commit_at', 'updated_at', 'deleted_at']);
-await checkColumns('tasks', ['title_id', 'group_id', 'class_id', 'slot_id', 'status', 'assignee_student_id', 'due_date', 'deleted_at']);
+await checkColumns('tasks', ['title_id', 'group_id', 'class_id', 'slot_id', 'status', 'assignee_student_id', 'due_date', 'sort_order', 'deleted_at']);
 await checkColumns('documentation_field_templates', ['slot_id', 'field_key', 'label', 'field_type', 'required', 'sort_order']);
 await checkColumns('project_updates', ['task_id', 'updated_at', 'deleted_at']);
 await checkColumns('title_reports', ['documentation', 'updated_at', 'deleted_at']);

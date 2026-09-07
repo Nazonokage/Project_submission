@@ -108,3 +108,21 @@
 
 ### 9.7 — Cleanup
 - [x] Run `npm run build` — confirm zero type errors
+---
+
+## Phase 10 — Post-Ship Schema Drift Audit (2026-09-07)
+
+> Re-checked the repo against the applied `schema.sql` after Phase 8/9 shipped.
+> Both features were built and are real (verified routes, components, and
+> CHANGELOG entries exist), but two columns/constraints that the code needs
+> were never added to the database during the Phase 0 reset.
+
+- [x] Audit `schema.ts` + API routes against the live schema
+  - Found: `tasks.sort_order` is read/written by every task API route (`GET/POST/PATCH` in `src/app/api/student/tasks/*` and `src/app/api/prof/tasks/*`) but was never in `schema.sql` — every task query is likely failing with `column "sort_order" does not exist`
+  - Found: `documentation_field_templates_field_type_check` only allows `text`/`textarea`, but `src/app/api/prof/slots/[slotId]/doc-fields/route.ts` validates and accepts `text`/`textarea`/`url`/`date` — creating a `url` or `date` field will pass app validation then fail the DB CHECK constraint
+  - Found: `scripts/schema-health.mjs` didn't check `tasks.sort_order`, so it wouldn't have caught the first issue even if run
+- [x] Write `fix_schema_drift.sql` — adds `tasks.sort_order`, widens the `field_type` CHECK constraint
+- [x] Update `scripts/schema-health.mjs` to also check `tasks.sort_order`
+- [x] Run `fix_schema_drift.sql` against the dev DB — `sort_order` added, `field_type` CHECK widened to `text/textarea/url/date`
+- [x] Run `node scripts/schema-health.mjs` to confirm clean — all 17 tables + key columns verified, `tasks.sort_order` present
+- [ ] Manually test: drag a task card between columns (exercises `sort_order`), and add a `url`-type or `date`-type documentation field (exercises the widened CHECK)
