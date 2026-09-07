@@ -5,6 +5,11 @@ import { eq, asc } from 'drizzle-orm';
 import { isUuid, jsonError } from '@/lib/helpers';
 
 /** Public roster for the class login combobox — names and ID numbers only. */
+// This list changes whenever a professor imports or adds students. Never serve a
+// previously generated roster to the login screen.
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export async function GET(_req: NextRequest, { params }: { params: { classId: string } }) {
   if (!isUuid(params.classId)) return jsonError('Class not found', 404);
 
@@ -17,5 +22,8 @@ export async function GET(_req: NextRequest, { params }: { params: { classId: st
     .where(eq(students.classId, params.classId))
     .orderBy(asc(students.name));
 
-  return NextResponse.json({ students: rows });
+  return NextResponse.json(
+    { students: rows },
+    { headers: { 'Cache-Control': 'no-store, max-age=0' } }
+  );
 }

@@ -36,7 +36,7 @@ export function LoginForm({
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    fetch(`/api/classes/${classId}/directory`)
+    fetch(`/api/classes/${classId}/directory`, { cache: 'no-store' })
       .then((res) => (res.ok ? res.json() : { students: [] }))
       .then((data) => setStudents(data.students || []))
       .catch(() => setStudents([]));
