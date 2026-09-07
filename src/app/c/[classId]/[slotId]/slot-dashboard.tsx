@@ -1172,6 +1172,8 @@ function GroupTab({ group, members, without, creating, leaveRequest, showUngroup
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Could not send invite');
       toast.success('Invite sent');
+      setInviteOpen(false);
+      setQuery('');
       await onReload();
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Could not send invite');
@@ -1247,6 +1249,32 @@ function GroupTab({ group, members, without, creating, leaveRequest, showUngroup
           {group.status === 'forming' && <Alert><AlertDescription>You can submit titles now, even if you are working solo.</AlertDescription></Alert>}
           {group.status === 'locked' && <Alert variant="success"><AlertDescription>Group is full and locked. You can keep submitting and editing titles.</AlertDescription></Alert>}
           <GroupMembers members={members} maxSize={group.maxSize} />
+          {group.status === 'forming' && remaining > 0 && (
+            <section className="rounded-lg border border-primary/20 bg-primary/5 p-3 space-y-3">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div>
+                  <p className="text-sm font-semibold">Invite classmates</p>
+                  <p className="text-xs text-muted mt-0.5">Only classmates who are not yet in a group for this slot can be invited.</p>
+                </div>
+                <Button type="button" size="sm" variant="outline" onClick={() => setInviteOpen(true)}>
+                  Search all eligible
+                </Button>
+              </div>
+              {without.length === 0 ? (
+                <p className="text-sm text-muted">There are no classmates currently available to invite.</p>
+              ) : (
+                <div className="space-y-2">
+                  {without.slice(0, 3).map((student) => (
+                    <div key={student.id} className="flex items-center justify-between gap-3 rounded-md bg-card/70 px-3 py-2 text-sm">
+                      <div className="min-w-0"><p className="font-medium truncate">{student.name}</p><p className="text-xs text-muted">{student.idNumber}</p></div>
+                      <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => invite(student.id)}>Invite</Button>
+                    </div>
+                  ))}
+                  {without.length > 3 && <p className="text-xs text-muted">+ {without.length - 3} more eligible classmates — use Search all eligible to find them.</p>}
+                </div>
+              )}
+            </section>
+          )}
           {leaveRequest && (
             <Alert variant="warning" className="border-amber-200">
               <Hourglass className="h-4 w-4" />
@@ -1258,7 +1286,6 @@ function GroupTab({ group, members, without, creating, leaveRequest, showUngroup
             </Alert>
           )}
           <div className="flex flex-wrap gap-2">
-            {group.status === 'forming' && <Button type="button" onClick={() => setInviteOpen(true)} disabled={remaining <= 0}>Invite classmates</Button>}
             {leaveRequest ? (
               <Button type="button" variant="outline" disabled={busy} onClick={cancelLeave}>{busy && <Loader2 className="h-4 w-4 animate-spin" />}Cancel leave request</Button>
             ) : (
