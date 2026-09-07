@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { desc, eq } from 'drizzle-orm';
 import { db } from '@/lib/db';
-import { studentGroupSlots, titleReports, titles } from '@/lib/schema';
+import { documentationFieldTemplates, studentGroupSlots, titleReports, titles } from '@/lib/schema';
 import { and } from 'drizzle-orm';
 import { getStudentSession } from '@/lib/auth';
 import { jsonError } from '@/lib/helpers';
@@ -66,9 +66,23 @@ export async function POST(req: NextRequest, { params }: { params: { titleId: st
   const extraLinks = Array.isArray(body?.extraLinks)
     ? (body.extraLinks as unknown[]).filter((v): v is string => typeof v === 'string' && v.trim().length > 0).map((v) => v.trim())
     : [];
+  const documentation = (body?.documentation as Record<string, unknown> | undefined) || null;
 
   if (!version || !changelog || !progressSummary) {
     return jsonError('version, changelog, and progress summary are required', 422);
+  }
+
+  // Validate required doc fields from templates
+  const templates = await db
+    .select()
+    .from(documentationFieldTemplates)
+    .where(and(eq(documentationFieldTemplates.slotId, title.slotId), eq(documentationFieldTemplates.required, true)));
+
+  for (const t of templates) {
+    const val = documentation ? documentation[t.fieldKey] : undefined;
+    if (val === undefined || val === null || (typeof val === 'string' && !val.trim())) {
+      return jsonError(`Documentation field "${t.label}" is required`, 422);
+    }
   }
 
   try {
@@ -86,6 +100,7 @@ export async function POST(req: NextRequest, { params }: { params: { titleId: st
         changelog,
         progressSummary,
         extraLinks,
+        documentation,
       })
       .returning();
 

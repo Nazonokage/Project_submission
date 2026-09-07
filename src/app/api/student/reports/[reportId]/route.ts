@@ -32,11 +32,13 @@ export async function PATCH(req: NextRequest, { params }: { params: { reportId: 
     if (typeof body?.changelog === 'string') patch.changelog = body.changelog.trim();
     if (typeof body?.progressSummary === 'string') patch.progressSummary = body.progressSummary.trim();
     if (typeof body?.repoUrl === 'string') patch.repoUrl = body.repoUrl.trim() || null;
-    if (typeof body?.deploymentUrl === 'string') patch.deploymentUrl = body.deploymentUrl.trim() || null;
     if (Array.isArray(body?.extraLinks)) {
       patch.extraLinks = (body.extraLinks as unknown[])
         .filter((v): v is string => typeof v === 'string' && v.trim().length > 0)
         .map((v) => v.trim());
+    }
+    if (body?.documentation !== undefined) {
+      patch.documentation = body.documentation;
     }
 
     const [row] = await db.update(titleReports).set(patch).where(eq(titleReports.id, report.id)).returning();

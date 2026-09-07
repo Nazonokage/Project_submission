@@ -35,12 +35,7 @@ Fill in:
 
 ## 3. Database
 
-Your Neon DB already has all 9 tables from `schema.sql` (professors,
-professor_otps, classes, project_slots, students, groups, student_group_slots,
-group_invites, titles, activity_log). If you're starting fresh, run
-`schema.sql` in the Neon SQL editor. `drizzle.config.ts` is set up so you can
-also manage migrations with `npm run db:generate` / `npm run db:push` going
-forward — the schema in `src/lib/schema.ts` mirrors `schema.sql` exactly.
+Your Neon DB has all 17 tables (professors, professor_otps, classes, students, project_slots, documentation_field_templates, groups, student_group_slots, group_invites, group_leave_requests, titles, tasks, title_reports, project_updates, feedback, activity_log, rate_limits). You can manage migrations with `npm run db:generate` / `npm run db:push` or check database schema health with `npm run db:health` — the schema in `src/lib/schema.ts` mirrors the database schema.
 
 ## 4. Run
 

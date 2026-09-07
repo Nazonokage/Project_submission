@@ -4,10 +4,13 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   AlertCircle,
+  CheckSquare,
   Clock,
+  Filter,
   FolderPlus,
   Hourglass,
   Loader2,
+  Plus,
   Search,
   Users,
 } from 'lucide-react';
@@ -33,13 +36,15 @@ import {
 import { StudentHeader } from '@/components/student/student-header';
 import { GroupMembers } from '@/components/student/group-members';
 import { TitleCard } from '@/components/student/title-card';
+import { TaskCard } from '@/components/student/task-card';
 import { EmptyState } from '@/components/student/empty-state';
 import { StatusBadge } from '@/components/student/status-badge';
 import { TechStackInput } from '@/components/student/tech-stack-input';
 import { ProgressSelect } from '@/components/student/progress-select';
-import type { Group, LeaveRequest, Member, ProjectTitle, SlotInfo, VerifiedTitle } from '@/components/student/types';
+import type { Group, LeaveRequest, Member, ProjectTitle, SlotInfo, TaskItem, VerifiedTitle } from '@/components/student/types';
 import type { ProgressStatus } from '@/lib/progress';
 import { PROGRESS_LABELS, PROGRESS_STATUSES } from '@/lib/progress';
+
 
 type Invite = { invite: { id: string }; groupId: string; invitedBy: { name: string } };
 
@@ -281,7 +286,12 @@ export function SlotDashboard({ classId, slotId }: { classId: string; slotId: st
 
               <TabsContent value="board">
                 {group && slot ? (
-                  <BoardTab titles={titles.filter((t) => t.status === 'verified')} myStudentId={myStudentId} onReload={loadAll} />
+                  <BoardTab
+                    titles={titles.filter((t) => t.status === 'verified')}
+                    members={members}
+                    myStudentId={myStudentId}
+                    onReload={loadAll}
+                  />
                 ) : (
                   <Card className="rounded-xl"><CardContent><EmptyState icon={FolderPlus} title="No group yet" description="Join a group to track your project progress." /></CardContent></Card>
                 )}
@@ -475,13 +485,30 @@ function TitleSubmitForm({ slotId, slot, onSuccess }: { slotId: string; slot: Sl
   );
 }
 
-function BoardTab({ titles, myStudentId, onReload }: { titles: ProjectTitle[]; myStudentId: string | null; onReload: () => Promise<void>; }) {
+function BoardTab({
+  titles,
+  members,
+  myStudentId,
+  onReload,
+}: {
+  titles: ProjectTitle[];
+  members: Member[];
+  myStudentId: string | null;
+  onReload: () => Promise<void>;
+}) {
   const [selectedTitleId, setSelectedTitleId] = useState<string>('');
+  const [tasks, setTasks] = useState<TaskItem[]>([]);
+  const [tasksLoading, setTasksLoading] = useState(false);
+  const [myTasksOnly, setMyTasksOnly] = useState(false);
+  const [addTaskOpen, setAddTaskOpen] = useState(false);
+  const [addTaskInitialStatus, setAddTaskInitialStatus] = useState<ProgressStatus>('planning');
+
   const [updates, setUpdates] = useState<ProjectUpdate[]>([]);
   const [updatesLoading, setUpdatesLoading] = useState(false);
-  const [addOpen, setAddOpen] = useState(false);
+  const [addUpdateOpen, setAddUpdateOpen] = useState(false);
   const [editUpdate, setEditUpdate] = useState<ProjectUpdate | null>(null);
-  const [progressBusy, setProgressBusy] = useState(false);
+
+  const [dragOverColumn, setDragOverColumn] = useState<ProgressStatus | null>(null);
 
   const selectedTitle = useMemo(
     () => titles.find((t) => t.id === selectedTitleId) ?? titles[0] ?? null,
@@ -492,33 +519,72 @@ function BoardTab({ titles, myStudentId, onReload }: { titles: ProjectTitle[]; m
     if (titles.length > 0 && !selectedTitleId) setSelectedTitleId(titles[0].id);
   }, [titles, selectedTitleId]);
 
+  const loadTasks = useCallback(async (titleId: string) => {
+    setTasksLoading(true);
+    try {
+      const res = await fetch(`/api/student/tasks?titleId=${titleId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setTasks(data.tasks || []);
+      }
+    } finally {
+      setTasksLoading(false);
+    }
+  }, []);
+
   const loadUpdates = useCallback(async (titleId: string) => {
     setUpdatesLoading(true);
-    const res = await fetch(`/api/student/updates?titleId=${titleId}`);
-    if (res.ok) setUpdates((await res.json()).updates || []);
-    setUpdatesLoading(false);
+    try {
+      const res = await fetch(`/api/student/updates?titleId=${titleId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setUpdates(data.updates || []);
+      }
+    } finally {
+      setUpdatesLoading(false);
+    }
   }, []);
 
   useEffect(() => {
-    if (selectedTitle?.id) loadUpdates(selectedTitle.id);
-  }, [selectedTitle?.id, loadUpdates]);
+    if (selectedTitle?.id) {
+      loadTasks(selectedTitle.id);
+      loadUpdates(selectedTitle.id);
+    }
+  }, [selectedTitle?.id, loadTasks, loadUpdates]);
 
-  async function moveCard(titleId: string, next: ProgressStatus) {
-    setProgressBusy(true);
+  async function handleStatusChange(taskId: string, next: ProgressStatus) {
+    // Optimistic update
+    setTasks((prev) =>
+      prev.map((t) => (t.id === taskId ? { ...t, status: next, updatedAt: new Date().toISOString() } : t))
+    );
     try {
-      const res = await fetch(`/api/student/titles/${titleId}`, {
+      const res = await fetch(`/api/student/tasks/${taskId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ progressStatus: next }),
+        body: JSON.stringify({ status: next }),
       });
+      if (!res.ok) {
+        const data = await res.json();
+        toast.error(data.error || 'Could not move task');
+        if (selectedTitle?.id) loadTasks(selectedTitle.id);
+      } else {
+        toast.success(`Task moved to ${PROGRESS_LABELS[next]}`);
+      }
+    } catch {
+      toast.error('Could not move task');
+      if (selectedTitle?.id) loadTasks(selectedTitle.id);
+    }
+  }
+
+  async function handleDeleteTask(taskId: string) {
+    try {
+      const res = await fetch(`/api/student/tasks/${taskId}`, { method: 'DELETE' });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Could not update progress');
-      toast.success('Progress updated');
-      await onReload();
+      if (!res.ok) throw new Error(data.error || 'Could not delete task');
+      toast.success('Task deleted');
+      setTasks((prev) => prev.filter((t) => t.id !== taskId));
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : 'Could not update progress');
-    } finally {
-      setProgressBusy(false);
+      toast.error(err instanceof Error ? err.message : 'Could not delete task');
     }
   }
 
@@ -537,54 +603,186 @@ function BoardTab({ titles, myStudentId, onReload }: { titles: ProjectTitle[]; m
   if (titles.length === 0) {
     return (
       <div className="mt-4">
-        <EmptyState icon={FolderPlus} title="No verified titles yet" description="Get a title verified by your professor first to start tracking progress here." />
+        <EmptyState
+          icon={FolderPlus}
+          title="No verified titles yet"
+          description="Get a title verified by your professor first to start tracking tasks and progress here."
+        />
       </div>
     );
   }
 
+  const displayedTasks = myTasksOnly
+    ? tasks.filter((t) => t.assigneeStudentId === myStudentId)
+    : tasks;
+
   return (
-    <div className="space-y-4 mt-4">
-      {titles.length > 1 && (
-        <div className="flex items-center gap-2">
-          <Label>Project:</Label>
-          <select className="input py-1 text-sm" value={selectedTitleId} onChange={(e) => setSelectedTitleId(e.target.value)}>
-            {titles.map((t) => <option key={t.id} value={t.id}>{t.text}</option>)}
+    <div className="space-y-6 mt-4">
+      {/* Title Selector & Controls Bar */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-secondary/20 p-3 rounded-xl border">
+        <div className="flex items-center gap-2 flex-1 min-w-0">
+          <Label className="shrink-0 font-medium text-xs uppercase tracking-wide text-muted">Project:</Label>
+          <select
+            className="input py-1 text-sm flex-1 truncate max-w-sm"
+            value={selectedTitleId}
+            onChange={(e) => setSelectedTitleId(e.target.value)}
+          >
+            {titles.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.text}
+              </option>
+            ))}
           </select>
         </div>
-      )}
+
+        <div className="flex items-center gap-2 shrink-0">
+          <Button
+            type="button"
+            variant={myTasksOnly ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setMyTasksOnly((prev) => !prev)}
+            className="text-xs gap-1.5 h-8"
+          >
+            <Filter className="h-3.5 w-3.5" />
+            {myTasksOnly ? 'My Tasks (Filtered)' : 'All Tasks'}
+          </Button>
+
+          <Button
+            type="button"
+            size="sm"
+            className="text-xs gap-1.5 h-8"
+            onClick={() => {
+              setAddTaskInitialStatus('planning');
+              setAddTaskOpen(true);
+            }}
+          >
+            <Plus className="h-3.5 w-3.5" />
+            New Task
+          </Button>
+        </div>
+      </div>
 
       {selectedTitle && (
         <>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {PROGRESS_STATUSES.map((col) => (
-              <div key={col} className={`rounded-xl border p-3 space-y-2 ${selectedTitle.progressStatus === col ? 'border-primary bg-primary/5' : 'border-border bg-secondary/30'}`}>
-                <p className="text-xs font-semibold uppercase tracking-wide text-muted">{PROGRESS_LABELS[col]}</p>
-                {selectedTitle.progressStatus === col && (
-                  <Card className="rounded-lg shadow-sm">
-                    <CardContent className="pt-3 pb-3 space-y-2">
-                      <p className="text-sm font-medium leading-snug">{selectedTitle.text}</p>
-                      <ProgressSelect value={selectedTitle.progressStatus} disabled={progressBusy} onChange={(next) => moveCard(selectedTitle.id, next)} />
-                    </CardContent>
-                  </Card>
-                )}
-              </div>
-            ))}
+          {/* Task-Level Kanban Board */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {PROGRESS_STATUSES.map((col) => {
+              const colTasks = displayedTasks.filter((t) => t.status === col);
+              const isOver = dragOverColumn === col;
+              return (
+                <div
+                  key={col}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'move';
+                    if (dragOverColumn !== col) setDragOverColumn(col);
+                  }}
+                  onDragLeave={(e) => {
+                    // Prevent flickering when hovering child elements
+                    if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+                      setDragOverColumn(null);
+                    }
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setDragOverColumn(null);
+                    const taskId = e.dataTransfer.getData('text/plain');
+                    if (taskId) {
+                      handleStatusChange(taskId, col);
+                    }
+                  }}
+                  className={`rounded-xl border p-3 space-y-3 flex flex-col min-h-[14rem] transition-all duration-150 ${
+                    isOver
+                      ? 'border-primary ring-2 ring-primary/30 bg-primary/10'
+                      : 'border-border/80 bg-secondary/15'
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-1 pb-1 border-b border-border/40">
+                    <div className="flex items-center gap-2">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                        {PROGRESS_LABELS[col]}
+                      </p>
+                      <Badge variant="secondary" className="text-[11px] h-5 px-1.5 font-normal">
+                        {colTasks.length}
+                      </Badge>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                      onClick={() => {
+                        setAddTaskInitialStatus(col);
+                        setAddTaskOpen(true);
+                      }}
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      <span className="sr-only">Add task to {PROGRESS_LABELS[col]}</span>
+                    </Button>
+                  </div>
+
+                  <div className="space-y-2 flex-1">
+                    {tasksLoading ? (
+                      <div className="space-y-2">
+                        <Skeleton className="h-20 w-full rounded-xl" />
+                        <Skeleton className="h-20 w-full rounded-xl" />
+                      </div>
+                    ) : colTasks.length === 0 ? (
+                      <div
+                        className={`h-24 flex items-center justify-center border border-dashed rounded-lg text-xs transition-colors ${
+                          isOver ? 'border-primary text-primary font-medium' : 'text-muted-foreground/70'
+                        }`}
+                      >
+                        {isOver ? `Drop to move to ${PROGRESS_LABELS[col]}` : `No tasks in ${PROGRESS_LABELS[col].toLowerCase()}`}
+                      </div>
+                    ) : (
+                      colTasks.map((t) => (
+                        <TaskCard
+                          key={t.id}
+                          task={t}
+                          members={members}
+                          onStatusChange={handleStatusChange}
+                          onEdit={() => {
+                            if (selectedTitle?.id) loadTasks(selectedTitle.id);
+                          }}
+                          onDelete={handleDeleteTask}
+                        />
+                      ))
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
 
-          <Card className="rounded-xl shadow-sm">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0">
-              <CardTitle className="text-base">Updates</CardTitle>
-              <Button size="sm" onClick={() => setAddOpen(true)}>+ Add update</Button>
+          {/* Activity & Updates Feed */}
+          <Card className="rounded-xl shadow-xs border">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+              <CardTitle className="text-base font-semibold">Updates & Activity Log</CardTitle>
+              <Button size="sm" onClick={() => setAddUpdateOpen(true)} className="text-xs h-8">
+                + Add update
+              </Button>
             </CardHeader>
             <CardContent>
               {updatesLoading ? (
-                <div className="space-y-2"><Skeleton className="h-12 w-full" /><Skeleton className="h-12 w-full" /></div>
+                <div className="space-y-2">
+                  <Skeleton className="h-12 w-full rounded-lg" />
+                  <Skeleton className="h-12 w-full rounded-lg" />
+                </div>
               ) : updates.length === 0 ? (
-                <p className="text-sm text-muted text-center py-4">No updates yet. Add one to log your progress.</p>
+                <p className="text-sm text-muted text-center py-6">
+                  No updates posted yet. Add one to keep your team and professor in the loop.
+                </p>
               ) : (
-                <div className="space-y-3">
+                <div className="space-y-3 divide-y divide-border/40">
                   {updates.map((u) => (
-                    <UpdateEntry key={u.id} update={u} myStudentId={myStudentId} onEdit={setEditUpdate} onDelete={deleteUpdate} />
+                    <UpdateEntry
+                      key={u.id}
+                      update={u}
+                      myStudentId={myStudentId}
+                      onEdit={setEditUpdate}
+                      onDelete={deleteUpdate}
+                    />
                   ))}
                 </div>
               )}
@@ -593,11 +791,187 @@ function BoardTab({ titles, myStudentId, onReload }: { titles: ProjectTitle[]; m
         </>
       )}
 
-      <AddUpdateDialog open={addOpen} titleId={selectedTitle?.id ?? ''} onClose={() => setAddOpen(false)} onSuccess={async () => { setAddOpen(false); if (selectedTitle?.id) await loadUpdates(selectedTitle.id); }} />
-      {editUpdate && <EditUpdateDialog update={editUpdate} onClose={() => setEditUpdate(null)} onSuccess={async () => { setEditUpdate(null); if (selectedTitle?.id) await loadUpdates(selectedTitle.id); }} />}
+      {/* Add Task Modal */}
+      {selectedTitle && (
+        <AddTaskDialog
+          open={addTaskOpen}
+          titleId={selectedTitle.id}
+          initialStatus={addTaskInitialStatus}
+          members={members}
+          onClose={() => setAddTaskOpen(false)}
+          onSuccess={async () => {
+            setAddTaskOpen(false);
+            if (selectedTitle?.id) await loadTasks(selectedTitle.id);
+          }}
+        />
+      )}
+
+      <AddUpdateDialog
+        open={addUpdateOpen}
+        titleId={selectedTitle?.id ?? ''}
+        onClose={() => setAddUpdateOpen(false)}
+        onSuccess={async () => {
+          setAddUpdateOpen(false);
+          if (selectedTitle?.id) await loadUpdates(selectedTitle.id);
+        }}
+      />
+      {editUpdate && (
+        <EditUpdateDialog
+          update={editUpdate}
+          onClose={() => setEditUpdate(null)}
+          onSuccess={async () => {
+            setEditUpdate(null);
+            if (selectedTitle?.id) await loadUpdates(selectedTitle.id);
+          }}
+        />
+      )}
     </div>
   );
 }
+
+function AddTaskDialog({
+  open,
+  titleId,
+  initialStatus,
+  members,
+  onClose,
+  onSuccess,
+}: {
+  open: boolean;
+  titleId: string;
+  initialStatus: ProgressStatus;
+  members: Member[];
+  onClose: () => void;
+  onSuccess: () => Promise<void>;
+}) {
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
+  const [assigneeId, setAssigneeId] = useState('');
+  const [dueDate, setDueDate] = useState('');
+  const [status, setStatus] = useState<ProgressStatus>(initialStatus);
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    setStatus(initialStatus);
+  }, [initialStatus, open]);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!name.trim()) {
+      toast.error('Task name is required');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const res = await fetch('/api/student/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          titleId,
+          name: name.trim(),
+          description: description.trim() || undefined,
+          assigneeStudentId: assigneeId || undefined,
+          dueDate: dueDate ? new Date(dueDate).toISOString() : undefined,
+          status,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not create task');
+      toast.success('Task created');
+      setName('');
+      setDescription('');
+      setAssigneeId('');
+      setDueDate('');
+      await onSuccess();
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Could not create task');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Create Task</DialogTitle>
+          <DialogDescription>Add a new work item to your project board.</DialogDescription>
+        </DialogHeader>
+        <form onSubmit={submit} className="space-y-3.5">
+          <div className="space-y-1.5">
+            <Label htmlFor="task-name">Task Name</Label>
+            <Input
+              id="task-name"
+              required
+              placeholder="e.g. Implement OAuth integration"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="task-desc">Description (optional)</Label>
+            <Textarea
+              id="task-desc"
+              placeholder="Details, steps, or criteria..."
+              className="min-h-20 text-sm"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label>Assignee</Label>
+              <select
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-xs"
+                value={assigneeId}
+                onChange={(e) => setAssigneeId(e.target.value)}
+              >
+                <option value="">Unassigned</option>
+                {members.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.name} ({m.idNumber})
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="task-due">Due Date</Label>
+              <Input
+                id="task-due"
+                type="date"
+                value={dueDate}
+                onChange={(e) => setDueDate(e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Initial Column</Label>
+            <select
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-xs"
+              value={status}
+              onChange={(e) => setStatus(e.target.value as ProgressStatus)}
+            >
+              <option value="planning">Planning</option>
+              <option value="in_progress">In Progress</option>
+              <option value="review">Review</option>
+              <option value="done">Done</option>
+            </select>
+          </div>
+          <DialogFooter className="pt-2">
+            <Button type="button" variant="outline" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={submitting || !name.trim()}>
+              {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
+              Create Task
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 
 function UpdateEntry({ update, myStudentId, onEdit, onDelete }: { update: ProjectUpdate; myStudentId: string | null; onEdit: (u: ProjectUpdate) => void; onDelete: (id: string) => void; }) {
   const isOwn = update.postedByStudentId === myStudentId;

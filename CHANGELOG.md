@@ -1,3 +1,39 @@
+## [1.7.0] - 2026-09-07
+
+### Added
+- **Task-Level Kanban Project Management**: Transformed the student Board tab from title-level tracking to fine-grained task management (`Planning`, `In Progress`, `Review`, `Done`)
+- **Interactive HTML5 Drag-and-Drop**: Drag task cards directly between Kanban columns with real-time drop indicator styling and status transitions
+- **TaskCard Component**: Interactive task item card displaying assignees, due dates, overdue badges, inline editing, and deletion
+- **My Tasks Filter**: Toggle on the Kanban board to view personal assignments
+- **Quick-Add Task Modal**: Direct task creation per column with assignee selector and due date input
+- **Professor Stalled Tasks Widget**: Automatic detection of tasks with no activity in 7+ days on the professor dashboard
+- **Professor Task Audit Trail**: Full task audit history including soft-deleted items in `TitleReviewDialog`
+- **Task API Endpoints**:
+  - `GET /api/student/tasks?titleId=` & `POST /api/student/tasks`
+  - `PATCH /api/student/tasks/[taskId]` & `DELETE /api/student/tasks/[taskId]`
+  - `GET /api/student/tasks/mine?groupId=`
+  - `GET /api/prof/tasks?titleId=`
+  - `GET /api/prof/tasks/stalled?classId=`
+
+---
+
+## [1.5.2] - 2026-09-07
+
+### Added
+- **Custom Documentation Field Templates**: Professor configuration of custom deliverables per slot (e.g. Abstract, Problem Statement, Scope, Objectives)
+- **Automatic Default Seeding**: Automatically populates 4 standard academic deliverables (*Abstract*, *Statement of the Problem*, *Scope & Limitations*, *Key Objectives*) upon slot creation
+- **Standard Academic Fields Seeder**: One-click default re-seeding in slot settings
+- **Dynamic Student Docs Builder**: Form generated dynamically from slot templates during progress report submission
+- **Required Fields Enforcement**: Automatic validation preventing report submission when required deliverables are missing
+- **Structured Report Review**: Template-aware field rendering in `TitleReviewDialog`
+- **Doc Fields API Endpoints**:
+  - `GET /api/prof/slots/[slotId]/doc-fields` & `POST /api/prof/slots/[slotId]/doc-fields`
+  - `PATCH /api/prof/slots/[slotId]/doc-fields/[fieldId]` & `DELETE /api/prof/slots/[slotId]/doc-fields/[fieldId]`
+  - `GET /api/student/slots/[slotId]/doc-fields`
+- **Database & Drizzle Synchronization**: Updated Drizzle schema (`src/lib/schema.ts`) to mirror the consolidated 17 public tables in Neon
+
+---
+
 ## [1.5.0] - 2026-09-06
 
 ### Added

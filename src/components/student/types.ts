@@ -16,6 +16,8 @@ export type ProgressStatus = 'planning' | 'in_progress' | 'review' | 'done';
 
 export type ProjectTitle = {
   id: string;
+  slotId?: string;
+  groupId?: string;
   text: string;
   description: string;
   techStack: string[] | null;
@@ -51,3 +53,25 @@ export type VerifiedTitle = {
   repoUrl?: string | null;
   deploymentUrl?: string | null;
 };
+
+export type TaskItem = {
+  id: string;
+  titleId: string;
+  groupId: string;
+  classId: string;
+  slotId: string;
+  name: string;
+  description: string | null;
+  status: ProgressStatus;
+  assigneeStudentId: string | null;
+  assigneeName?: string | null;
+  assigneeIdNumber?: string | null;
+  dueDate: string | null;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt?: string | null;
+  deletedAt?: string | null;
+};
+
+
+

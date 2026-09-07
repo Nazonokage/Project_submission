@@ -8,6 +8,7 @@ import { LeaveRequestsPanel, type LeaveRequestRow } from '@/components/dashboard
 import { TitleEditor, type ProfTitle } from '@/components/dashboard/title-editor';
 import { ProgressBoard, STATUS_STYLES, type BoardTitle } from '@/components/dashboard/progress-board';
 import { TitleReviewDialog } from '@/components/dashboard/title-review';
+import { StalledWidget } from '@/components/dashboard/stalled-widget';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { ProgressSelect } from '@/components/student/progress-select';
 import { type ProgressStatus } from '@/lib/progress';
@@ -295,17 +296,20 @@ export default function ClassPage() {
         ) : titlesLoading ? (
           <p className="text-sm text-muted">Loading board…</p>
         ) : (
-          <ProgressBoard
-            titles={titles}
-            highlightStudentId={highlightStudentId}
-            onProgress={setProgress}
-            onOpen={(t) => setReviewing(titles.find((x) => x.id === t.id) || null)}
-            onEdit={(t) => setEditing(titles.find((x) => x.id === t.id) || null)}
-            onDelete={(t) => {
-              const full = titles.find((x) => x.id === t.id);
-              if (full) removeTitle(full);
-            }}
-          />
+          <div className="space-y-6">
+            <StalledWidget classId={classId} />
+            <ProgressBoard
+              titles={titles}
+              highlightStudentId={highlightStudentId}
+              onProgress={setProgress}
+              onOpen={(t) => setReviewing(titles.find((x) => x.id === t.id) || null)}
+              onEdit={(t) => setEditing(titles.find((x) => x.id === t.id) || null)}
+              onDelete={(t) => {
+                const full = titles.find((x) => x.id === t.id);
+                if (full) removeTitle(full);
+              }}
+            />
+          </div>
         )
       ) : tab === 'verified' ? (
         !selectedSlot ? (

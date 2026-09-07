@@ -36,19 +36,31 @@ export type TitleReportItem = {
   isEditable: boolean;
   createdAt: string;
   updatedAt: string;
+  documentation?: Record<string, unknown> | null;
+};
+
+type DocField = {
+  id: string;
+  fieldKey: string;
+  label: string;
+  fieldType: 'text' | 'textarea' | 'url' | 'date';
+  required: boolean;
 };
 
 export function TitleCard({
   title,
+  slotId,
   requireDeploymentUrl,
   canEdit,
   onUpdated,
 }: {
   title: ProjectTitle;
+  slotId?: string;
   requireDeploymentUrl?: boolean;
   canEdit?: boolean;
   onUpdated?: () => void;
 }) {
+  const effectiveSlotId = slotId || title.slotId;
   const [editOpen, setEditOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [progressBusy, setProgressBusy] = useState(false);
@@ -71,6 +83,29 @@ export function TitleCard({
   const [reportRepoUrl, setReportRepoUrl] = useState('');
   const [reportDeployUrl, setReportDeployUrl] = useState('');
   const [reportExtraLinks, setReportExtraLinks] = useState('');
+
+  // Custom doc field templates & form values
+  const [docTemplates, setDocTemplates] = useState<DocField[]>([]);
+  const [docValues, setDocValues] = useState<Record<string, string>>({});
+
+  const loadDocTemplates = useCallback(async () => {
+    if (!effectiveSlotId) return;
+    try {
+      const res = await fetch(`/api/student/slots/${effectiveSlotId}/doc-fields`);
+      if (res.ok) {
+        const data = await res.json();
+        setDocTemplates(data.fields || []);
+      }
+    } catch {
+      // ignore
+    }
+  }, [effectiveSlotId]);
+
+  useEffect(() => {
+    if (reportDialogOpen) {
+      loadDocTemplates();
+    }
+  }, [reportDialogOpen, loadDocTemplates]);
 
   const loadReports = useCallback(async () => {
     if (title.status !== 'verified') return;
@@ -159,6 +194,17 @@ export function TitleCard({
       return;
     }
 
+    // Validate required documentation fields
+    for (const t of docTemplates) {
+      if (t.required) {
+        const val = docValues[t.fieldKey];
+        if (!val || !val.trim()) {
+          toast.error(`"${t.label}" is a required deliverable`);
+          return;
+        }
+      }
+    }
+
     setSubmittingReport(true);
     try {
       const links = reportExtraLinks
@@ -176,6 +222,7 @@ export function TitleCard({
           repoUrl: reportRepoUrl.trim() || undefined,
           deploymentUrl: reportDeployUrl.trim() || undefined,
           extraLinks: links.length > 0 ? links : undefined,
+          documentation: Object.keys(docValues).length > 0 ? docValues : undefined,
         }),
       });
 
@@ -189,6 +236,7 @@ export function TitleCard({
       setReportRepoUrl('');
       setReportDeployUrl('');
       setReportExtraLinks('');
+      setDocValues({});
       setReportDialogOpen(false);
       await loadReports();
       onUpdated?.();
@@ -348,6 +396,16 @@ export function TitleCard({
                       {r.changelog && (
                         <p className="text-xs text-muted line-clamp-2 whitespace-pre-wrap">{r.changelog}</p>
                       )}
+                      {r.documentation && typeof r.documentation === 'object' && Object.keys(r.documentation).length > 0 && (
+                        <div className="pt-1.5 space-y-1">
+                          {Object.entries(r.documentation).map(([k, v]) => (
+                            <div key={k} className="text-xs">
+                              <span className="font-medium text-ink capitalize">{k.replace(/_/g, ' ')}: </span>
+                              <span className="text-muted line-clamp-2">{String(v)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                       {(r.repoUrl || r.deploymentUrl) && (
                         <div className="flex items-center gap-3 pt-1 text-xs">
                           {r.repoUrl && (
@@ -497,16 +555,37 @@ export function TitleCard({
                 />
               </div>
             </div>
-            <div className="space-y-1">
-              <Label htmlFor="report-links" className="text-xs">Extra Links (optional, one per line)</Label>
-              <Textarea
-                id="report-links"
-                className="min-h-14 text-xs font-mono"
-                placeholder="https://figma.com/file/...&#10;https://docs.google.com/..."
-                value={reportExtraLinks}
-                onChange={(e) => setReportExtraLinks(e.target.value)}
-              />
-            </div>
+            {docTemplates.length > 0 && (
+              <div className="pt-2 border-t space-y-3">
+                <p className="text-xs font-semibold text-ink uppercase tracking-wide">Documentation Deliverables</p>
+                {docTemplates.map((field) => (
+                  <div key={field.id} className="space-y-1.5">
+                    <Label htmlFor={`doc-field-${field.fieldKey}`}>
+                      {field.label} {field.required ? <span className="text-warn font-normal">(required)</span> : <span className="text-muted font-normal">(optional)</span>}
+                    </Label>
+                    {field.fieldType === 'textarea' ? (
+                      <Textarea
+                        id={`doc-field-${field.fieldKey}`}
+                        required={field.required}
+                        className="min-h-16 text-sm"
+                        placeholder={`Enter ${field.label.toLowerCase()}...`}
+                        value={docValues[field.fieldKey] || ''}
+                        onChange={(e) => setDocValues((prev) => ({ ...prev, [field.fieldKey]: e.target.value }))}
+                      />
+                    ) : (
+                      <Input
+                        id={`doc-field-${field.fieldKey}`}
+                        type={field.fieldType === 'date' ? 'date' : field.fieldType === 'url' ? 'url' : 'text'}
+                        required={field.required}
+                        placeholder={field.fieldType === 'url' ? 'https://...' : `Enter ${field.label.toLowerCase()}...`}
+                        value={docValues[field.fieldKey] || ''}
+                        onChange={(e) => setDocValues((prev) => ({ ...prev, [field.fieldKey]: e.target.value }))}
+                      />
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
             <DialogFooter className="pt-2">
               <Button type="button" variant="outline" onClick={() => setReportDialogOpen(false)}>
                 Cancel

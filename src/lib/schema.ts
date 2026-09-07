@@ -20,7 +20,6 @@ export const professors = pgTable('professors', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   lastLoginAt: timestamp('last_login_at', { withTimezone: true }),
 });
-
 // ============================================================
 // PROFESSOR OTPS
 // ============================================================
@@ -46,6 +45,7 @@ export const classes = pgTable('classes', {
   name: text('name').notNull(),
   term: text('term').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
 // ============================================================
@@ -67,7 +67,30 @@ export const projectSlots = pgTable('project_slots', {
   requireTargetUsers: boolean('require_target_users').notNull().default(false),
   locked: boolean('locked').notNull().default(false),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
+
+// ============================================================
+// DOCUMENTATION FIELD TEMPLATES
+// ============================================================
+export const documentationFieldTemplates = pgTable(
+  'documentation_field_templates',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    slotId: uuid('slot_id')
+      .notNull()
+      .references(() => projectSlots.id, { onDelete: 'cascade' }),
+    fieldKey: text('field_key').notNull(),
+    label: text('label').notNull(),
+    fieldType: text('field_type').notNull().default('textarea'), // text | textarea | url | date
+    required: boolean('required').notNull().default(false),
+    sortOrder: integer('sort_order').notNull().default(0),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    slotFieldKeyUnique: unique().on(t.slotId, t.fieldKey),
+  })
+);
 
 // ============================================================
 // STUDENTS
@@ -105,6 +128,7 @@ export const groups = pgTable('groups', {
   status: text('status').notNull().default('forming'), // 'forming' | 'locked'
   maxSize: integer('max_size').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
 // ============================================================
@@ -223,6 +247,36 @@ export const titles = pgTable('titles', {
 });
 
 // ============================================================
+// TASKS
+// ============================================================
+export const tasks = pgTable('tasks', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  titleId: uuid('title_id')
+    .notNull()
+    .references(() => titles.id, { onDelete: 'cascade' }),
+  groupId: uuid('group_id')
+    .notNull()
+    .references(() => groups.id, { onDelete: 'cascade' }),
+  classId: uuid('class_id')
+    .notNull()
+    .references(() => classes.id, { onDelete: 'cascade' }),
+  slotId: uuid('slot_id')
+    .notNull()
+    .references(() => projectSlots.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  description: text('description'),
+  status: text('status').notNull().default('planning'), // planning | in_progress | review | done
+  assigneeStudentId: uuid('assignee_student_id').references(() => students.id, {
+    onDelete: 'set null',
+  }),
+  dueDate: timestamp('due_date', { withTimezone: true }),
+  sortOrder: integer('sort_order').notNull().default(0),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  deletedAt: timestamp('deleted_at', { withTimezone: true }),
+});
+
+// ============================================================
 // TITLE REPORTS  (version reports after a title is verified)
 // ============================================================
 export const titleReports = pgTable('title_reports', {
@@ -251,6 +305,7 @@ export const titleReports = pgTable('title_reports', {
   isEditable: boolean('is_editable').notNull().default(true),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  deletedAt: timestamp('deleted_at', { withTimezone: true }),
   documentation: jsonb('documentation'), // flexible academic doc fields e.g. { abstract, statement_of_problem }
 });
 
@@ -287,9 +342,6 @@ export const rateLimits = pgTable('rate_limits', {
 });
 
 // ============================================================
-// ACTIVITY LOG
-// ============================================================
-// ============================================================
 // PROJECT UPDATES  (progress notes + commit logs)
 // ============================================================
 export const projectUpdates = pgTable('project_updates', {
@@ -306,6 +358,7 @@ export const projectUpdates = pgTable('project_updates', {
   titleId: uuid('title_id')
     .notNull()
     .references(() => titles.id, { onDelete: 'cascade' }),
+  taskId: uuid('task_id').references(() => tasks.id, { onDelete: 'set null' }),
   postedByStudentId: uuid('posted_by_student_id').references(() => students.id, {
     onDelete: 'set null',
   }),
@@ -333,3 +386,4 @@ export const activityLog = pgTable('activity_log', {
   targetId: uuid('target_id'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
+

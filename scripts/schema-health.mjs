@@ -29,20 +29,25 @@ if (!url) {
 
 const sql = neon(url);
 
-const expectedColumns = [
-  'progress_status',
-  'last_commit_sha',
-  'last_commit_message',
-  'last_commit_at',
+const expectedTables = [
+  'professors',
+  'professor_otps',
+  'classes',
+  'students',
+  'project_slots',
+  'documentation_field_templates',
+  'groups',
+  'student_group_slots',
+  'group_invites',
+  'group_leave_requests',
+  'titles',
+  'tasks',
+  'title_reports',
+  'project_updates',
+  'feedback',
+  'activity_log',
+  'rate_limits',
 ];
-const expectedTables = ['group_leave_requests', 'project_updates', 'feedback', 'rate_limits', 'title_reports'];
-
-const cols = await sql`
-  SELECT column_name
-  FROM information_schema.columns
-  WHERE table_schema = 'public' AND table_name = 'titles'
-`;
-const colNames = new Set(cols.map((r) => r.column_name));
 
 const tables = await sql`
   SELECT table_name
@@ -52,19 +57,39 @@ const tables = await sql`
 const tableNames = new Set(tables.map((r) => r.table_name));
 
 let ok = true;
-for (const col of expectedColumns) {
-  const present = colNames.has(col);
-  console.log(`${present ? 'ok' : 'MISSING'}  titles.${col}`);
-  if (!present) ok = false;
-}
+console.log('--- Checking Public Tables (17 expected) ---');
 for (const table of expectedTables) {
   const present = tableNames.has(table);
   console.log(`${present ? 'ok' : 'MISSING'}  ${table}`);
   if (!present) ok = false;
 }
 
+const checkColumns = async (table, cols) => {
+  const res = await sql`
+    SELECT column_name
+    FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = ${table}
+  `;
+  const set = new Set(res.map((r) => r.column_name));
+  for (const col of cols) {
+    const present = set.has(col);
+    console.log(`${present ? 'ok' : 'MISSING'}  ${table}.${col}`);
+    if (!present) ok = false;
+  }
+};
+
+console.log('\n--- Checking Key Columns ---');
+await checkColumns('titles', ['progress_status', 'last_commit_sha', 'last_commit_message', 'last_commit_at', 'updated_at', 'deleted_at']);
+await checkColumns('tasks', ['title_id', 'group_id', 'class_id', 'slot_id', 'status', 'assignee_student_id', 'due_date', 'deleted_at']);
+await checkColumns('documentation_field_templates', ['slot_id', 'field_key', 'label', 'field_type', 'required', 'sort_order']);
+await checkColumns('project_updates', ['task_id', 'updated_at', 'deleted_at']);
+await checkColumns('title_reports', ['documentation', 'updated_at', 'deleted_at']);
+await checkColumns('classes', ['updated_at']);
+await checkColumns('project_slots', ['updated_at']);
+await checkColumns('groups', ['updated_at']);
+
 if (!ok) {
-  console.error('\nRun: node scripts/apply-sql.mjs add_pm_schema.sql');
+  console.error('\nSchema validation failed: missing tables or columns.');
   process.exit(1);
 }
-console.log('\nPM schema looks complete.');
+console.log('\nAll 17 tables and key columns verified cleanly.');

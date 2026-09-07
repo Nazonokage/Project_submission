@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { projectSlots } from '@/lib/schema';
+import { documentationFieldTemplates, projectSlots } from '@/lib/schema';
 import { eq, asc } from 'drizzle-orm';
 import { getProfSession } from '@/lib/auth';
 import { assertClassOwnedByProf, jsonError } from '@/lib/helpers';
@@ -48,6 +48,24 @@ export async function POST(req: NextRequest, { params }: { params: { classId: st
       locked: !!body?.locked,
     })
     .returning();
+
+  // Auto-seed standard academic documentation field templates
+  try {
+    const standardFields = [
+      { label: 'Abstract', fieldKey: 'abstract', fieldType: 'textarea', required: true, sortOrder: 0 },
+      { label: 'Statement of the Problem', fieldKey: 'statement_of_problem', fieldType: 'textarea', required: true, sortOrder: 1 },
+      { label: 'Scope & Limitations', fieldKey: 'scope_and_limitations', fieldType: 'textarea', required: false, sortOrder: 2 },
+      { label: 'Key Objectives', fieldKey: 'key_objectives', fieldType: 'textarea', required: true, sortOrder: 3 },
+    ];
+    await db.insert(documentationFieldTemplates).values(
+      standardFields.map((f) => ({
+        slotId: row.id,
+        ...f,
+      }))
+    );
+  } catch (err) {
+    console.error('Could not auto-seed documentation fields', err);
+  }
 
   return NextResponse.json({ slot: row }, { status: 201 });
 }

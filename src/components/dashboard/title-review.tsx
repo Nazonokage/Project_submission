@@ -158,6 +158,19 @@ export type ReportRow = {
   extraLinks: string[] | null;
   isEditable: boolean;
   createdAt: string;
+  documentation?: Record<string, unknown> | null;
+};
+
+export type TaskItemRow = {
+  id: string;
+  name: string;
+  description: string | null;
+  status: string;
+  assigneeName?: string | null;
+  dueDate: string | null;
+  createdAt: string;
+  updatedAt?: string | null;
+  deletedAt?: string | null;
 };
 
 export type UpdateItem = {
@@ -185,6 +198,7 @@ export function TitleReviewDialog({
   asProfessor?: boolean;
 }) {
   const [reports, setReports] = useState<ReportRow[]>([]);
+  const [tasks, setTasks] = useState<TaskItemRow[]>([]);
   const [updates, setUpdates] = useState<UpdateItem[]>([]);
   const [notes, setNotes] = useState<FeedbackItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -194,18 +208,23 @@ export function TitleReviewDialog({
     const reportsUrl = asProfessor
       ? `/api/dashboard/titles/${titleId}/reports`
       : `/api/student/titles/${titleId}/reports`;
+    const tasksUrl = asProfessor
+      ? `/api/prof/tasks?titleId=${titleId}`
+      : `/api/student/tasks?titleId=${titleId}`;
     const updatesUrl = asProfessor
       ? `/api/prof/updates?titleId=${titleId}`
       : `/api/student/updates?titleId=${titleId}`;
     const feedbackUrl = asProfessor
       ? `/api/dashboard/feedback?titleId=${titleId}`
       : `/api/student/titles/${titleId}/feedback`;
-    const [reportsRes, updatesRes, feedbackRes] = await Promise.all([
+    const [reportsRes, tasksRes, updatesRes, feedbackRes] = await Promise.all([
       fetch(reportsUrl),
+      fetch(tasksUrl),
       fetch(updatesUrl),
       fetch(feedbackUrl),
     ]);
     if (reportsRes.ok) setReports((await reportsRes.json()).reports || []);
+    if (tasksRes.ok) setTasks((await tasksRes.json()).tasks || []);
     if (updatesRes.ok) setUpdates((await updatesRes.json()).updates || []);
     if (feedbackRes.ok) setNotes((await feedbackRes.json()).feedback || []);
     setLoading(false);
@@ -233,43 +252,105 @@ export function TitleReviewDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+      <DialogContent className="max-w-xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{titleText}</DialogTitle>
-          <DialogDescription>Version reports, project updates, and feedback for this title.</DialogDescription>
+          <DialogDescription>Version reports, tasks, project updates, and feedback for this title.</DialogDescription>
         </DialogHeader>
         {loading ? (
           <p className="text-sm text-muted">Loading…</p>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-5">
+            {/* Reports Section */}
             <section className="space-y-2">
-              <h3 className="text-sm font-medium">Reports</h3>
+              <h3 className="text-sm font-semibold flex items-center gap-2">
+                Reports & Deliverables
+                <span className="text-xs text-muted font-normal">({reports.length})</span>
+              </h3>
               {reports.length === 0 ? (
-                <p className="text-sm text-muted">No version reports yet.</p>
+                <p className="text-sm text-muted">No version reports submitted yet.</p>
               ) : (
                 reports.map((r) => (
-                  <div key={r.id} className="rounded-lg border border-line p-3 space-y-1">
-                    <p className="text-sm font-medium">
-                      {r.version ? `v${r.version}` : 'Report'}
-                      {!r.isEditable ? ' · locked' : ''}
-                    </p>
+                  <div key={r.id} className="rounded-lg border border-line p-3 space-y-2 bg-secondary/15">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-sm font-medium">
+                        {r.version ? `v${r.version}` : 'Report'}
+                        {!r.isEditable ? ' · locked' : ''}
+                      </p>
+                      <span className="text-xs text-muted">
+                        {new Date(r.createdAt).toLocaleDateString()}
+                      </span>
+                    </div>
                     {r.progressSummary && <p className="text-sm">{r.progressSummary}</p>}
                     {r.changelog && <p className="text-xs text-muted whitespace-pre-wrap">{r.changelog}</p>}
+                    {r.documentation && typeof r.documentation === 'object' && Object.keys(r.documentation).length > 0 && (
+                      <div className="pt-2 border-t border-line/60 space-y-1">
+                        <p className="text-xs font-semibold text-muted uppercase tracking-wide">Documentation Details</p>
+                        {Object.entries(r.documentation).map(([k, v]) => (
+                          <div key={k} className="text-xs">
+                            <span className="font-medium text-ink capitalize">{k.replace(/_/g, ' ')}: </span>
+                            <span className="text-muted whitespace-pre-wrap">{String(v)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                     {asProfessor && (
-                      <button
-                        type="button"
-                        className="text-xs text-accent hover:underline"
-                        onClick={() => toggleLock(r)}
-                      >
-                        {r.isEditable ? 'Lock report' : 'Unlock report'}
-                      </button>
+                      <div className="pt-1">
+                        <button
+                          type="button"
+                          className="text-xs text-accent hover:underline"
+                          onClick={() => toggleLock(r)}
+                        >
+                          {r.isEditable ? 'Lock report' : 'Unlock report'}
+                        </button>
+                      </div>
                     )}
                   </div>
                 ))
               )}
             </section>
+
+            {/* Tasks Audit Section */}
             <section className="space-y-2">
-              <h3 className="text-sm font-medium">Project Updates</h3>
+              <h3 className="text-sm font-semibold flex items-center gap-2">
+                Tasks ({tasks.length})
+              </h3>
+              {tasks.length === 0 ? (
+                <p className="text-sm text-muted">No tasks tracked yet.</p>
+              ) : (
+                <div className="space-y-2">
+                  {tasks.map((t) => (
+                    <div
+                      key={t.id}
+                      className={`rounded-lg border p-2.5 text-xs space-y-1 ${
+                        t.deletedAt ? 'border-destructive/30 bg-destructive/5 opacity-70' : 'border-line bg-secondary/20'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-ink">{t.name}</span>
+                          <span className="badge text-[10px] uppercase">{t.status.replace('_', ' ')}</span>
+                          {t.deletedAt && (
+                            <span className="badge text-[10px] bg-destructive/20 text-destructive">deleted</span>
+                          )}
+                        </div>
+                        {t.assigneeName && <span className="text-muted">Assigned: {t.assigneeName}</span>}
+                      </div>
+                      {t.description && <p className="text-muted line-clamp-2">{t.description}</p>}
+                      {t.dueDate && (
+                        <p className="text-[11px] text-muted">Due: {new Date(t.dueDate).toLocaleDateString()}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            {/* Project Updates Section */}
+            <section className="space-y-2">
+              <h3 className="text-sm font-semibold flex items-center gap-2">
+                Project Updates ({updates.length})
+              </h3>
               {updates.length === 0 ? (
                 <p className="text-sm text-muted">No updates logged yet.</p>
               ) : (
@@ -301,8 +382,10 @@ export function TitleReviewDialog({
                 ))
               )}
             </section>
+
+            {/* Feedback Section */}
             <section className="space-y-2">
-              <h3 className="text-sm font-medium">Feedback</h3>
+              <h3 className="text-sm font-semibold">Feedback</h3>
               <FeedbackList items={notes} canResolve={asProfessor} onChanged={load} />
               {asProfessor && <ProfessorFeedbackForm titleId={titleId} onSaved={load} />}
             </section>
