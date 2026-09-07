@@ -41,7 +41,15 @@ export async function GET(
     })
   );
 
-  const latestByTitle = new Map<string, { version: string | null; progressSummary: string | null; createdAt: Date }>();
+  const latestByTitle = new Map<string, {
+    version: string | null;
+    progressSummary: string | null;
+    changelog: string | null;
+    repoUrl: string | null;
+    deploymentUrl: string | null;
+    extraLinks: string[] | null;
+    createdAt: Date;
+  }>();
   try {
     const ids = withMembers.map((t) => t.id);
     if (ids.length > 0) {
@@ -50,6 +58,10 @@ export async function GET(
           titleId: titleReports.titleId,
           version: titleReports.version,
           progressSummary: titleReports.progressSummary,
+          changelog: titleReports.changelog,
+          repoUrl: titleReports.repoUrl,
+          deploymentUrl: titleReports.deploymentUrl,
+          extraLinks: titleReports.extraLinks,
           createdAt: titleReports.createdAt,
         })
         .from(titleReports)

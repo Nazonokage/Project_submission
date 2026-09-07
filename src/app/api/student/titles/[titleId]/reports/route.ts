@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { desc, eq } from 'drizzle-orm';
 import { db } from '@/lib/db';
-import { studentGroupSlots, titleReports, titles } from '@/lib/schema';
+import { activityLog, projectUpdates, studentGroupSlots, titleReports, titles } from '@/lib/schema';
 import { and } from 'drizzle-orm';
 import { getStudentSession } from '@/lib/auth';
 import { jsonError } from '@/lib/helpers';
@@ -72,9 +72,19 @@ export async function POST(req: NextRequest, { params }: { params: { titleId: st
   }
 
   try {
-    const [row] = await db
-      .insert(titleReports)
-      .values({
+    const row = await db.transaction(async (tx) => {
+      const [update] = await tx.insert(projectUpdates).values({
+        classId: title.classId,
+        slotId: title.slotId,
+        groupId: title.groupId,
+        titleId: title.id,
+        postedByStudentId: session.studentId,
+        kind: 'milestone',
+        headline: `Version Report · v${version}`,
+        body: progressSummary,
+        changelog,
+      }).returning();
+      const [report] = await tx.insert(titleReports).values({
         titleId: title.id,
         groupId: title.groupId,
         classId: title.classId,
@@ -86,8 +96,16 @@ export async function POST(req: NextRequest, { params }: { params: { titleId: st
         changelog,
         progressSummary,
         extraLinks,
-      })
-      .returning();
+        projectUpdateId: update.id,
+      }).returning();
+      await tx.insert(activityLog).values({
+        classId: title.classId,
+        actorId: session.studentId,
+        action: 'report.submitted',
+        targetId: report.id,
+      });
+      return report;
+    });
 
     const titlePatch: Record<string, unknown> = { updatedAt: new Date(), updatedByStudentId: session.studentId };
     if (repoUrl) titlePatch.repoUrl = repoUrl;

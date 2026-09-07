@@ -22,6 +22,7 @@ import {
 import { StatusBadge } from './status-badge';
 import { TechStackInput } from './tech-stack-input';
 import { ProgressSelect } from './progress-select';
+import { ProgressReportModal } from './progress-report-modal';
 import type { ProjectTitle } from './types';
 import type { ProgressStatus } from '@/lib/progress';
 
@@ -98,13 +99,6 @@ export function TitleCard({
   const [reportsLoading, setReportsLoading] = useState(false);
   const [showAllReports, setShowAllReports] = useState(false);
   const [reportDialogOpen, setReportDialogOpen] = useState(false);
-  const [submittingReport, setSubmittingReport] = useState(false);
-  const [reportVersion, setReportVersion] = useState('');
-  const [reportSummary, setReportSummary] = useState('');
-  const [reportChangelog, setReportChangelog] = useState('');
-  const [reportRepoUrl, setReportRepoUrl] = useState('');
-  const [reportDeployUrl, setReportDeployUrl] = useState('');
-  const [reportExtraLinks, setReportExtraLinks] = useState('');
 
   const loadDocTemplates = useCallback(async () => {
     if (!effectiveSlotId) return;
@@ -227,53 +221,6 @@ export function TitleCard({
       toast.error(err instanceof Error ? err.message : 'Could not save documentation');
     } finally {
       setSavingDoc(false);
-    }
-  }
-
-  async function submitReport(e: React.FormEvent) {
-    e.preventDefault();
-    if (!reportVersion.trim() || !reportSummary.trim() || !reportChangelog.trim()) {
-      toast.error('Version, summary, and changelog are required');
-      return;
-    }
-
-    setSubmittingReport(true);
-    try {
-      const links = reportExtraLinks
-        .split('\n')
-        .map((l) => l.trim())
-        .filter((l) => l.length > 0);
-
-      const res = await fetch(`/api/student/titles/${title.id}/reports`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          version: reportVersion.trim(),
-          progressSummary: reportSummary.trim(),
-          changelog: reportChangelog.trim(),
-          repoUrl: reportRepoUrl.trim() || undefined,
-          deploymentUrl: reportDeployUrl.trim() || undefined,
-          extraLinks: links.length > 0 ? links : undefined,
-        }),
-      });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Could not submit report');
-
-      toast.success('Progress report submitted');
-      setReportVersion('');
-      setReportSummary('');
-      setReportChangelog('');
-      setReportRepoUrl('');
-      setReportDeployUrl('');
-      setReportExtraLinks('');
-      setReportDialogOpen(false);
-      await loadReports();
-      onUpdated?.();
-    } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : 'Could not submit report');
-    } finally {
-      setSubmittingReport(false);
     }
   }
 
@@ -452,8 +399,6 @@ export function TitleCard({
                   size="sm"
                   variant="outline"
                   onClick={() => {
-                    setReportRepoUrl(title.repoUrl || '');
-                    setReportDeployUrl(title.deploymentUrl || '');
                     setReportDialogOpen(true);
                   }}
                 >
@@ -585,79 +530,13 @@ export function TitleCard({
         </DialogContent>
       </Dialog>
 
-      {/* Submit Report Dialog */}
-      <Dialog open={reportDialogOpen} onOpenChange={setReportDialogOpen}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Submit Progress Report</DialogTitle>
-            <DialogDescription>
-              Record a milestone version report for your verified title.
-            </DialogDescription>
-          </DialogHeader>
-          <form onSubmit={submitReport} className="space-y-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="report-version">Version / Milestone Tag</Label>
-              <Input
-                id="report-version"
-                required
-                placeholder="e.g. v1.0, Sprint 2, Beta"
-                value={reportVersion}
-                onChange={(e) => setReportVersion(e.target.value)}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="report-summary">Progress Summary</Label>
-              <Input
-                id="report-summary"
-                required
-                placeholder="e.g. Completed user authentication and database migrations"
-                value={reportSummary}
-                onChange={(e) => setReportSummary(e.target.value)}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="report-changelog">Changelog / Deliverables</Label>
-              <Textarea
-                id="report-changelog"
-                required
-                className="min-h-20"
-                placeholder="List key features delivered, tests run, or fixes made..."
-                value={reportChangelog}
-                onChange={(e) => setReportChangelog(e.target.value)}
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div className="space-y-1">
-                <Label htmlFor="report-repo" className="text-xs">Repository URL (optional)</Label>
-                <Input
-                  id="report-repo"
-                  placeholder="https://github.com/..."
-                  value={reportRepoUrl}
-                  onChange={(e) => setReportRepoUrl(e.target.value)}
-                />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="report-deploy" className="text-xs">Deployment URL (optional)</Label>
-                <Input
-                  id="report-deploy"
-                  placeholder="https://..."
-                  value={reportDeployUrl}
-                  onChange={(e) => setReportDeployUrl(e.target.value)}
-                />
-              </div>
-            </div>
-            <DialogFooter className="pt-2">
-              <Button type="button" variant="outline" onClick={() => setReportDialogOpen(false)}>
-                Cancel
-              </Button>
-              <Button type="submit" disabled={submittingReport}>
-                {submittingReport && <Loader2 className="h-4 w-4 animate-spin" />}
-                Submit Report
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+      <ProgressReportModal
+        open={reportDialogOpen}
+        titleId={title.id}
+        initialMode="milestone"
+        onClose={() => setReportDialogOpen(false)}
+        onSuccess={async () => { await loadReports(); onUpdated?.(); }}
+      />
     </Card>
   );
 }

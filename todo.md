@@ -1,13 +1,21 @@
 # Project-Submissions — Roadmap
 
-**Current Version: v1.7 (Shipped: Task-Level PM & Custom Doc Field Templates)**
+**Current Version: v1.6.2**  
+**Next Target: v1.7.1 — Live Board Updates**  
 Last updated: 2026-09-07
 
 ---
 
 ## ✅ Shipped Features
 
-### v1.7: Task-Level Project Management (Phase 8)
+### v1.6.2: Unified Progress Reporting & Board Visibility (Phase 12)
+- **One Progress / Report Modal**: A single project-scoped dialog for both Quick Updates and formal Milestone / Version Reports.
+- **Linked Reports and Activity**: Milestone reports automatically create a linked Board activity record, making formal submissions visible in both views.
+- **Project-Scoped Student Board**: The active project is clearly identified above its task board and activity feed, preventing updates from being posted to the wrong project.
+- **Board Feedback Visibility**: Open professor feedback is shown directly on the relevant student project Board.
+- **Professor Latest-Report Modal**: Professor Board cards display the latest report, with a detailed modal for its summary, changelog, and links.
+
+### v1.6.1 / v1.7: Task-Level Project Management (Phase 8)
 - **Task-Level Kanban Board**: Multi-task work item board (`Planning` / `In Progress` / `Review` / `Done`) with title context selector
 - **Interactive HTML5 Drag-and-Drop**: Real-time drag-and-drop task card reassignment across Kanban columns
 - **TaskCard Component**: Name, description, assignee badge, due date badge with overdue indicators, status transition, inline edit & delete
@@ -19,8 +27,8 @@ Last updated: 2026-09-07
 
 ### v1.5.2: Custom Documentation Field Templates (Phase 9)
 - **Doc Fields Manager**: Slot-level template configuration (label, slug key, field type: text/textarea/url/date, required toggle)
-- **Standard Academic Fields Seeder**: Automatic slot creation seeding + one-click manual re-seeding of standard academic fields (Abstract, Statement of the Problem, Scope & Limitations, Key Objectives)
-- **Student Structured Docs Builder**: Dynamic form generation from slot templates in report submission modal
+- **Standard Academic Fields Seeder**: Automatic slot creation seeding + one-click manual re-seeding of standard academic fields
+- **Student Structured Docs Builder**: Dynamic form generation from slot templates
 - **Required Fields Enforcement**: Automatic validation preventing report submission when required deliverables are missing
 - **Professor Doc Review**: Template-aware structured rendering in `TitleReviewDialog`
 
@@ -39,28 +47,17 @@ Last updated: 2026-09-07
 
 ## 🎯 Next Up
 
-### Sprint 1: Real-time & Board Polish (v1.7.1)
-- Live board updates via SSE / polling
-- Mobile responsive & touch drag-and-drop pass for task columns
-
-### Sprint 2: GitHub & Automation (v1.8)
-- GitHub commit auto-sync into task / project updates feed
-- Automated commit cards on Kanban
+### Later
+- Live board updates via SSE / polling (v1.7.1)
+- GitHub commit auto-sync (v1.8)
 - Fuzzy duplicate detection (`pg_trgm`)
-- Tech-stack autocomplete across classes
-
-### Polish & Maintenance
+- Tech-stack autocomplete
 - Notebook/doodle aesthetic pass
-- Term-based class archiving & historical exports
+- Term-based class archiving
+
 ---
 
 ## ✅ Schema Drift Audit (2026-09-07) — Resolved
-
-Re-checked the repo after v1.7/v1.5.2 shipped — both features were real and working code,
-but the DB was missing two things the code needed:
-- `tasks.sort_order` (drag-and-drop ordering) — added
-- `documentation_field_templates.field_type` CHECK constraint — widened to `text/textarea/url/date`
-
-Fix applied via `fix_schema_drift.sql`, verified clean with `npm run db:health`.
-Only remaining step: manual click-test of drag-and-drop + a `url`/`date` doc field.
-*(Detail: `task.md` → "Phase 10")*
+- `tasks.sort_order` added
+- `documentation_field_templates.field_type` CHECK widened to `text/textarea/url/date`
+- Verified clean with `npm run db:health`

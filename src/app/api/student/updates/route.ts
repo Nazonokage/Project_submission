@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { and, desc, eq, isNull } from 'drizzle-orm';
 import { db } from '@/lib/db';
-import { activityLog, groups, projectUpdates, studentGroupSlots, titles } from '@/lib/schema';
+import { activityLog, groups, projectUpdates, studentGroupSlots, titleReports, titles } from '@/lib/schema';
 import { getStudentSession } from '@/lib/auth';
 import { jsonError } from '@/lib/helpers';
 
@@ -20,12 +20,28 @@ export async function GET(req: NextRequest) {
     .limit(1);
   if (!title) return jsonError('Title not found', 404);
 
-  const updates = await db
-    .select()
+  const rows = await db
+    .select({
+      update: projectUpdates,
+      report: {
+        id: titleReports.id,
+        version: titleReports.version,
+        progressSummary: titleReports.progressSummary,
+        changelog: titleReports.changelog,
+        repoUrl: titleReports.repoUrl,
+        deploymentUrl: titleReports.deploymentUrl,
+        extraLinks: titleReports.extraLinks,
+      },
+    })
     .from(projectUpdates)
+    .leftJoin(titleReports, eq(titleReports.projectUpdateId, projectUpdates.id))
     .where(and(eq(projectUpdates.titleId, titleId), isNull(projectUpdates.deletedAt)))
     .orderBy(desc(projectUpdates.createdAt));
 
+  const updates = rows.map(({ update, report }) => ({
+    ...update,
+    report: report?.id ? report : null,
+  }));
   return NextResponse.json({ updates });
 }
 

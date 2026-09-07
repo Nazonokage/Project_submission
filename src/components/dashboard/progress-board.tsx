@@ -1,7 +1,10 @@
 'use client';
 
+import { useState } from 'react';
 import { ProgressSelect } from '@/components/student/progress-select';
 import { PROGRESS_LABELS, PROGRESS_STATUSES, type ProgressStatus } from '@/lib/progress';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 export type BoardTitle = {
   id: string;
@@ -10,7 +13,10 @@ export type BoardTitle = {
   progressStatus?: string | null;
   groupId: string;
   members: { id: string; name: string; idNumber: string }[];
-  latestReport?: { version: string | null; progressSummary: string | null } | null;
+  latestReport?: {
+    version: string | null; progressSummary: string | null; changelog: string | null;
+    repoUrl: string | null; deploymentUrl: string | null; extraLinks: string[] | null; createdAt: string;
+  } | null;
 };
 
 const STATUS_STYLES: Record<string, string> = {
@@ -34,7 +40,9 @@ export function ProgressBoard({
   onEdit?: (title: BoardTitle) => void;
   onDelete?: (title: BoardTitle) => void;
 }) {
+  const [reportDetail, setReportDetail] = useState<BoardTitle | null>(null);
   return (
+    <>
     <div className="grid gap-3 md:grid-cols-4 items-start">
       {PROGRESS_STATUSES.map((status) => {
         const col = titles.filter((t) => (t.progressStatus || 'planning') === status);
@@ -66,10 +74,10 @@ export function ProgressBoard({
                         {t.members.map((m) => m.name).join(', ') || 'No members listed'}
                       </p>
                       {t.latestReport && (
-                        <p className="text-xs text-muted mt-1 line-clamp-2">
-                          {t.latestReport.version ? `v${t.latestReport.version} · ` : ''}
-                          {t.latestReport.progressSummary || 'Latest report on file'}
-                        </p>
+                        <div className="mt-2 rounded-md border border-primary/15 bg-primary/5 p-2">
+                          <p className="text-[11px] font-semibold uppercase tracking-wide text-primary">Latest report{t.latestReport.version ? ` · v${t.latestReport.version}` : ''}</p>
+                          <p className="text-xs text-muted mt-1 line-clamp-2">{t.latestReport.progressSummary || 'Latest report on file'}</p>
+                        </div>
                       )}
                     </button>
                     <div className="flex flex-wrap items-center gap-2">
@@ -77,6 +85,11 @@ export function ProgressBoard({
                       <ProgressSelect value={t.progressStatus} onChange={(next) => onProgress(t.id, next)} />
                     </div>
                     <div className="flex gap-2">
+                      {t.latestReport && (
+                        <button className="btn-secondary text-xs py-1" onClick={() => setReportDetail(t)}>
+                          Latest report
+                        </button>
+                      )}
                       {onEdit && (
                         <button className="btn-secondary text-xs py-1" onClick={() => onEdit(t)}>
                           Edit
@@ -96,6 +109,22 @@ export function ProgressBoard({
         );
       })}
     </div>
+    <Dialog open={!!reportDetail} onOpenChange={(open) => !open && setReportDetail(null)}>
+      <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>{reportDetail?.text}</DialogTitle>
+          <DialogDescription>Latest submitted version report{reportDetail?.latestReport?.version ? ` · v${reportDetail.latestReport.version}` : ''}</DialogDescription>
+        </DialogHeader>
+        {reportDetail?.latestReport && (
+          <div className="space-y-4 text-sm">
+            <section><p className="font-medium">Progress summary</p><p className="mt-1 whitespace-pre-wrap text-muted">{reportDetail.latestReport.progressSummary || 'No summary provided.'}</p></section>
+            {reportDetail.latestReport.changelog && <section><p className="font-medium">Changelog</p><p className="mt-1 whitespace-pre-wrap text-muted">{reportDetail.latestReport.changelog}</p></section>}
+            {(reportDetail.latestReport.repoUrl || reportDetail.latestReport.deploymentUrl || reportDetail.latestReport.extraLinks?.length) && <section className="space-y-1"><p className="font-medium">Links</p>{reportDetail.latestReport.repoUrl && <a className="block text-primary hover:underline" href={reportDetail.latestReport.repoUrl} target="_blank" rel="noreferrer">Repository</a>}{reportDetail.latestReport.deploymentUrl && <a className="block text-primary hover:underline" href={reportDetail.latestReport.deploymentUrl} target="_blank" rel="noreferrer">Deployment</a>}{reportDetail.latestReport.extraLinks?.map((link) => <a key={link} className="block text-primary hover:underline truncate" href={link} target="_blank" rel="noreferrer">{link}</a>)}</section>}
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }
 

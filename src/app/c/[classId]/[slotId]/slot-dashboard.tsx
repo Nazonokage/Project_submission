@@ -41,6 +41,7 @@ import { EmptyState } from '@/components/student/empty-state';
 import { StatusBadge } from '@/components/student/status-badge';
 import { TechStackInput } from '@/components/student/tech-stack-input';
 import { ProgressSelect } from '@/components/student/progress-select';
+import { ProgressReportModal } from '@/components/student/progress-report-modal';
 import type { Group, LeaveRequest, Member, ProjectTitle, SlotInfo, TaskItem, VerifiedTitle } from '@/components/student/types';
 import type { ProgressStatus } from '@/lib/progress';
 import { PROGRESS_LABELS, PROGRESS_STATUSES } from '@/lib/progress';
@@ -61,7 +62,10 @@ type ProjectUpdate = {
   createdAt: string;
   updatedAt: string | null;
   deletedAt: string | null;
+  report?: { id: string; version: string | null; progressSummary: string | null; changelog: string | null; repoUrl: string | null; deploymentUrl: string | null; extraLinks?: string[] | null } | null;
 };
+
+type FeedbackItem = { id: string; type: string; body: string; status: string; professorName: string | null; createdAt: string };
 
 function deadlineInfo(iso: string | null) {
   if (!iso) return null;
@@ -508,6 +512,7 @@ function BoardTab({
 
   const [updates, setUpdates] = useState<ProjectUpdate[]>([]);
   const [updatesLoading, setUpdatesLoading] = useState(false);
+  const [feedback, setFeedback] = useState<FeedbackItem[]>([]);
   const [addUpdateOpen, setAddUpdateOpen] = useState(false);
   const [editUpdate, setEditUpdate] = useState<ProjectUpdate | null>(null);
 
@@ -548,12 +553,18 @@ function BoardTab({
     }
   }, []);
 
+  const loadFeedback = useCallback(async (titleId: string) => {
+    const res = await fetch(`/api/student/titles/${titleId}/feedback`);
+    if (res.ok) setFeedback((await res.json()).feedback || []);
+  }, []);
+
   useEffect(() => {
     if (selectedTitle?.id) {
       loadTasks(selectedTitle.id);
       loadUpdates(selectedTitle.id);
+      loadFeedback(selectedTitle.id);
     }
-  }, [selectedTitle?.id, loadTasks, loadUpdates]);
+  }, [selectedTitle?.id, loadTasks, loadUpdates, loadFeedback]);
 
   async function handleStatusChange(taskId: string, next: ProgressStatus) {
     // Optimistic update
@@ -626,7 +637,8 @@ function BoardTab({
         <div className="flex items-center gap-2 flex-1 min-w-0">
           <Label className="shrink-0 font-medium text-xs uppercase tracking-wide text-muted">Project:</Label>
           <select
-            className="input py-1 text-sm flex-1 truncate max-w-sm"
+            aria-label="Active project"
+            className="input py-1 text-sm flex-1 truncate max-w-xl font-medium"
             value={selectedTitleId}
             onChange={(e) => setSelectedTitleId(e.target.value)}
           >
@@ -667,6 +679,11 @@ function BoardTab({
 
       {selectedTitle && (
         <>
+          <div className="rounded-xl border border-primary/20 bg-primary/5 px-4 py-3">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-primary">You are updating this project</p>
+            <p className="mt-1 font-semibold text-base">{selectedTitle.text}</p>
+            <p className="mt-1 text-sm text-muted line-clamp-2">{selectedTitle.description}</p>
+          </div>
           {/* Task-Level Kanban Board */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             {PROGRESS_STATUSES.map((col) => {
@@ -761,9 +778,12 @@ function BoardTab({
           {/* Activity & Updates Feed */}
           <Card className="rounded-xl shadow-xs border">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
-              <CardTitle className="text-base font-semibold">Updates & Activity Log</CardTitle>
+              <div>
+                <CardTitle className="text-base font-semibold">Updates for {selectedTitle.text}</CardTitle>
+                <p className="text-xs text-muted mt-1">Only activity for the active project is shown here.</p>
+              </div>
               <Button size="sm" onClick={() => setAddUpdateOpen(true)} className="text-xs h-8">
-                + Add update
+                Log for this project
               </Button>
             </CardHeader>
             <CardContent>
@@ -789,6 +809,17 @@ function BoardTab({
                   ))}
                 </div>
               )}
+              {feedback.filter((item) => item.status === 'open').length > 0 && (
+                <div className="mt-5 border-t pt-4 space-y-2">
+                  <p className="text-sm font-semibold">Open professor feedback</p>
+                  {feedback.filter((item) => item.status === 'open').map((item) => (
+                    <div key={item.id} className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-sm">
+                      <div className="flex items-center gap-2"><Badge variant="secondary" className="text-xs">{item.type.replace('_', ' ')}</Badge><span className="text-xs text-muted">{item.professorName || 'Professor'}</span></div>
+                      <p className="mt-1 whitespace-pre-wrap">{item.body}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </>
@@ -809,12 +840,11 @@ function BoardTab({
         />
       )}
 
-      <AddUpdateDialog
+      <ProgressReportModal
         open={addUpdateOpen}
         titleId={selectedTitle?.id ?? ''}
         onClose={() => setAddUpdateOpen(false)}
         onSuccess={async () => {
-          setAddUpdateOpen(false);
           if (selectedTitle?.id) await loadUpdates(selectedTitle.id);
         }}
       />
@@ -988,7 +1018,7 @@ function UpdateEntry({ update, myStudentId, onEdit, onDelete }: { update: Projec
     <div className="flex gap-3 text-sm border-b last:border-0 pb-3 last:pb-0">
       <div className="flex-1 space-y-1">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className={`badge text-xs uppercase ${kindColors[update.kind] ?? ''}`}>{update.kind}</span>
+          <span className={`badge text-xs uppercase ${kindColors[update.kind] ?? ''}`}>{update.kind === 'milestone' ? `Version Report${update.report?.version ? ` · v${update.report.version}` : ''}` : update.kind}</span>
           {update.headline && <span className="font-medium">{update.headline}</span>}
           {update.commitSha && (
             update.commitUrl ? (
@@ -1017,6 +1047,13 @@ function UpdateEntry({ update, myStudentId, onEdit, onDelete }: { update: Projec
             </p>
           </div>
         )}
+        {update.kind === 'milestone' && update.report && (
+          <div className="rounded-md border border-sage/40 bg-sage/10 p-2 text-xs space-y-1">
+            <p className="font-medium">Formal report{update.report.version ? ` · v${update.report.version}` : ''}</p>
+            {update.report.progressSummary && <p>{update.report.progressSummary}</p>}
+            <div className="flex gap-3">{update.report.repoUrl && <a className="text-primary hover:underline" href={update.report.repoUrl} target="_blank" rel="noreferrer">Repository</a>}{update.report.deploymentUrl && <a className="text-primary hover:underline" href={update.report.deploymentUrl} target="_blank" rel="noreferrer">Deployment</a>}</div>
+          </div>
+        )}
         <p className="text-xs text-muted">{new Date(update.createdAt).toLocaleString()}</p>
       </div>
       {isOwn && (
@@ -1026,93 +1063,6 @@ function UpdateEntry({ update, myStudentId, onEdit, onDelete }: { update: Projec
         </div>
       )}
     </div>
-  );
-}
-
-function AddUpdateDialog({ open, titleId, onClose, onSuccess }: { open: boolean; titleId: string; onClose: () => void; onSuccess: () => Promise<void>; }) {
-  const [headline, setHeadline] = useState('');
-  const [body, setBody] = useState('');
-  const [kind, setKind] = useState<'progress' | 'commit' | 'milestone' | 'note'>('progress');
-  const [changelog, setChangelog] = useState('');
-  const [commitSha, setCommitSha] = useState('');
-  const [commitUrl, setCommitUrl] = useState('');
-  const [saving, setSaving] = useState(false);
-
-  async function save() {
-    if (!headline.trim()) { toast.error('Headline is required'); return; }
-    if (!body.trim()) { toast.error('Details are required'); return; }
-    setSaving(true);
-    try {
-      const res = await fetch('/api/student/updates', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          titleId,
-          headline: headline.trim(),
-          body: body.trim(),
-          kind,
-          changelog: changelog.trim() || undefined,
-          commitSha: commitSha.trim() || undefined,
-          commitUrl: commitUrl.trim() || undefined,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Could not post update');
-      toast.success('Update posted');
-      setHeadline(''); setBody(''); setKind('progress'); setChangelog(''); setCommitSha(''); setCommitUrl('');
-      await onSuccess();
-    } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : 'Could not post update');
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent>
-        <DialogHeader><DialogTitle>Add an update</DialogTitle><DialogDescription>Log what your group worked on.</DialogDescription></DialogHeader>
-        <div className="space-y-3">
-          <div className="space-y-1.5">
-            <Label>Type</Label>
-            <select className="input py-1 text-sm w-full" value={kind} onChange={(e) => setKind(e.target.value as typeof kind)}>
-              <option value="progress">Progress</option>
-              <option value="commit">Commit</option>
-              <option value="milestone">Milestone</option>
-              <option value="note">Note</option>
-            </select>
-          </div>
-          <div className="space-y-1.5">
-            <Label>Headline</Label>
-            <Input placeholder="e.g. Built the login page" value={headline} onChange={(e) => setHeadline(e.target.value)} />
-          </div>
-          <div className="space-y-1.5">
-            <Label>Details</Label>
-            <Textarea className="min-h-20" placeholder="What was done? Any blockers?" value={body} onChange={(e) => setBody(e.target.value)} />
-          </div>
-          {kind === 'commit' && (
-            <div className="grid grid-cols-2 gap-2">
-              <div className="space-y-1.5">
-                <Label>Commit SHA (optional)</Label>
-                <Input placeholder="e.g. 7f3b89a" value={commitSha} onChange={(e) => setCommitSha(e.target.value)} />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Commit URL (optional)</Label>
-                <Input placeholder="https://github.com/..." value={commitUrl} onChange={(e) => setCommitUrl(e.target.value)} />
-              </div>
-            </div>
-          )}
-          <div className="space-y-1.5">
-            <Label>Changelog (optional)</Label>
-            <Textarea className="min-h-16" placeholder="List what changed or key highlights..." value={changelog} onChange={(e) => setChangelog(e.target.value)} />
-          </div>
-        </div>
-        <DialogFooter>
-          <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
-          <Button type="button" disabled={saving} onClick={save}>{saving && <Loader2 className="h-4 w-4 animate-spin" />}Post update</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   );
 }
 
@@ -1356,5 +1306,3 @@ function GroupTab({ group, members, without, creating, leaveRequest, showUngroup
     </>
   );
 }
-
-

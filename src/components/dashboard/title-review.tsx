@@ -150,6 +150,7 @@ export function ProfessorFeedbackForm({
 
 export type ReportRow = {
   id: string;
+  projectUpdateId?: string | null;
   version: string | null;
   changelog: string | null;
   progressSummary: string | null;
@@ -184,6 +185,7 @@ export type UpdateItem = {
   createdAt: string;
   updatedAt?: string | null;
   deletedAt?: string | null;
+  report?: { id: string | null; version: string | null; progressSummary: string | null; changelog: string | null; repoUrl: string | null; deploymentUrl: string | null } | null;
 };
 
 type DocFieldTemplate = {
@@ -344,6 +346,7 @@ export function TitleReviewDialog({
                     <div className="flex items-center justify-between gap-2">
                       <p className="text-sm font-medium">
                         {r.version ? `v${r.version}` : 'Report'}
+                        {r.projectUpdateId ? ' · linked to Board activity' : ''}
                         {!r.isEditable ? ' · locked' : ''}
                       </p>
                       <span className="text-xs text-muted">

@@ -1,3 +1,16 @@
+## [1.6.2] - 2026-09-07
+
+### Added & Changed
+- **Unified Progress Reporting & Board Visibility (Phase 12)**:
+  - **Single progress entry point**: Added `ProgressReportModal`, shared by the Board and verified-title card. Students can choose a Quick Update or a formal Milestone / Version Report without duplicate forms.
+  - **Linked milestone records**: Formal reports now create a matching `project_updates` milestone inside one database transaction, linked through `title_reports.project_update_id`.
+  - **Project-aware student Board**: The active project is prominently identified above its Kanban and activity feed; the logging action is explicitly scoped to that project.
+  - **Richer activity feed**: Milestones show their version-report badge and linked report summary, changelog, and project links. Open professor feedback is visible alongside the student activity feed.
+  - **Professor latest-report view**: Project-board cards show the latest report and open a detail dialog with its summary, changelog, and submitted links.
+  - **Schema health coverage**: Added a migration and health check for `title_reports.project_update_id`.
+
+---
+
 ## [1.6.1] - 2026-09-07
 
 ### Added & Changed

@@ -307,6 +307,9 @@ export const titleReports = pgTable('title_reports', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   deletedAt: timestamp('deleted_at', { withTimezone: true }),
+  // The database migration owns the FK; avoiding a forward table reference here
+  // keeps Drizzle's inferred table types non-circular.
+  projectUpdateId: uuid('project_update_id'),
 });
 
 // ============================================================
@@ -387,4 +390,3 @@ export const activityLog = pgTable('activity_log', {
   targetId: uuid('target_id'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
-

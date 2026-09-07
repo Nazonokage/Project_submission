@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { and, desc, eq } from 'drizzle-orm';
 import { db } from '@/lib/db';
-import { projectUpdates, students, titles } from '@/lib/schema';
+import { projectUpdates, students, titleReports, titles } from '@/lib/schema';
 import { getProfSession } from '@/lib/auth';
 import { jsonError } from '@/lib/helpers';
 
@@ -38,11 +38,20 @@ export async function GET(req: NextRequest) {
       createdAt: projectUpdates.createdAt,
       updatedAt: projectUpdates.updatedAt,
       deletedAt: projectUpdates.deletedAt,
+      report: {
+        id: titleReports.id,
+        version: titleReports.version,
+        progressSummary: titleReports.progressSummary,
+        changelog: titleReports.changelog,
+        repoUrl: titleReports.repoUrl,
+        deploymentUrl: titleReports.deploymentUrl,
+      },
       // Join student name for display
       studentName: students.name,
     })
     .from(projectUpdates)
     .leftJoin(students, eq(students.id, projectUpdates.postedByStudentId))
+    .leftJoin(titleReports, eq(titleReports.projectUpdateId, projectUpdates.id))
     .where(and(...conditions))
     .orderBy(desc(projectUpdates.createdAt));
 
