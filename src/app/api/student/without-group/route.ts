@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { students, studentGroupSlots } from '@/lib/schema';
-import { and, eq, notInArray } from 'drizzle-orm';
+import { groupInvites, groupLeaveRequests, groups, students, studentGroupSlots, titles } from '@/lib/schema';
+import { and, eq } from 'drizzle-orm';
 import { getStudentSession } from '@/lib/auth';
 import { assertSlotInClass, jsonError } from '@/lib/helpers';
 
@@ -20,21 +20,46 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ students: [] });
   }
 
-  const grouped = await db
-    .select({ studentId: studentGroupSlots.studentId })
+  const [classmates, memberships, verifiedTitles, pendingInvites, pendingLeaves] = await Promise.all([
+    db.select({ id: students.id, name: students.name, idNumber: students.idNumber })
+      .from(students)
+      .where(eq(students.classId, session.classId)),
+    db.select({ studentId: studentGroupSlots.studentId, groupId: studentGroupSlots.groupId })
     .from(studentGroupSlots)
-    .where(eq(studentGroupSlots.slotId, slotId));
+      .innerJoin(groups, eq(groups.id, studentGroupSlots.groupId))
+      .where(and(eq(studentGroupSlots.slotId, slotId), eq(groups.classId, session.classId))),
+    db.select({ groupId: titles.groupId })
+      .from(titles)
+      .where(and(eq(titles.slotId, slotId), eq(titles.classId, session.classId), eq(titles.status, 'verified'))),
+    db.select({ groupId: groupInvites.groupId }).from(groupInvites)
+      .where(and(eq(groupInvites.slotId, slotId), eq(groupInvites.status, 'pending'))),
+    db.select({ groupId: groupLeaveRequests.groupId }).from(groupLeaveRequests)
+      .where(and(eq(groupLeaveRequests.slotId, slotId), eq(groupLeaveRequests.status, 'pending'))),
+  ]);
 
-  const groupedIds = grouped.map((g) => g.studentId);
+  const memberCount = new Map<string, number>();
+  const groupForStudent = new Map<string, string>();
+  for (const membership of memberships) {
+    memberCount.set(membership.groupId, (memberCount.get(membership.groupId) || 0) + 1);
+    groupForStudent.set(membership.studentId, membership.groupId);
+  }
+  const verifiedGroups = new Set(verifiedTitles.map((title) => title.groupId));
+  const changingGroups = new Set([
+    ...pendingInvites.map((invite) => invite.groupId),
+    ...pendingLeaves.map((request) => request.groupId),
+  ]);
 
-  const rows = await db
-    .select({ id: students.id, name: students.name, idNumber: students.idNumber })
-    .from(students)
-    .where(
-      groupedIds.length > 0
-        ? and(eq(students.classId, session.classId), notInArray(students.id, groupedIds))
-        : eq(students.classId, session.classId)
+  // A classmate is eligible if they are ungrouped, or are the sole member of a
+  // draft-only group. The latter supports moving solo work into a new pair/team.
+  const rows = classmates.filter((student) => {
+    if (student.id === session.studentId) return false;
+    const groupId = groupForStudent.get(student.id);
+    return !groupId || (
+      memberCount.get(groupId) === 1 &&
+      !verifiedGroups.has(groupId) &&
+      !changingGroups.has(groupId)
     );
+  });
 
   return NextResponse.json({ students: rows });
 }

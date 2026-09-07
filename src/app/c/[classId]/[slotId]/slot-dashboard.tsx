@@ -86,6 +86,7 @@ export function SlotDashboard({ classId, slotId }: { classId: string; slotId: st
   const [slot, setSlot] = useState<SlotInfo | null>(null);
   const [group, setGroup] = useState<Group | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
+  const [pendingInviteeIds, setPendingInviteeIds] = useState<string[]>([]);
   const [leaveRequest, setLeaveRequest] = useState<LeaveRequest | null>(null);
   const [without, setWithout] = useState<Member[]>([]);
   const [invites, setInvites] = useState<Invite[]>([]);
@@ -121,6 +122,7 @@ export function SlotDashboard({ classId, slotId }: { classId: string; slotId: st
       const data = await groupRes.json();
       setGroup(data.group);
       setMembers(data.members || []);
+      setPendingInviteeIds(data.pendingInvitedStudentIds || []);
       setLeaveRequest(data.leaveRequest ?? null);
       if (data.studentId) setMyStudentId(data.studentId);
     }
@@ -305,7 +307,7 @@ export function SlotDashboard({ classId, slotId }: { classId: string; slotId: st
               </TabsContent>
 
               <TabsContent value="group">
-                <GroupTab group={group} members={members} without={without} creating={creating} leaveRequest={leaveRequest} showUngrouped={slot ? slot.groupSize > 1 : true} onCreate={createGroup} onReload={loadAll} />
+                <GroupTab group={group} members={members} without={without} pendingInviteeIds={pendingInviteeIds} creating={creating} leaveRequest={leaveRequest} showUngrouped={slot ? slot.groupSize > 1 : true} onCreate={createGroup} onReload={loadAll} />
               </TabsContent>
             </Tabs>
           )}
@@ -1149,8 +1151,8 @@ function EditUpdateDialog({ update, onClose, onSuccess }: { update: ProjectUpdat
   );
 }
 
-function GroupTab({ group, members, without, creating, leaveRequest, showUngrouped, onCreate, onReload }: {
-  group: Group | null; members: Member[]; without: Member[]; creating: boolean; leaveRequest: LeaveRequest | null; showUngrouped: boolean; onCreate: () => void; onReload: () => Promise<void>;
+function GroupTab({ group, members, without, pendingInviteeIds, creating, leaveRequest, showUngrouped, onCreate, onReload }: {
+  group: Group | null; members: Member[]; without: Member[]; pendingInviteeIds: string[]; creating: boolean; leaveRequest: LeaveRequest | null; showUngrouped: boolean; onCreate: () => void; onReload: () => Promise<void>;
 }) {
   const [inviteOpen, setInviteOpen] = useState(false);
   const [leaveOpen, setLeaveOpen] = useState(false);
@@ -1158,11 +1160,16 @@ function GroupTab({ group, members, without, creating, leaveRequest, showUngroup
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
 
+  const eligibleStudents = useMemo(
+    () => without.filter((student) => !pendingInviteeIds.includes(student.id)),
+    [without, pendingInviteeIds]
+  );
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return without;
-    return without.filter((s) => s.name.toLowerCase().includes(q) || s.idNumber.toLowerCase().includes(q));
-  }, [without, query]);
+    if (!q) return eligibleStudents;
+    return eligibleStudents.filter((s) => s.name.toLowerCase().includes(q) || s.idNumber.toLowerCase().includes(q));
+  }, [eligibleStudents, query]);
 
   async function invite(studentId: string) {
     if (!group) return;
@@ -1254,23 +1261,23 @@ function GroupTab({ group, members, without, creating, leaveRequest, showUngroup
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div>
                   <p className="text-sm font-semibold">Invite classmates</p>
-                  <p className="text-xs text-muted mt-0.5">Only classmates who are not yet in a group for this slot can be invited.</p>
+                  <p className="text-xs text-muted mt-0.5">Available classmates include those working solo on an unapproved draft. Approved and team projects stay locked.</p>
                 </div>
                 <Button type="button" size="sm" variant="outline" onClick={() => setInviteOpen(true)}>
-                  Search all eligible
+                  Invite member
                 </Button>
               </div>
-              {without.length === 0 ? (
-                <p className="text-sm text-muted">There are no classmates currently available to invite.</p>
+              {eligibleStudents.length === 0 ? (
+                <p className="text-sm text-muted">{pendingInviteeIds.length > 0 ? 'An invitation is pending for the remaining seat.' : 'There are no classmates currently available to invite.'}</p>
               ) : (
                 <div className="space-y-2">
-                  {without.slice(0, 3).map((student) => (
+                  {eligibleStudents.slice(0, 3).map((student) => (
                     <div key={student.id} className="flex items-center justify-between gap-3 rounded-md bg-card/70 px-3 py-2 text-sm">
                       <div className="min-w-0"><p className="font-medium truncate">{student.name}</p><p className="text-xs text-muted">{student.idNumber}</p></div>
                       <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => invite(student.id)}>Invite</Button>
                     </div>
                   ))}
-                  {without.length > 3 && <p className="text-xs text-muted">+ {without.length - 3} more eligible classmates — use Search all eligible to find them.</p>}
+                  {eligibleStudents.length > 3 && <p className="text-xs text-muted">+ {eligibleStudents.length - 3} more eligible classmates — use Invite member to search them.</p>}
                 </div>
               )}
             </section>
@@ -1297,7 +1304,7 @@ function GroupTab({ group, members, without, creating, leaveRequest, showUngroup
 
       <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Invite a classmate</DialogTitle><DialogDescription>Students who do not have a group for this slot yet.</DialogDescription></DialogHeader>
+          <DialogHeader><DialogTitle>Invite a classmate</DialogTitle><DialogDescription>Choose an ungrouped classmate or a classmate with a solo, unapproved draft project.</DialogDescription></DialogHeader>
           <div className="relative">
             <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted" />
             <Input className="pl-9" placeholder="Search by name or ID" value={query} onChange={(e) => setQuery(e.target.value)} />

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { projectSlots } from '@/lib/schema';
+import { groups, projectSlots, studentGroupSlots } from '@/lib/schema';
 import { eq } from 'drizzle-orm';
 import { getProfSession } from '@/lib/auth';
 import { assertClassOwnedByProf, assertSlotInClass, jsonError } from '@/lib/helpers';
@@ -40,11 +40,58 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     patch.deadline = body.deadline ? new Date(body.deadline) : null;
   }
 
+  if ('groupSize' in patch) {
+    const groupSize = Number(patch.groupSize);
+    if (!Number.isInteger(groupSize) || groupSize < 1) {
+      return jsonError('groupSize must be a whole number of at least 1', 422);
+    }
+    patch.groupSize = groupSize;
+
+    // A smaller limit must never invalidate an existing group.
+    const existingGroups = await db
+      .select({ id: groups.id })
+      .from(groups)
+      .where(eq(groups.slotId, slot.id));
+
+    for (const group of existingGroups) {
+      const members = await db
+        .select({ id: studentGroupSlots.id })
+        .from(studentGroupSlots)
+        .where(eq(studentGroupSlots.groupId, group.id));
+      if (members.length > groupSize) {
+        return jsonError(`Cannot set group size to ${groupSize}: an existing group has ${members.length} members`, 409);
+      }
+    }
+  }
+
   const [row] = await db
     .update(projectSlots)
     .set(patch)
     .where(eq(projectSlots.id, params.slotId))
     .returning();
+
+  // Groups retain their own max size/status, so reconcile them whenever the
+  // professor changes the slot size. This re-opens former solo groups when a
+  // slot is changed to pairs (or a larger group) and locks groups at capacity.
+  if ('groupSize' in patch) {
+    const groupSize = row.groupSize;
+    const existingGroups = await db
+      .select({ id: groups.id })
+      .from(groups)
+      .where(eq(groups.slotId, row.id));
+
+    for (const group of existingGroups) {
+      const members = await db
+        .select({ id: studentGroupSlots.id })
+        .from(studentGroupSlots)
+        .where(eq(studentGroupSlots.groupId, group.id));
+
+      await db
+        .update(groups)
+        .set({ maxSize: groupSize, status: members.length >= groupSize ? 'locked' : 'forming' })
+        .where(eq(groups.id, group.id));
+    }
+  }
 
   return NextResponse.json({ slot: row });
 }
