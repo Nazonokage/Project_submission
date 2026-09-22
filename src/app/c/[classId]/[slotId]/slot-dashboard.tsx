@@ -213,6 +213,7 @@ export function SlotDashboard({ classId, slotId }: { classId: string; slotId: st
         backHref={`/c/${classId}`}
         backLabel="All slots"
         onLogout={logout}
+        accountHref={`/c/${classId}/me`}
       />
 
       {loading ? (

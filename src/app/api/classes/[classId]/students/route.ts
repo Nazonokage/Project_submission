@@ -3,7 +3,12 @@ import { db } from '@/lib/db';
 import { students, studentGroupSlots } from '@/lib/schema';
 import { eq, asc } from 'drizzle-orm';
 import { getProfSession } from '@/lib/auth';
-import { assertClassOwnedByProf, generatePassword, jsonError } from '@/lib/helpers';
+import {
+  assertClassOwnedByProf,
+  classDefaultPassword,
+  jsonError,
+  nextStudentIdNumber,
+} from '@/lib/helpers';
 
 export async function GET(_req: NextRequest, { params }: { params: { classId: string } }) {
   const prof = await getProfSession();
@@ -49,10 +54,12 @@ export async function POST(req: NextRequest, { params }: { params: { classId: st
 
   const body = await req.json().catch(() => null);
   const name = (body?.name as string | undefined)?.trim();
-  const idNumber = (body?.idNumber as string | undefined)?.trim();
-  const password = (body?.password as string | undefined)?.trim() || generatePassword();
+  const idNumber =
+    (body?.idNumber as string | undefined)?.trim() || (await nextStudentIdNumber(params.classId));
+  const password =
+    (body?.password as string | undefined)?.trim() || classDefaultPassword(cls);
 
-  if (!name || !idNumber) return jsonError('name and idNumber are required', 422);
+  if (!name) return jsonError('name is required', 422);
 
   try {
     const [row] = await db

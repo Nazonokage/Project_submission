@@ -3,6 +3,8 @@ import { db } from './db';
 import { classes, projectSlots, groups, students } from './schema';
 import { and, eq } from 'drizzle-orm';
 
+export const FALLBACK_STUDENT_PASSWORD = '2026';
+
 export function generateOtp() {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
@@ -54,6 +56,28 @@ export async function assertGroupInClassSlot(groupId: string, classId: string, s
     )
     .limit(1);
   return row ?? null;
+}
+
+export async function nextStudentIdNumber(classId: string): Promise<string> {
+  const rows = await db
+    .select({ idNumber: students.idNumber })
+    .from(students)
+    .where(eq(students.classId, classId));
+
+  let max = 0;
+  for (const row of rows) {
+    const raw = row.idNumber?.trim() ?? '';
+    if (!/^\d+$/.test(raw)) continue;
+    const n = Number.parseInt(raw, 10);
+    if (n > max) max = n;
+  }
+
+  return String(max + 1).padStart(4, '0');
+}
+
+export function classDefaultPassword(cls: { defaultStudentPassword?: string | null } | null | undefined) {
+  const value = cls?.defaultStudentPassword?.trim();
+  return value || FALLBACK_STUDENT_PASSWORD;
 }
 
 // Confirms this student belongs to this class.

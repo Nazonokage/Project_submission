@@ -62,6 +62,7 @@ export default function StudentClassHomePage() {
         title={className || 'Your class'}
         subtitle={term ? `${term} · Pick a project slot` : 'Pick a project slot'}
         onLogout={logout}
+        accountHref={`/c/${classId}/me`}
       />
 
       {loading ? (

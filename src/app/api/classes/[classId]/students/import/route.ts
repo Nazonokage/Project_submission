@@ -2,7 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { students } from '@/lib/schema';
 import { getProfSession } from '@/lib/auth';
-import { assertClassOwnedByProf, generatePassword, jsonError } from '@/lib/helpers';
+import {
+  assertClassOwnedByProf,
+  classDefaultPassword,
+  jsonError,
+  nextStudentIdNumber,
+} from '@/lib/helpers';
+
 // Body: { names: string[] } — one name per line, already split client-side,
 // or { text: string } — raw .txt contents (one name per line).
 export async function POST(req: NextRequest, { params }: { params: { classId: string } }) {
@@ -26,16 +32,22 @@ export async function POST(req: NextRequest, { params }: { params: { classId: st
   names = names.map((n) => n.trim()).filter(Boolean);
   if (names.length === 0) return jsonError('No names found', 422);
 
-  // Auto-generate a simple sequential ID number + random password per student.
-  // Prof can edit both afterward.
+  const start = Number.parseInt(await nextStudentIdNumber(params.classId), 10);
+  const password = classDefaultPassword(cls);
   const rows = names.map((name, i) => ({
     classId: params.classId,
     name,
-    idNumber: String(i + 1).padStart(4, '0'),
-    password: generatePassword(),
+    idNumber: String(start + i).padStart(4, '0'),
+    password,
   }));
 
-  const inserted = await db.insert(students).values(rows).returning();
-
-  return NextResponse.json({ students: inserted, count: inserted.length }, { status: 201 });
+  try {
+    const inserted = await db.insert(students).values(rows).returning();
+    return NextResponse.json({ students: inserted, count: inserted.length }, { status: 201 });
+  } catch (err: any) {
+    if (String(err?.message || '').includes('unique')) {
+      return jsonError('Import collided with an existing student ID. Try again.', 409);
+    }
+    throw err;
+  }
 }

@@ -4,7 +4,7 @@ import { students } from '@/lib/schema';
 import { and, eq } from 'drizzle-orm';
 import { jsonError } from '@/lib/helpers';
 import { signStudentToken, setStudentCookie } from '@/lib/auth';
-import { verifyPassword } from '@/lib/password';
+import { verifyStoredPassword } from '@/lib/password';
 
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
@@ -24,11 +24,10 @@ export async function POST(req: NextRequest) {
 
   if (!student) return jsonError('Invalid ID number or password', 401);
 
-  const stored = student.password || '';
-  const passwordOk = stored.startsWith('$2')
-    ? await verifyPassword(password, stored)
-    : stored === password;
+  const passwordOk = await verifyStoredPassword(password, student.password || '');
   if (!passwordOk) return jsonError('Invalid ID number or password', 401);
+
+  await db.update(students).set({ lastLoginAt: new Date() }).where(eq(students.id, student.id));
 
   const token = await signStudentToken({ studentId: student.id, classId });
   await setStudentCookie(token);

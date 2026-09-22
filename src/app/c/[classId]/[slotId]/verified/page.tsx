@@ -71,6 +71,7 @@ export default function VerifiedTitlesPage() {
         backHref={`/c/${classId}/${slotId}`}
         backLabel="Back to your project"
         onLogout={logout}
+        accountHref={`/c/${classId}/me`}
       />
 
       <div className="relative">

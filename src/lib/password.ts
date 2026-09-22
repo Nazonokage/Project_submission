@@ -12,3 +12,9 @@ export async function verifyPassword(
 ): Promise<boolean> {
   return bcrypt.compare(plain, hashed);
 }
+
+export async function verifyStoredPassword(plain: string, stored: string): Promise<boolean> {
+  if (!stored) return false;
+  if (stored.startsWith('$2')) return verifyPassword(plain, stored);
+  return stored === plain;
+}

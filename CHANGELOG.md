@@ -1,3 +1,17 @@
+## [1.6.3] - 2026-09-22
+
+### Added
+- **Class default student password**: Each class now stores `default_student_password` (starts as `2026`). Professors can change it from the roster; new and imported students inherit it instead of a random password.
+- **Sequential roster IDs**: Adding a student only requires a name. IDs continue from the highest numeric ID in the class (`0001`, `0002`, …), including imports into a non-empty roster.
+- **Professor student profile**: `/dashboard/[classId]/students/[studentId]` shows credentials, groups, titles, leave requests, and edit/delete actions.
+- **Student My account**: `/c/[classId]/me` with `GET/PATCH /api/student/me` so students can view their identity and change their own password (current password required; name/ID stay professor-owned).
+
+### Changed
+- **Roster UX**: Table rows are read-only summaries (group status, last login). Edit opens a modal that saves with a single PATCH.
+- **Student login**: Successful login now stamps `lastLoginAt` for roster and profile display.
+
+---
+
 ## [1.6.2] - 2026-09-07
 
 ### Added & Changed

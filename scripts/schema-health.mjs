@@ -84,7 +84,7 @@ await checkColumns('tasks', ['title_id', 'group_id', 'class_id', 'slot_id', 'sta
 await checkColumns('documentation_field_templates', ['slot_id', 'field_key', 'label', 'field_type', 'required', 'sort_order']);
 await checkColumns('project_updates', ['task_id', 'changelog', 'updated_at', 'deleted_at']);
 await checkColumns('title_reports', ['updated_at', 'deleted_at', 'project_update_id']);
-await checkColumns('classes', ['updated_at']);
+await checkColumns('classes', ['updated_at', 'default_student_password']);
 await checkColumns('project_slots', ['updated_at']);
 await checkColumns('groups', ['updated_at']);
 

@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { LogOut } from 'lucide-react';
+import { LogOut, UserRound } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/theme-toggle';
 
@@ -10,6 +10,7 @@ export function StudentHeader({
   subtitle,
   backHref,
   backLabel = 'Back',
+  accountHref,
   onLogout,
   actions,
 }: {
@@ -17,6 +18,7 @@ export function StudentHeader({
   subtitle?: string;
   backHref?: string;
   backLabel?: string;
+  accountHref?: string;
   onLogout?: () => void;
   actions?: React.ReactNode;
 }) {
@@ -33,6 +35,14 @@ export function StudentHeader({
       </div>
       <div className="flex items-center gap-2">
         {actions}
+        {accountHref && (
+          <Button type="button" variant="outline" size="sm" asChild>
+            <Link href={accountHref}>
+              <UserRound className="h-4 w-4" />
+              My account
+            </Link>
+          </Button>
+        )}
         <ThemeToggle />
         {onLogout && (
           <Button type="button" variant="outline" size="sm" onClick={onLogout}>

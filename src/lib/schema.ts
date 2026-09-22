@@ -44,6 +44,7 @@ export const classes = pgTable('classes', {
     .references(() => professors.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
   term: text('term').notNull(),
+  defaultStudentPassword: text('default_student_password').notNull().default('2026'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });

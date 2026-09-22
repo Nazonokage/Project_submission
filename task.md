@@ -117,3 +117,36 @@
 - Linking via `project_update_id` is the bridge
 - Shared modal is the key to making the UX feel like one system
 - Future pure Option B (single modal everywhere) is still possible later if desired
+
+---
+
+## Phase 13 — Roster, Default Passwords & Student Profiles (v1.6.3) (completed)
+
+> Goal: One class default password for new students, sequential IDs, a summary roster with modal edit, a professor student profile page, and student self-service password change.
+
+### 13.1 — Schema & helpers
+- [x] `classes.default_student_password` (default `2026`) via `phase13_schema.sql`
+- [x] Drizzle schema + schema-health coverage
+- [x] `nextStudentIdNumber(classId)` sequential padded IDs
+
+### 13.2 — Professor APIs
+- [x] `PATCH /api/classes/[classId]` accepts `defaultStudentPassword`
+- [x] `POST /api/classes/[classId]/students` name-only add, class default password
+- [x] Import continues ID sequence and uses class default (not random)
+- [x] `GET /api/classes/[classId]/students/[studentId]` rich profile payload
+
+### 13.3 — Professor UI
+- [x] Roster default-password control, name-only add, read-only table, edit modal
+- [x] `/dashboard/[classId]/students/[studentId]` profile page
+
+### 13.4 — Student self-service
+- [x] `GET/PATCH /api/student/me`
+- [x] `/c/[classId]/me` + “My account” header link
+- [x] Student login stamps `lastLoginAt`
+
+### 13.5 — Cleanup
+- [x] `npx tsc --noEmit` clean
+- [x] `node scripts/schema-health.mjs` clean
+- [ ] Manual click-test still recommended (add/import/edit, student password change, login with new password)
+
+---

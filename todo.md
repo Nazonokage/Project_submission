@@ -1,12 +1,19 @@
 # Project-Submissions — Roadmap
 
-**Current Version: v1.6.2**  
+**Current Version: v1.6.3**
 **Next Target: v1.7.1 — Live Board Updates**  
-Last updated: 2026-09-07
+Last updated: 2026-09-22
 
 ---
 
 ## ✅ Shipped Features
+
+### v1.6.3: Roster, Default Passwords & Student Profiles
+- **Class default password**: Professors set one password per class (starts as `2026`); new and imported students inherit it.
+- **Sequential student IDs**: Adding a student only needs a name; IDs continue `0001`, `0002`, … including imports against an existing roster.
+- **Read-only roster + edit modal**: Summary table (group / last login) with Edit, View profile, and Open on board.
+- **Professor student profile**: Dedicated page with credentials, groups, titles, and edit/delete.
+- **Student My account**: `/c/[classId]/me` shows identity (no password) and lets students change their own password.
 
 ### v1.6.2: Unified Progress Reporting & Board Visibility (Phase 12)
 - **One Progress / Report Modal**: A single project-scoped dialog for both Quick Updates and formal Milestone / Version Reports.

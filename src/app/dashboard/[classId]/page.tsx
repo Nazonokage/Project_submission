@@ -21,6 +21,7 @@ import {
   type SlotRules,
 } from '@/components/dashboard/slot-settings';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { RosterTab, type RosterStudent } from '@/components/dashboard/roster-tab';
 
 type Slot = {
   id: string;
@@ -36,13 +37,7 @@ type Slot = {
   locked: boolean;
 };
 
-type Student = {
-  id: string;
-  name: string;
-  idNumber: string;
-  password: string;
-  memberships?: { groupId: string; slotId: string }[];
-};
+type Student = RosterStudent;
 
 type Title = ProfTitle & BoardTitle & {
   description: string;
@@ -58,7 +53,7 @@ export default function ClassPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [tab, setTab] = useState<Tab>('board');
-  const [cls, setCls] = useState<{ name: string; term: string } | null>(null);
+  const [cls, setCls] = useState<{ name: string; term: string; defaultStudentPassword?: string } | null>(null);
   const [slots, setSlots] = useState<Slot[]>([]);
   const [slotId, setSlotId] = useState<string | null>(null);
   const [students, setStudents] = useState<Student[]>([]);
@@ -344,7 +339,13 @@ export default function ClassPage() {
           </div>
         )
       ) : tab === 'roster' ? (
-        <RosterTab classId={classId} students={students} onChange={loadAll} onOpenStudent={openStudentOnBoard} />
+        <RosterTab
+          classId={classId}
+          students={students}
+          defaultStudentPassword={cls?.defaultStudentPassword || '2026'}
+          onChange={loadAll}
+          onOpenStudent={openStudentOnBoard}
+        />
       ) : tab === 'settings' ? (
         <SlotsTab classId={classId} slots={slots} onChange={loadAll} />
       ) : (
@@ -420,7 +421,6 @@ export default function ClassPage() {
     </main>
   );
 }
-
 function SlotsTab({
   classId,
   slots,
@@ -552,184 +552,3 @@ function SlotsTab({
   );
 }
 
-function RosterTab({
-  classId,
-  students,
-  onChange,
-  onOpenStudent,
-}: {
-  classId: string;
-  students: Student[];
-  onChange: () => void;
-  onOpenStudent: (student: Student) => void;
-}) {
-  const [importText, setImportText] = useState('');
-  const [showImport, setShowImport] = useState(false);
-  const [name, setName] = useState('');
-  const [idNumber, setIdNumber] = useState('');
-  const [error, setError] = useState<string | null>(null);
-
-  async function doImport(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
-    const res = await fetch(`/api/classes/${classId}/students/import`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: importText }),
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      setError(data.error);
-      return;
-    }
-    setImportText('');
-    setShowImport(false);
-    onChange();
-  }
-
-  async function addOne(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
-    const res = await fetch(`/api/classes/${classId}/students`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, idNumber }),
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      setError(data.error);
-      return;
-    }
-    setName('');
-    setIdNumber('');
-    onChange();
-  }
-
-  async function updateField(studentId: string, field: 'name' | 'idNumber' | 'password', value: string) {
-    await fetch(`/api/classes/${classId}/students/${studentId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ [field]: value }),
-    });
-  }
-
-  function exportCsv() {
-    const header = 'Name,ID Number,Password\n';
-    const rows = students.map((s) => `"${s.name}","${s.idNumber}","${s.password}"`).join('\n');
-    const blob = new Blob([header + rows], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'roster.csv';
-    a.click();
-    URL.revokeObjectURL(url);
-  }
-
-  return (
-    <div className="space-y-4">
-      <div className="flex justify-between">
-        <button className="btn-secondary" onClick={() => setShowImport((s) => !s)}>
-          Import .txt
-        </button>
-        <button className="btn-secondary" onClick={exportCsv} disabled={students.length === 0}>
-          Export roster CSV
-        </button>
-      </div>
-      {showImport && (
-        <form onSubmit={doImport} className="card space-y-3">
-          <label className="label">One name per line</label>
-          <textarea
-            className="input h-32"
-            required
-            placeholder={'Juan Dela Cruz\nMaria Santos\n...'}
-            value={importText}
-            onChange={(e) => setImportText(e.target.value)}
-          />
-          <button type="submit" className="btn-primary">
-            Import students
-          </button>
-        </form>
-      )}
-      <form onSubmit={addOne} className="card flex items-end gap-3">
-        <div className="flex-1">
-          <label className="label">Name</label>
-          <input className="input" required value={name} onChange={(e) => setName(e.target.value)} />
-        </div>
-        <div className="flex-1">
-          <label className="label">ID number</label>
-          <input className="input" required value={idNumber} onChange={(e) => setIdNumber(e.target.value)} />
-        </div>
-        <button type="submit" className="btn-primary">
-          Add student
-        </button>
-      </form>
-      {error && <p className="text-sm text-danger">{error}</p>}
-      {students.length === 0 ? (
-        <p className="text-sm text-muted">No students yet.</p>
-      ) : (
-        <div className="card overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-muted border-b border-line">
-                <th className="py-2 pr-4">Name</th>
-                <th className="py-2 pr-4">ID number</th>
-                <th className="py-2 pr-4">Password</th>
-              </tr>
-            </thead>
-            <tbody>
-              {students.map((s) => (
-                <EditableRow key={s.id} student={s} onSave={updateField} onOpen={() => onOpenStudent(s)} />
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function EditableRow({
-  student,
-  onSave,
-  onOpen,
-}: {
-  student: Student;
-  onSave: (id: string, field: 'name' | 'idNumber' | 'password', value: string) => void;
-  onOpen: () => void;
-}) {
-  const [name, setName] = useState(student.name);
-  const [idNumber, setIdNumber] = useState(student.idNumber);
-  const [password, setPassword] = useState(student.password);
-
-  return (
-    <tr className="border-b border-line last:border-0">
-      <td className="py-1.5 pr-4">
-        <button type="button" className="text-left font-medium text-accent hover:underline mb-1" onClick={onOpen}>
-          Open on board
-        </button>
-        <input
-          className="input py-1"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          onBlur={() => name !== student.name && onSave(student.id, 'name', name)}
-        />
-      </td>
-      <td className="py-1.5 pr-4">
-        <input
-          className="input py-1"
-          value={idNumber}
-          onChange={(e) => setIdNumber(e.target.value)}
-          onBlur={() => idNumber !== student.idNumber && onSave(student.id, 'idNumber', idNumber)}
-        />
-      </td>
-      <td className="py-1.5 pr-4">
-        <input
-          className="input py-1"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          onBlur={() => password !== student.password && onSave(student.id, 'password', password)}
-        />
-      </td>
-    </tr>
-  );
-}
