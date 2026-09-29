@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { and, desc, eq } from 'drizzle-orm';
 import { db } from '@/lib/db';
-import { projectUpdates, students, titleReports, titles } from '@/lib/schema';
+import { projectUpdates, students, titleReports, titles, groups } from '@/lib/schema';
 import { getProfSession } from '@/lib/auth';
-import { jsonError } from '@/lib/helpers';
+import { assertClassOwnedByProf, jsonError } from '@/lib/helpers';
 
 // GET /api/prof/updates?titleId=... OR ?groupId=...
 // Returns ALL updates including soft-deleted so the prof can see the full history.
@@ -16,6 +16,12 @@ export async function GET(req: NextRequest) {
   const groupId = searchParams.get('groupId');
 
   if (!titleId && !groupId) return jsonError('titleId or groupId is required', 400);
+
+  const [resource] = titleId
+    ? await db.select({ classId: titles.classId }).from(titles).where(eq(titles.id, titleId)).limit(1)
+    : await db.select({ classId: groups.classId }).from(groups).where(eq(groups.id, groupId!)).limit(1);
+  if (!resource) return jsonError('Project not found', 404);
+  if (!await assertClassOwnedByProf(resource.classId, session.profId)) return jsonError('Forbidden', 403);
 
   // Build the where clause
   const conditions = [];
@@ -54,18 +60,6 @@ export async function GET(req: NextRequest) {
     .leftJoin(titleReports, eq(titleReports.projectUpdateId, projectUpdates.id))
     .where(and(...conditions))
     .orderBy(desc(projectUpdates.createdAt));
-
-  // Verify the title/group belongs to this prof via classId
-  if (updates.length > 0) {
-    const [title] = await db
-      .select()
-      .from(titles)
-      .where(eq(titles.id, updates[0].titleId))
-      .limit(1);
-    if (!title) return jsonError('Title not found', 404);
-    // Prof must own the class
-    // (classId check done via session — prof routes validate prof JWT, classId is cross-checked)
-  }
 
   return NextResponse.json({ updates });
 }

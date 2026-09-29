@@ -1,3 +1,6 @@
+import { normalizeTechStack } from '@/lib/tech-stack';
+import { duplicateGuard } from '@/lib/title-duplicates';
+import { assertSlotInClass } from '@/lib/helpers';
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { titles, groups } from '@/lib/schema';
@@ -13,15 +16,17 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
   const classId = body?.classId as string | undefined;
   const groupId = body?.groupId as string | undefined;
-  const text = (body?.text as string | undefined)?.trim();
+  const text = (typeof body?.text === 'string' ? body.text.trim() : '');
   const description = (body?.description as string | undefined)?.trim();
-  const techStack = Array.isArray(body?.techStack) ? (body.techStack as string[]) : [];
+  const techStack = normalizeTechStack(body?.techStack);
   const targetUsers = (body?.targetUsers as string | undefined)?.trim() || null;
   const autoVerify = !!body?.autoVerify;
 
   if (!classId || !groupId || !text || !description) {
     return jsonError('classId, groupId, text and description are required', 422);
   }
+
+  if (text.length < 5) return jsonError('Title text must be at least 5 characters long', 422);
 
   const cls = await assertClassOwnedByProf(classId, prof.profId);
   if (!cls) return jsonError('Class not found', 404);
@@ -32,6 +37,11 @@ export async function POST(req: NextRequest) {
     .where(and(eq(groups.id, groupId), eq(groups.classId, classId)))
     .limit(1);
   if (!group) return jsonError('Group not found', 404);
+
+  const slot = await assertSlotInClass(group.slotId, classId);
+  if (!slot) return jsonError('Slot not found', 404);
+  const error = await duplicateGuard(classId, group.slotId, text, slot.duplicateCheck, body?.confirmDuplicate);
+  if (error) return error;
 
   const [row] = await db
     .insert(titles)

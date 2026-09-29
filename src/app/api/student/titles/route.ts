@@ -1,7 +1,9 @@
+import { normalizeTechStack } from '@/lib/tech-stack';
+import { duplicateGuard } from '@/lib/title-duplicates';
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { groups, studentGroupSlots, titles } from '@/lib/schema';
-import { and, eq, ilike } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import { getStudentSession } from '@/lib/auth';
 import { assertSlotInClass, jsonError } from '@/lib/helpers';
 import { assertActionRateLimit } from '@/lib/rate-limit';
@@ -26,20 +28,24 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ titles: rows });
 }
 
-// POST: submit a new title, with ILIKE duplicate check against titles in same class/slot
+// POST: submit a new title, with pg_trgm fuzzy + literal substring duplicate check against titles in same class/slot
 export async function POST(req: NextRequest) {
   const session = await getStudentSession();
   if (!session) return jsonError('Not authenticated', 401);
 
   const body = await req.json().catch(() => null);
   const slotId = body?.slotId as string | undefined;
-  const text = (body?.text as string | undefined)?.trim();
+  const text = (typeof body?.text === 'string' ? body.text.trim() : '');
   const description = (body?.description as string | undefined)?.trim();
-  const techStack = Array.isArray(body?.techStack) ? (body.techStack as string[]) : [];
+  const techStack = normalizeTechStack(body?.techStack);
   const targetUsers = (body?.targetUsers as string | undefined)?.trim() || null;
 
   if (!slotId || !text || !description) {
     return jsonError('slotId, text and description are required', 422);
+  }
+
+  if (text.length < 5) {
+    return jsonError('Title text must be at least 5 characters long', 422);
   }
 
   const slot = await assertSlotInClass(slotId, session.classId);
@@ -65,7 +71,7 @@ export async function POST(req: NextRequest) {
   const existingTitles = await db
     .select({ id: titles.id })
     .from(titles)
-    .where(eq(titles.groupId, membership.group.id));
+    .where(and(eq(titles.groupId, membership.group.id), isNull(titles.deletedAt)));
   if (existingTitles.length >= slot.titlesAllowedMax) {
     return jsonError(`This group already has the maximum of ${slot.titlesAllowedMax} titles`, 409);
   }
@@ -77,18 +83,8 @@ export async function POST(req: NextRequest) {
     return jsonError('Target users is required', 422);
   }
 
-  // Duplicate check via ILIKE against the `text` column, scoped to class + slot
-  const matches = await db
-    .select({ id: titles.id, text: titles.text })
-    .from(titles)
-    .where(and(eq(titles.classId, session.classId), eq(titles.slotId, slotId), ilike(titles.text, `%${text}%`)));
-
-  if (matches.length > 0 && slot.duplicateCheck === 'strict') {
-    return NextResponse.json(
-      { error: 'A similar title already exists in this class', duplicates: matches },
-      { status: 409 }
-    );
-  }
+  const duplicateError = await duplicateGuard(session.classId, slotId, text, slot.duplicateCheck, body?.confirmDuplicate);
+  if (duplicateError) return duplicateError;
 
   const [row] = await db
     .insert(titles)
@@ -106,7 +102,7 @@ export async function POST(req: NextRequest) {
     .returning();
 
   return NextResponse.json(
-    { title: row, warnings: matches.length > 0 ? matches : undefined },
+    { title: row },
     { status: 201 }
   );
 }

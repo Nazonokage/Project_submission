@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
   const [title] = await db
     .select()
     .from(titles)
-    .where(and(eq(titles.id, titleId), eq(titles.classId, session.classId)))
+    .where(and(eq(titles.id, titleId), eq(titles.classId, session.classId), isNull(titles.deletedAt)))
     .limit(1);
   if (!title) return jsonError('Title not found', 404);
 
@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
   const [title] = await db
     .select()
     .from(titles)
-    .where(and(eq(titles.id, titleId), eq(titles.classId, session.classId)))
+    .where(and(eq(titles.id, titleId), eq(titles.classId, session.classId), isNull(titles.deletedAt)))
     .limit(1);
   if (!title) return jsonError('Title not found', 404);
   if (title.status !== 'verified') return jsonError('Updates can only be posted for verified titles', 409);

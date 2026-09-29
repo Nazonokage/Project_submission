@@ -7,6 +7,7 @@ import {
   integer,
   unique,
   jsonb,
+  index,
 } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 
@@ -45,6 +46,7 @@ export const classes = pgTable('classes', {
   name: text('name').notNull(),
   term: text('term').notNull(),
   defaultStudentPassword: text('default_student_password').notNull().default('2026'),
+  archivedAt: timestamp('archived_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
@@ -58,6 +60,7 @@ export const projectSlots = pgTable('project_slots', {
     .notNull()
     .references(() => classes.id, { onDelete: 'cascade' }),
   label: text('label').notNull(),
+  instructions: text('instructions'),
   groupSize: integer('group_size').notNull().default(1),
   titlesRequiredMin: integer('titles_required_min').notNull().default(2),
   titlesAllowedMax: integer('titles_allowed_max').notNull().default(50),
@@ -246,7 +249,7 @@ export const titles = pgTable('titles', {
     onDelete: 'set null',
   }),
   deletedAt: timestamp('deleted_at', { withTimezone: true }),
-});
+}, (table) => ({ textTrgm: index('titles_text_trgm_idx').using('gin', sql`${table.text} gin_trgm_ops`) }));
 
 // ============================================================
 // TASKS

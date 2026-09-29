@@ -1,3 +1,45 @@
+## [1.7.3] - 2026-09-29
+
+### Phase 18 — Verification Queue UX & Groupmates
+- Added horizontal scrollable verification queue card list (`VerificationQueue`) for pending title reviews on the professor class dashboard.
+- Display submitter identity and group member chips for each proposed project title.
+- Quick Approve and Reject actions with optional rejection feedback comments directly from queue cards or full detail dialog.
+
+## [1.7.2] - 2026-09-29
+
+### Phase 17 — Tech-stack Autocomplete
+- Added slot and class-scoped tech tag suggestion APIs (`GET /api/student/slots/[slotId]/tech-tags` and `GET /api/prof/slots/[slotId]/tech-tags`).
+- Extracted unique tech stack tags from existing slot proposals ordered by usage frequency, excluding soft-deleted titles.
+- Upgraded `TechStackInput` component with a combobox suggesting previously used tags while preserving custom free-text tag additions.
+- Added tech stack string array normalization and case-insensitive deduplication helpers (`src/lib/tech-stack.ts`) across student and professor title edit routes.
+
+## [1.7.1] - 2026-09-29
+
+### Phase 16 — Cached live boards
+- Added a persistent TanStack Query provider, role/title/class/slot query keys, 20-second stale time, ten-minute unused cache, and one query retry.
+- Student tasks, activity and feedback; professor project lists; and title-review details refresh every ten seconds while visible. Cached content stays visible during background refreshes and tab/project switches.
+- Task create/edit/delete and project-update create/edit/delete use mutations. Task status moves update optimistically with cancellation, rollback, and title-scoped invalidation. No full-dashboard reload follows board writes.
+- Kept existing professor audit history and student soft-delete filtering. Fixed missing class ownership enforcement on the professor activity endpoint.
+- Widened the student Board tab and wrapped task controls after browser checks found overlapping buttons.
+- Added route regression checks and isolated browser tests; see `docs/phase14-16-review.md` for coverage and deferred live checks.
+- Existing dependency audit findings are tracked separately; no forced major dependency upgrades in this release.
+
+## [1.7.1a] - 2026-09-29
+
+### Phase 15 — Instructions and class lifecycle
+- Added nullable slot instructions and class archive timestamp, additive migrations, Drizzle declarations and schema checks.
+- Professors can edit slot instructions; students see them above their slot tabs.
+- Added archive/restore controls, an archived-class filter, and a name-confirmation dialog for permanent cascading deletion.
+- Hardened instruction updates and delete confirmation against malformed payloads. Archive preserves student access and class data.
+
+## [1.7.0] - 2026-09-29
+
+### Phase 14 — Validation review and fixes
+- Enforced five trimmed characters for title creation and edits, including professor routes.
+- Centralized trigram similarity (0.4) and literal substring checks, excluding soft-deleted titles and the edited title. Registered the GIN index in Drizzle and verified its definition in schema health.
+- Closed the student-edit duplicate bypass and added matching checks to professor edits/verification. Warn mode now requires explicit confirmation of server-returned matches; strict mode remains blocking.
+- Removed deleted titles from the submission-cap count; cancelled stale preview requests and fixed the missing slot-instructions icon import.
+
 ## [1.6.3] - 2026-09-22
 
 ### Added

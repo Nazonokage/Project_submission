@@ -1,3 +1,6 @@
+import { normalizeTechStack } from '@/lib/tech-stack';
+import { duplicateGuard } from '@/lib/title-duplicates';
+import { assertSlotInClass } from '@/lib/helpers';
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { activityLog, documentationFieldTemplates, titles } from '@/lib/schema';
@@ -54,6 +57,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { titleId: s
   if (!body || typeof body !== 'object') return jsonError('Invalid JSON body', 422);
 
   const patch: Record<string, unknown> = { updatedAt: new Date() };
+  if ('text' in body && typeof body.text !== 'string') return jsonError('Title text must be a string', 422);
   const text = optionalTrimmed(body.text);
   const description = optionalTrimmed(body.description);
   const targetUsers = optionalTrimmed(body.targetUsers);
@@ -62,7 +66,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { titleId: s
   const rejectionReason = optionalTrimmed(body.rejectionReason);
 
   if (text !== undefined) {
-    if (!text) return jsonError('text cannot be empty', 422);
+    if (text.length < 5) return jsonError('Title text must be at least 5 characters long', 422);
     patch.text = text;
   }
   if (description !== undefined) {
@@ -70,7 +74,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { titleId: s
     patch.description = description;
   }
   if (Array.isArray(body.techStack)) {
-    patch.techStack = body.techStack.filter((tag: unknown) => typeof tag === 'string' && tag.trim()).map((tag: string) => tag.trim());
+    patch.techStack = normalizeTechStack(body.techStack);
   }
   if (targetUsers !== undefined) patch.targetUsers = targetUsers || null;
   if (repoUrl !== undefined) patch.repoUrl = repoUrl || null;
@@ -104,6 +108,14 @@ export async function PATCH(req: NextRequest, { params }: { params: { titleId: s
     }
     patch.progressStatus = body.progressStatus;
     nextProgress = body.progressStatus;
+  }
+
+  if (nextStatus === 'verified' && (text ?? title.text).trim().length < 5) return jsonError('Title text must be at least 5 characters long', 422);
+  if ((text !== undefined && text !== title.text) || (nextStatus === 'verified' && title.status !== 'verified')) {
+    const slot = await assertSlotInClass(title.slotId, title.classId);
+    if (!slot) return jsonError('Slot not found', 404);
+    const error = await duplicateGuard(title.classId, title.slotId, text ?? title.text, slot.duplicateCheck, body.confirmDuplicate, title.id);
+    if (error) return error;
   }
 
   const keys = Object.keys(patch).filter((k) => k !== 'updatedAt');

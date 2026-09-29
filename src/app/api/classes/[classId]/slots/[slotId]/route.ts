@@ -33,6 +33,10 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   ] as const) {
     if (key in body) patch[key] = body[key];
   }
+  if ('instructions' in body) {
+    if (body.instructions !== null && typeof body.instructions !== 'string') return jsonError('instructions must be text or null', 422);
+    patch.instructions = body.instructions?.trim() || null;
+  }
   if ('duplicateCheck' in body) {
     patch.duplicateCheck = body.duplicateCheck === 'strict' ? 'strict' : 'warn';
   }

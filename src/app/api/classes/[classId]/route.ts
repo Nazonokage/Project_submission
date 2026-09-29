@@ -25,7 +25,7 @@ export async function PATCH(req: Request, { params }: Params) {
   if (!cls) return jsonError('Class not found', 404);
 
   const body = await req.json().catch(() => null);
-  const patch: { defaultStudentPassword?: string; name?: string; term?: string; updatedAt: Date } = {
+  const patch: { defaultStudentPassword?: string; name?: string; term?: string; archivedAt?: Date | null; updatedAt: Date } = {
     updatedAt: new Date(),
   };
 
@@ -44,9 +44,30 @@ export async function PATCH(req: Request, { params }: Params) {
     if (!value) return jsonError('term cannot be empty', 422);
     patch.term = value;
   }
+  if (typeof body?.archived === 'boolean') {
+    patch.archivedAt = body.archived ? new Date() : null;
+  }
 
   if (Object.keys(patch).length === 1) return jsonError('Nothing to update', 422);
 
   const [row] = await db.update(classes).set(patch).where(eq(classes.id, params.classId)).returning();
   return NextResponse.json({ class: row });
+}
+
+export async function DELETE(req: Request, { params }: Params) {
+  const prof = await getProfSession();
+  if (!prof) return jsonError('Not authenticated', 401);
+
+  const cls = await assertClassOwnedByProf(params.classId, prof.profId);
+  if (!cls) return jsonError('Class not found', 404);
+
+  const body = await req.json().catch(() => ({}));
+  const confirmName = (typeof body?.confirmName === 'string' ? body.confirmName.trim() : '');
+
+  if (!confirmName || confirmName !== cls.name.trim()) {
+    return jsonError(`Please type "${cls.name}" to confirm deletion`, 400);
+  }
+
+  await db.delete(classes).where(eq(classes.id, params.classId));
+  return NextResponse.json({ ok: true });
 }

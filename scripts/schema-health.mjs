@@ -84,12 +84,23 @@ await checkColumns('tasks', ['title_id', 'group_id', 'class_id', 'slot_id', 'sta
 await checkColumns('documentation_field_templates', ['slot_id', 'field_key', 'label', 'field_type', 'required', 'sort_order']);
 await checkColumns('project_updates', ['task_id', 'changelog', 'updated_at', 'deleted_at']);
 await checkColumns('title_reports', ['updated_at', 'deleted_at', 'project_update_id']);
-await checkColumns('classes', ['updated_at', 'default_student_password']);
-await checkColumns('project_slots', ['updated_at']);
+await checkColumns('classes', ['updated_at', 'default_student_password', 'archived_at']);
+await checkColumns('project_slots', ['updated_at', 'instructions']);
 await checkColumns('groups', ['updated_at']);
 
+console.log('\n--- Checking Extensions & Indexes ---');
+const extRes = await sql`SELECT extname FROM pg_extension WHERE extname = 'pg_trgm'`;
+const hasPgTrgm = extRes.length > 0;
+console.log(`${hasPgTrgm ? 'ok' : 'MISSING'}  extension: pg_trgm`);
+if (!hasPgTrgm) ok = false;
+
+const idxRes = await sql`SELECT indexdef FROM pg_indexes WHERE schemaname = 'public' AND tablename = 'titles' AND indexname = 'titles_text_trgm_idx'`;
+const hasTrgmIdx = idxRes.some(row => /using gin/i.test(row.indexdef) && /text gin_trgm_ops/i.test(row.indexdef));
+console.log(`${hasTrgmIdx ? 'ok' : 'MISSING'}  index: titles_text_trgm_idx`);
+if (!hasTrgmIdx) ok = false;
+
 if (!ok) {
-  console.error('\nSchema validation failed: missing tables or columns.');
+  console.error('\nSchema validation failed: missing tables, columns, extensions, or indexes.');
   process.exit(1);
 }
-console.log('\nAll 17 tables and key columns verified cleanly.');
+console.log('\nAll 17 tables, key columns, extensions, and indexes verified cleanly.');

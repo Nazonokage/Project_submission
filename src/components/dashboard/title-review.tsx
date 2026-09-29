@@ -1,4 +1,7 @@
 'use client';
+import { useQueryClient } from '@tanstack/react-query';
+import { useBoardQuery } from '@/lib/board-query';
+import { boardKeys } from '@/lib/query-keys';
 
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
@@ -209,54 +212,23 @@ export function TitleReviewDialog({
   onOpenChange: (open: boolean) => void;
   asProfessor?: boolean;
 }) {
-  const [reports, setReports] = useState<ReportRow[]>([]);
-  const [tasks, setTasks] = useState<TaskItemRow[]>([]);
-  const [updates, setUpdates] = useState<UpdateItem[]>([]);
-  const [notes, setNotes] = useState<FeedbackItem[]>([]);
-  const [titleDoc, setTitleDoc] = useState<Record<string, unknown> | null>(null);
-  const [docFields, setDocFields] = useState<DocFieldTemplate[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  async function load() {
-    setLoading(true);
-    const titleUrl = asProfessor
-      ? `/api/dashboard/titles/${titleId}`
-      : `/api/student/titles/${titleId}`;
-    const reportsUrl = asProfessor
-      ? `/api/dashboard/titles/${titleId}/reports`
-      : `/api/student/titles/${titleId}/reports`;
-    const tasksUrl = asProfessor
-      ? `/api/prof/tasks?titleId=${titleId}`
-      : `/api/student/tasks?titleId=${titleId}`;
-    const updatesUrl = asProfessor
-      ? `/api/prof/updates?titleId=${titleId}`
-      : `/api/student/updates?titleId=${titleId}`;
-    const feedbackUrl = asProfessor
-      ? `/api/dashboard/feedback?titleId=${titleId}`
-      : `/api/student/titles/${titleId}/feedback`;
-    const [titleRes, reportsRes, tasksRes, updatesRes, feedbackRes] = await Promise.all([
-      fetch(titleUrl),
-      fetch(reportsUrl),
-      fetch(tasksUrl),
-      fetch(updatesUrl),
-      fetch(feedbackUrl),
-    ]);
-    if (titleRes.ok) {
-      const data = await titleRes.json();
-      setTitleDoc(data.title?.documentation || null);
-      setDocFields(data.docFields || []);
-    }
-    if (reportsRes.ok) setReports((await reportsRes.json()).reports || []);
-    if (tasksRes.ok) setTasks((await tasksRes.json()).tasks || []);
-    if (updatesRes.ok) setUpdates((await updatesRes.json()).updates || []);
-    if (feedbackRes.ok) setNotes((await feedbackRes.json()).feedback || []);
-    setLoading(false);
-  }
-
-  useEffect(() => {
-    if (open) load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, titleId, asProfessor]);
+  const client = useQueryClient();
+  const role = asProfessor ? 'prof' : 'student';
+  const key = boardKeys.title(role, titleId);
+  const titleQuery = useBoardQuery<{ title: { documentation: Record<string, unknown> | null }; docFields: DocFieldTemplate[] }>([...key, 'documentation'], `/api/${asProfessor ? 'dashboard' : 'student'}/titles/${titleId}`, open);
+  const reportsQuery = useBoardQuery<{ reports: ReportRow[] }>([...key, 'reports'], `/api/${asProfessor ? 'dashboard' : 'student'}/titles/${titleId}/reports`, open);
+  const tasksQuery = useBoardQuery<{ tasks: TaskItemRow[] }>(boardKeys.tasks(role, titleId), `/api/${role}/tasks?titleId=${titleId}`, open, key);
+  const updatesQuery = useBoardQuery<{ updates: UpdateItem[] }>(boardKeys.updates(role, titleId), `/api/${role}/updates?titleId=${titleId}`, open, key);
+  const notesQuery = useBoardQuery<{ feedback: FeedbackItem[] }>(boardKeys.feedback(role, titleId), asProfessor ? `/api/dashboard/feedback?titleId=${titleId}` : `/api/student/titles/${titleId}/feedback`, open, key);
+  const reports = reportsQuery.data?.reports || [];
+  const tasks = tasksQuery.data?.tasks || [];
+  const updates = updatesQuery.data?.updates || [];
+  const notes = notesQuery.data?.feedback || [];
+  const titleDoc = titleQuery.data?.title?.documentation || null;
+  const docFields = titleQuery.data?.docFields || [];
+  const queries = [titleQuery, reportsQuery, tasksQuery, updatesQuery, notesQuery];
+  const loading = queries.some(query => query.isPending && !query.data);
+  async function load() { await client.invalidateQueries({ queryKey: key }); }
 
   async function toggleLock(report: ReportRow) {
     const res = await fetch(`/api/dashboard/reports/${report.id}`, {
@@ -280,6 +252,7 @@ export function TitleReviewDialog({
           <DialogTitle>{titleText}</DialogTitle>
           <DialogDescription>Project documentation, version reports, tasks, updates, and feedback for this title.</DialogDescription>
         </DialogHeader>
+        {queries.some(query => query.error) && <p role="alert" className="text-sm text-danger">Some project data could not refresh. Retrying automatically.</p>}
         {loading ? (
           <p className="text-sm text-muted">Loading…</p>
         ) : (

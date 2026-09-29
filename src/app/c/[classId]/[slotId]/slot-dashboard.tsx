@@ -1,9 +1,14 @@
 'use client';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useBoardQuery, useBoardRequest } from '@/lib/board-query';
+import { boardKeys } from '@/lib/query-keys';
+import { titleRequest } from '@/lib/title-request';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   AlertCircle,
+  BookOpen,
   CheckSquare,
   Clock,
   Filter,
@@ -206,7 +211,7 @@ export function SlotDashboard({ classId, slotId }: { classId: string; slotId: st
   }, [hasGroup, tab]);
 
   return (
-    <main className="max-w-3xl mx-auto px-6 py-10 space-y-6">
+    <main className={`${tab === 'board' ? 'max-w-6xl' : 'max-w-3xl'} mx-auto px-6 py-10 space-y-6`}>
       <StudentHeader
         title={slot?.label || 'Project slot'}
         subtitle={[className, term].filter(Boolean).join(' · ') || undefined}
@@ -252,6 +257,20 @@ export function SlotDashboard({ classId, slotId }: { classId: string; slotId: st
               </div>
             </CardContent>
           </Card>
+
+          {slot?.instructions && (
+            <Card className="shadow-sm rounded-xl border-primary/20 bg-primary/5">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-semibold flex items-center gap-1.5">
+                  <BookOpen className="h-4 w-4 text-primary" />
+                  Slot Instructions
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-foreground whitespace-pre-wrap">{slot.instructions}</p>
+              </CardContent>
+            </Card>
+          )}
 
           {invites.length > 0 && !group && (
             <Card className="shadow-sm rounded-xl">
@@ -300,7 +319,6 @@ export function SlotDashboard({ classId, slotId }: { classId: string; slotId: st
                     titles={titles.filter((t) => t.status === 'verified')}
                     members={members}
                     myStudentId={myStudentId}
-                    onReload={loadAll}
                   />
                 ) : (
                   <Card className="rounded-xl"><CardContent><EmptyState icon={FolderPlus} title="No group yet" description="Join a group to track your project progress." /></CardContent></Card>
@@ -436,24 +454,36 @@ function TitleSubmitForm({ slotId, slot, onSuccess }: { slotId: string; slot: Sl
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    if (text.trim().length < 3) { setDupWarning([]); return; }
+    setDupWarning([]);
+    if (text.trim().length < 5) return;
+    const controller = new AbortController();
     const handle = setTimeout(async () => {
-      const res = await fetch(`/api/student/titles/check?slotId=${slotId}&text=${encodeURIComponent(text)}`);
-      if (res.ok) { const data = await res.json(); setDupWarning((data.matches || []).map((m: { text: string }) => m.text)); }
+      try {
+        const res = await fetch(`/api/student/titles/check?slotId=${slotId}&text=${encodeURIComponent(text.trim())}`, { signal: controller.signal });
+        if (res.ok && !controller.signal.aborted) {
+          const data = await res.json();
+          if (!controller.signal.aborted) setDupWarning((data.matches || []).map((m: { text: string }) => m.text));
+        }
+      } catch { /* The authoritative submit check still runs if this preview fails. */ }
     }, 400);
-    return () => clearTimeout(handle);
+    return () => { clearTimeout(handle); controller.abort(); };
   }, [text, slotId]);
+
+  const isTitleTooShort = text.trim().length > 0 && text.trim().length < 5;
+  const isTitleEmpty = text.trim().length === 0;
+  const isStrictBlocked = slot.duplicateCheck === 'strict' && dupWarning.length > 0;
+  const isSubmitDisabled = submitting || slot.locked || isTitleTooShort || isTitleEmpty || isStrictBlocked;
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    if (text.trim().length < 5) {
+      toast.error('Title must be at least 5 characters long');
+      return;
+    }
     setSubmitting(true);
     try {
       if (slot.requireTechStack && techStack.length === 0) throw new Error('Add at least one tech stack tag');
-      const res = await fetch('/api/student/titles', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ slotId, text, description, techStack, targetUsers: targetUsers.trim() || undefined }),
-      });
+      const res = await titleRequest('/api/student/titles', 'POST', { slotId, text: text.trim(), description: description.trim(), techStack, targetUsers: targetUsers.trim() || undefined });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Could not submit title');
       toast.success(data.warnings?.length ? 'Submitted with a similarity warning' : 'Title submitted');
@@ -470,7 +500,10 @@ function TitleSubmitForm({ slotId, slot, onSuccess }: { slotId: string; slot: Sl
     <form onSubmit={submit} className="space-y-4">
       <div className="space-y-1.5">
         <Label htmlFor="title-text">Title</Label>
-        <Input id="title-text" required value={text} onChange={(e) => setText(e.target.value)} />
+        <Input id="title-text" required minLength={5} value={text} onChange={(e) => setText(e.target.value)} />
+        {isTitleTooShort && (
+          <p className="text-xs text-destructive">Title must be at least 5 characters long.</p>
+        )}
         {dupWarning.length > 0 && (
           <Alert variant="warning"><AlertCircle className="h-4 w-4" /><AlertDescription>Similar title{dupWarning.length > 1 ? 's' : ''} already exist: {dupWarning.join('; ')}{slot.duplicateCheck === 'strict' ? ' — this will be blocked on submit.' : ''}</AlertDescription></Alert>
         )}
@@ -481,13 +514,13 @@ function TitleSubmitForm({ slotId, slot, onSuccess }: { slotId: string; slot: Sl
       </div>
       <div className="space-y-1.5">
         <Label>Tech stack{slot.requireTechStack ? ' (required)' : ''}</Label>
-        <TechStackInput value={techStack} onChange={setTechStack} />
+        <TechStackInput value={techStack} onChange={setTechStack} suggestionsUrl={`/api/student/slots/${slotId}/tech-tags`} />
       </div>
       <div className="space-y-1.5">
         <Label htmlFor="target-users">Target users{slot.requireTargetUsers ? ' (required)' : ''}</Label>
         <Input id="target-users" required={slot.requireTargetUsers} value={targetUsers} onChange={(e) => setTargetUsers(e.target.value)} />
       </div>
-      <Button type="submit" disabled={submitting || slot.locked}>
+      <Button type="submit" disabled={isSubmitDisabled}>
         {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
         {slot.locked ? 'Slot is locked' : 'Submit title'}
       </Button>
@@ -499,23 +532,16 @@ function BoardTab({
   titles,
   members,
   myStudentId,
-  onReload,
 }: {
   titles: ProjectTitle[];
   members: Member[];
   myStudentId: string | null;
-  onReload: () => Promise<void>;
 }) {
   const [selectedTitleId, setSelectedTitleId] = useState<string>('');
-  const [tasks, setTasks] = useState<TaskItem[]>([]);
-  const [tasksLoading, setTasksLoading] = useState(false);
   const [myTasksOnly, setMyTasksOnly] = useState(false);
   const [addTaskOpen, setAddTaskOpen] = useState(false);
   const [addTaskInitialStatus, setAddTaskInitialStatus] = useState<ProgressStatus>('planning');
 
-  const [updates, setUpdates] = useState<ProjectUpdate[]>([]);
-  const [updatesLoading, setUpdatesLoading] = useState(false);
-  const [feedback, setFeedback] = useState<FeedbackItem[]>([]);
   const [addUpdateOpen, setAddUpdateOpen] = useState(false);
   const [editUpdate, setEditUpdate] = useState<ProjectUpdate | null>(null);
 
@@ -530,91 +556,50 @@ function BoardTab({
     if (titles.length > 0 && !selectedTitleId) setSelectedTitleId(titles[0].id);
   }, [titles, selectedTitleId]);
 
-  const loadTasks = useCallback(async (titleId: string) => {
-    setTasksLoading(true);
-    try {
-      const res = await fetch(`/api/student/tasks?titleId=${titleId}`);
-      if (res.ok) {
-        const data = await res.json();
-        setTasks(data.tasks || []);
-      }
-    } finally {
-      setTasksLoading(false);
-    }
-  }, []);
-
-  const loadUpdates = useCallback(async (titleId: string) => {
-    setUpdatesLoading(true);
-    try {
-      const res = await fetch(`/api/student/updates?titleId=${titleId}`);
-      if (res.ok) {
-        const data = await res.json();
-        setUpdates(data.updates || []);
-      }
-    } finally {
-      setUpdatesLoading(false);
-    }
-  }, []);
-
-  const loadFeedback = useCallback(async (titleId: string) => {
-    const res = await fetch(`/api/student/titles/${titleId}/feedback`);
-    if (res.ok) setFeedback((await res.json()).feedback || []);
-  }, []);
-
-  useEffect(() => {
-    if (selectedTitle?.id) {
-      loadTasks(selectedTitle.id);
-      loadUpdates(selectedTitle.id);
-      loadFeedback(selectedTitle.id);
-    }
-  }, [selectedTitle?.id, loadTasks, loadUpdates, loadFeedback]);
-
-  async function handleStatusChange(taskId: string, next: ProgressStatus) {
-    // Optimistic update
-    setTasks((prev) =>
-      prev.map((t) => (t.id === taskId ? { ...t, status: next, updatedAt: new Date().toISOString() } : t))
-    );
-    try {
-      const res = await fetch(`/api/student/tasks/${taskId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: next }),
-      });
-      if (!res.ok) {
-        const data = await res.json();
-        toast.error(data.error || 'Could not move task');
-        if (selectedTitle?.id) loadTasks(selectedTitle.id);
-      } else {
-        toast.success(`Task moved to ${PROGRESS_LABELS[next]}`);
-      }
-    } catch {
-      toast.error('Could not move task');
-      if (selectedTitle?.id) loadTasks(selectedTitle.id);
-    }
+  const client = useQueryClient();
+  const titleId = selectedTitle?.id || '';
+  const titleKey = boardKeys.title('student', titleId);
+  const tasksQuery = useBoardQuery<{ tasks: TaskItem[] }>(boardKeys.tasks('student', titleId), `/api/student/tasks?titleId=${titleId}`, !!titleId, titleKey);
+  const updatesQuery = useBoardQuery<{ updates: ProjectUpdate[] }>(boardKeys.updates('student', titleId), `/api/student/updates?titleId=${titleId}`, !!titleId, titleKey);
+  const feedbackQuery = useBoardQuery<{ feedback: FeedbackItem[] }>(boardKeys.feedback('student', titleId), `/api/student/titles/${titleId}/feedback`, !!titleId, titleKey);
+  const tasks = tasksQuery.data?.tasks || [];
+  const updates = updatesQuery.data?.updates || [];
+  const feedback = feedbackQuery.data?.feedback || [];
+  const tasksLoading = tasksQuery.isPending && !tasksQuery.data;
+  const updatesLoading = updatesQuery.isPending && !updatesQuery.data;
+  const request = useBoardRequest(titleId);
+  const move = useMutation({
+    mutationKey: titleKey,
+    scope: { id: `student-board:${titleId}` },
+    mutationFn: async ({ taskId, next }: { taskId: string; next: ProgressStatus; titleId: string }) => {
+      const res = await fetch(`/api/student/tasks/${taskId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: next }) });
+      if (!res.ok) throw new Error((await res.json()).error || 'Could not move task');
+    },
+    onMutate: async ({ taskId, next, titleId }) => {
+      const key = boardKeys.tasks('student', titleId);
+      await client.cancelQueries({ queryKey: boardKeys.title('student', titleId) });
+      const previous = client.getQueryData<{ tasks: TaskItem[] }>(key);
+      client.setQueryData(key, { tasks: (previous?.tasks || []).map(t => t.id === taskId ? { ...t, status: next } : t) });
+      return { previous, key };
+    },
+    onError: (error, _variables, context) => {
+      if (context?.previous) client.setQueryData(context.key, context.previous);
+      toast.error(error.message);
+    },
+    onSettled: (_data, _error, { titleId }) => client.invalidateQueries({ queryKey: boardKeys.title('student', titleId) }),
+  });
+  function handleStatusChange(taskId: string, next: ProgressStatus) {
+    // Serialize moves per title so a failed request cannot roll back a newer move.
+    if (client.isMutating({ mutationKey: titleKey })) return;
+    move.mutate({ taskId, next, titleId });
   }
-
   async function handleDeleteTask(taskId: string) {
-    try {
-      const res = await fetch(`/api/student/tasks/${taskId}`, { method: 'DELETE' });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Could not delete task');
-      toast.success('Task deleted');
-      setTasks((prev) => prev.filter((t) => t.id !== taskId));
-    } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : 'Could not delete task');
-    }
+    try { await request(`/api/student/tasks/${taskId}`, { method: 'DELETE' }); toast.success('Task deleted'); }
+    catch (error) { toast.error(error instanceof Error ? error.message : 'Could not delete task'); }
   }
-
   async function deleteUpdate(updateId: string) {
-    try {
-      const res = await fetch(`/api/student/updates/${updateId}`, { method: 'DELETE' });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Could not delete update');
-      toast.success('Update deleted');
-      if (selectedTitle?.id) await loadUpdates(selectedTitle.id);
-    } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : 'Could not delete update');
-    }
+    try { await request(`/api/student/updates/${updateId}`, { method: 'DELETE' }); toast.success('Update deleted'); }
+    catch (error) { toast.error(error instanceof Error ? error.message : 'Could not delete update'); }
   }
 
   if (titles.length === 0) {
@@ -642,8 +627,8 @@ function BoardTab({
           <select
             aria-label="Active project"
             className="input py-1 text-sm flex-1 truncate max-w-xl font-medium"
-            value={selectedTitleId}
-            onChange={(e) => setSelectedTitleId(e.target.value)}
+            value={titleId}
+            onChange={(e) => { setSelectedTitleId(e.target.value); setAddTaskOpen(false); setAddUpdateOpen(false); setEditUpdate(null); }}
           >
             {titles.map((t) => (
               <option key={t.id} value={t.id}>
@@ -765,9 +750,6 @@ function BoardTab({
                           task={t}
                           members={members}
                           onStatusChange={handleStatusChange}
-                          onEdit={() => {
-                            if (selectedTitle?.id) loadTasks(selectedTitle.id);
-                          }}
                           onDelete={handleDeleteTask}
                         />
                       ))
@@ -831,6 +813,7 @@ function BoardTab({
       {/* Add Task Modal */}
       {selectedTitle && (
         <AddTaskDialog
+          key={titleId}
           open={addTaskOpen}
           titleId={selectedTitle.id}
           initialStatus={addTaskInitialStatus}
@@ -838,18 +821,15 @@ function BoardTab({
           onClose={() => setAddTaskOpen(false)}
           onSuccess={async () => {
             setAddTaskOpen(false);
-            if (selectedTitle?.id) await loadTasks(selectedTitle.id);
           }}
         />
       )}
 
       <ProgressReportModal
+        key={titleId}
         open={addUpdateOpen}
         titleId={selectedTitle?.id ?? ''}
         onClose={() => setAddUpdateOpen(false)}
-        onSuccess={async () => {
-          if (selectedTitle?.id) await loadUpdates(selectedTitle.id);
-        }}
       />
       {editUpdate && (
         <EditUpdateDialog
@@ -857,7 +837,6 @@ function BoardTab({
           onClose={() => setEditUpdate(null)}
           onSuccess={async () => {
             setEditUpdate(null);
-            if (selectedTitle?.id) await loadUpdates(selectedTitle.id);
           }}
         />
       )}
@@ -880,6 +859,7 @@ function AddTaskDialog({
   onClose: () => void;
   onSuccess: () => Promise<void>;
 }) {
+  const request = useBoardRequest(titleId);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [assigneeId, setAssigneeId] = useState('');
@@ -899,7 +879,7 @@ function AddTaskDialog({
     }
     setSubmitting(true);
     try {
-      const res = await fetch('/api/student/tasks', {
+      const res = await request('/api/student/tasks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1070,6 +1050,7 @@ function UpdateEntry({ update, myStudentId, onEdit, onDelete }: { update: Projec
 }
 
 function EditUpdateDialog({ update, onClose, onSuccess }: { update: ProjectUpdate; onClose: () => void; onSuccess: () => Promise<void>; }) {
+  const request = useBoardRequest(update.titleId);
   const [headline, setHeadline] = useState(update.headline ?? '');
   const [body, setBody] = useState(update.body);
   const [kind, setKind] = useState(update.kind as 'progress' | 'commit' | 'milestone' | 'note');
@@ -1081,7 +1062,7 @@ function EditUpdateDialog({ update, onClose, onSuccess }: { update: ProjectUpdat
   async function save() {
     setSaving(true);
     try {
-      const res = await fetch(`/api/student/updates/${update.id}`, {
+      const res = await request(`/api/student/updates/${update.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

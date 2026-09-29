@@ -1,4 +1,6 @@
 'use client';
+import { useBoardRequest } from '@/lib/board-query';
+import { toast } from 'sonner';
 
 import { useState } from 'react';
 import { Calendar, CheckCircle2, Clock, MoreVertical, Pencil, Trash2, User } from 'lucide-react';
@@ -33,6 +35,7 @@ export function TaskCard({
   onEdit?: (task: TaskItem) => void;
   onDelete?: (taskId: string) => void;
 }) {
+  const request = useBoardRequest(task.titleId);
   const [editOpen, setEditOpen] = useState(false);
   const [name, setName] = useState(task.name);
   const [description, setDescription] = useState(task.description || '');
@@ -57,7 +60,7 @@ export function TaskCard({
     if (!name.trim()) return;
     setSaving(true);
     try {
-      const res = await fetch(`/api/student/tasks/${task.id}`, {
+      const res = await request(`/api/student/tasks/${task.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -73,6 +76,8 @@ export function TaskCard({
         setEditOpen(false);
         onEdit?.(data.task);
       }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not save task');
     } finally {
       setSaving(false);
     }
@@ -145,7 +150,7 @@ export function TaskCard({
             )}
           </div>
 
-          <div className="flex items-center justify-between gap-2 pt-1 border-t border-border/50">
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-border/50">
             <ProgressSelect
               value={task.status}
               disabled={readOnly}

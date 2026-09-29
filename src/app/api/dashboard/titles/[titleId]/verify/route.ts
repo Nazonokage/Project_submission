@@ -1,3 +1,5 @@
+import { duplicateGuard } from '@/lib/title-duplicates';
+import { assertSlotInClass } from '@/lib/helpers';
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { titles, classes, activityLog } from '@/lib/schema';
@@ -24,6 +26,15 @@ export async function PATCH(
     return jsonError('decision must be "verified" or "rejected"', 422);
   }
   const comment = typeof body?.comment === 'string' ? body.comment.trim() : '';
+
+  if (title.deletedAt) return jsonError('Title not found', 404);
+  if (decision === 'verified') {
+    if (title.text.trim().length < 5) return jsonError('Title text must be at least 5 characters long', 422);
+    const slot = await assertSlotInClass(title.slotId, title.classId);
+    if (!slot) return jsonError('Slot not found', 404);
+    const error = await duplicateGuard(title.classId, title.slotId, title.text, slot.duplicateCheck, body?.confirmDuplicate, title.id);
+    if (error) return error;
+  }
 
   const [row] = await db
     .update(titles)

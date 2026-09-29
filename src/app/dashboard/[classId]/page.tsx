@@ -1,4 +1,10 @@
 'use client';
+import { useQueryClient, useMutation } from '@tanstack/react-query';
+import { boardKeys } from '@/lib/query-keys';
+import { useBoardQuery } from '@/lib/board-query';
+import { VerificationQueue, type VerificationTitle } from '@/components/dashboard/verification-queue';
+import { titleRequest } from '@/lib/title-request';
+import { ClassLifecycle } from '@/components/dashboard/class-lifecycle';
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -26,6 +32,7 @@ import { RosterTab, type RosterStudent } from '@/components/dashboard/roster-tab
 type Slot = {
   id: string;
   label: string;
+  instructions?: string | null;
   groupSize: number;
   titlesRequiredMin: number;
   titlesAllowedMax: number;
@@ -39,7 +46,7 @@ type Slot = {
 
 type Student = RosterStudent;
 
-type Title = ProfTitle & BoardTitle & {
+type Title = ProfTitle & BoardTitle & VerificationTitle & {
   description: string;
   techStack: string[] | null;
   targetUsers: string | null;
@@ -53,19 +60,16 @@ export default function ClassPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [tab, setTab] = useState<Tab>('board');
-  const [cls, setCls] = useState<{ name: string; term: string; defaultStudentPassword?: string } | null>(null);
+  const [cls, setCls] = useState<{ name: string; term: string; defaultStudentPassword?: string; archivedAt?: string | null } | null>(null);
   const [slots, setSlots] = useState<Slot[]>([]);
   const [slotId, setSlotId] = useState<string | null>(null);
   const [students, setStudents] = useState<Student[]>([]);
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequestRow[]>([]);
   const [leaveSchemaMissing, setLeaveSchemaMissing] = useState(false);
-  const [titles, setTitles] = useState<Title[]>([]);
   const [loading, setLoading] = useState(true);
-  const [titlesLoading, setTitlesLoading] = useState(false);
   const [editing, setEditing] = useState<Title | null>(null);
   const [reviewing, setReviewing] = useState<Title | null>(null);
   const [highlightStudentId, setHighlightStudentId] = useState<string | null>(null);
-  const [comments, setComments] = useState<Record<string, string>>({});
   const [studentLoginLink, setStudentLoginLink] = useState<string>('');
 
   useEffect(() => {
@@ -98,11 +102,12 @@ export default function ClassPage() {
     return nextSlots;
   }
 
+  const client = useQueryClient();
+  const titlesQuery = useBoardQuery<{ titles: Title[] }>(boardKeys.slot(classId, slotId || ''), `/api/dashboard/${classId}/${slotId}/titles`, !!slotId && (tab === 'board' || tab === 'verified'));
+  const titles = titlesQuery.data?.titles || [];
+  const titlesLoading = titlesQuery.isPending && !titlesQuery.data;
   async function loadTitles(id: string) {
-    setTitlesLoading(true);
-    const res = await fetch(`/api/dashboard/${classId}/${id}/titles`);
-    if (res.ok) setTitles((await res.json()).titles);
-    setTitlesLoading(false);
+    await client.invalidateQueries({ queryKey: boardKeys.slot(classId, id) });
   }
 
   useEffect(() => {
@@ -124,11 +129,6 @@ export default function ClassPage() {
   }, [slots, slotId]);
 
   useEffect(() => {
-    if (slotId && (tab === 'board' || tab === 'verified')) loadTitles(slotId);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [classId, slotId, tab]);
-
-  useEffect(() => {
     if (!highlightStudentId || titles.length === 0) return;
     const match = titles.find((t) => t.members.some((m) => m.id === highlightStudentId));
     if (!match) return;
@@ -139,25 +139,34 @@ export default function ClassPage() {
   const selectedSlot = slots.find((s) => s.id === slotId) || null;
   const verified = titles.filter((t) => t.status === 'verified');
 
-  async function setProgress(titleId: string, progressStatus: ProgressStatus) {
-    const res = await fetch(`/api/dashboard/titles/${titleId}/progress`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ progressStatus }),
-    });
-    if (res.ok && slotId) loadTitles(slotId);
+  const progressMutation = useMutation({
+    mutationKey: boardKeys.slot(classId, slotId || ''),
+    mutationFn: async ({ titleId, progressStatus }: { titleId: string; progressStatus: ProgressStatus; slotId: string }) => {
+      const res = await fetch(`/api/dashboard/titles/${titleId}/progress`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ progressStatus }) });
+      if (!res.ok) throw new Error((await res.json()).error || 'Could not update progress');
+    },
+    onError: (error) => toast.error(error.message),
+    onSettled: (_data, _error, variables) => client.invalidateQueries({ queryKey: boardKeys.slot(classId, variables.slotId) }),
+  });
+  function setProgress(titleId: string, progressStatus: ProgressStatus) {
+    if (slotId) progressMutation.mutate({ titleId, progressStatus, slotId });
   }
 
-  async function decide(titleId: string, decision: 'verified' | 'rejected') {
-    await fetch(`/api/dashboard/titles/${titleId}/verify`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        decision,
-        comment: decision === 'rejected' ? comments[titleId] : undefined,
-      }),
-    });
-    if (slotId) loadTitles(slotId);
+  async function decide(titleId: string, decision: 'verified' | 'rejected', comment?: string): Promise<boolean> {
+    const affectedSlot = slotId;
+    try {
+      const res = await titleRequest(`/api/dashboard/titles/${titleId}/verify`, 'PATCH', {
+        decision, comment: decision === 'rejected' ? comment : undefined,
+      });
+      if (!res.ok) throw new Error((await res.json()).error || 'Could not review title');
+      toast.success(decision === 'verified' ? 'Title approved' : 'Title rejected');
+      await client.invalidateQueries({ queryKey: boardKeys.title('prof', titleId) });
+      if (affectedSlot) await loadTitles(affectedSlot);
+      return true;
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not review title');
+      return false;
+    }
   }
 
   async function removeTitle(title: Title) {
@@ -248,6 +257,7 @@ export default function ClassPage() {
         <div className="flex flex-wrap items-center gap-2">
           <label className="label mb-0">Project slot</label>
           <select
+            aria-label="Project slot"
             className="input max-w-xs"
             value={slotId || ''}
             onChange={(e) => {
@@ -347,7 +357,7 @@ export default function ClassPage() {
           onOpenStudent={openStudentOnBoard}
         />
       ) : tab === 'settings' ? (
-        <SlotsTab classId={classId} slots={slots} onChange={loadAll} />
+        <div className="space-y-6"><SlotsTab classId={classId} slots={slots} onChange={loadAll} />{cls && <ClassLifecycle classId={classId} name={cls.name} archived={!!cls.archivedAt} onChanged={loadAll} />}</div>
       ) : (
         <div className="space-y-3">
           {leaveSchemaMissing && (
@@ -362,38 +372,10 @@ export default function ClassPage() {
         </div>
       )}
 
-      {tab === 'board' && titles.some((t) => t.status === 'pending') && (
-        <section className="space-y-3">
-          <h2 className="text-sm font-medium uppercase tracking-wide text-muted">Pending verification</h2>
-          <div className="grid gap-3">
-            {titles
-              .filter((t) => t.status === 'pending')
-              .map((t) => (
-                <div key={t.id} className="card space-y-2">
-                  <p className="font-medium">{t.text}</p>
-                  <p className="text-sm text-muted">{t.description}</p>
-                  <ProgressSelect
-                    value={t.progressStatus}
-                    onChange={(next) => setProgress(t.id, next as ProgressStatus)}
-                  />
-                  <input
-                    className="input"
-                    placeholder="Optional reject comment"
-                    value={comments[t.id] || ''}
-                    onChange={(e) => setComments((cur) => ({ ...cur, [t.id]: e.target.value }))}
-                  />
-                  <div className="flex gap-2">
-                    <button className="btn-primary" onClick={() => decide(t.id, 'verified')}>
-                      Approve
-                    </button>
-                    <button className="btn-danger" onClick={() => decide(t.id, 'rejected')}>
-                      Reject
-                    </button>
-                  </div>
-                </div>
-              ))}
-          </div>
-        </section>
+      {titlesQuery.error && <p role="alert" className="text-sm text-danger">Could not refresh projects. Retrying automatically.</p>}
+      {tab === 'board' && selectedSlot && !loading && !titlesLoading && (
+        <VerificationQueue key={`${classId}:${slotId}`} titles={titles}
+          onReview={id => setReviewing(titles.find(t => t.id === id) || null)} onDecision={decide} />
       )}
 
       {editing && (
@@ -531,6 +513,7 @@ function SlotsTab({
                   classId={classId}
                   slotId={s.id}
                   initial={{
+                    instructions: s.instructions,
                     groupSize: s.groupSize,
                     titlesRequiredMin: s.titlesRequiredMin,
                     titlesAllowedMax: s.titlesAllowedMax,

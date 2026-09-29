@@ -1,4 +1,5 @@
 'use client';
+import { titleRequest } from '@/lib/title-request';
 
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
@@ -17,6 +18,7 @@ import { TechStackInput } from '@/components/student/tech-stack-input';
 import { PROGRESS_LABELS, PROGRESS_STATUSES, type ProgressStatus } from '@/lib/progress';
 
 export type ProfTitle = {
+  slotId?: string;
   id: string;
   text: string;
   description: string;
@@ -73,16 +75,13 @@ export function TitleEditor({
   }, [open, title]);
 
   async function save() {
-    if (!text.trim() || !description.trim()) {
-      toast.error('Title and description are required');
+    if (text.trim().length < 5 || !description.trim()) {
+      toast.error('Title must be at least 5 characters; description is required');
       return;
     }
     setSaving(true);
     try {
-      const res = await fetch(`/api/dashboard/titles/${title.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      const res = await titleRequest(`/api/dashboard/titles/${title.id}`, 'PATCH', {
           text,
           description,
           techStack,
@@ -92,8 +91,7 @@ export function TitleEditor({
           repoUrl,
           deploymentUrl,
           rejectionReason: status === 'rejected' ? rejectionReason : '',
-        }),
-      });
+        });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || 'Could not update title');
       toast.success('Title updated');
@@ -116,6 +114,7 @@ export function TitleEditor({
           <div className="space-y-1.5">
             <Label>Title</Label>
             <Input value={text} onChange={(e) => setText(e.target.value)} />
+            {text.trim().length < 5 && <p className="text-xs text-danger">Title must be at least 5 characters long.</p>}
           </div>
           <div className="space-y-1.5">
             <Label>Description</Label>
@@ -123,7 +122,7 @@ export function TitleEditor({
           </div>
           <div className="space-y-1.5">
             <Label>Tech stack</Label>
-            <TechStackInput value={techStack} onChange={setTechStack} />
+            <TechStackInput value={techStack} onChange={setTechStack} suggestionsUrl={title.slotId ? `/api/prof/slots/${title.slotId}/tech-tags` : undefined} />
           </div>
           <div className="space-y-1.5">
             <Label>Target users</Label>
@@ -176,7 +175,7 @@ export function TitleEditor({
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button type="button" onClick={save} disabled={saving}>
+          <Button type="button" onClick={save} disabled={saving || text.trim().length < 5 || !description.trim()}>
             {saving ? 'Saving…' : 'Save'}
           </Button>
         </DialogFooter>

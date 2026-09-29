@@ -33,6 +33,7 @@ export type ProjectTitle = {
 export type SlotInfo = {
   id: string;
   label: string;
+  instructions?: string | null;
   groupSize: number;
   titlesRequiredMin: number;
   titlesAllowedMax: number;

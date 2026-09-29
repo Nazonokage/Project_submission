@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { defaultAcademicTerm, termPresets } from '@/lib/term';
 import { ThemeToggle } from '@/components/theme-toggle';
 
-type ClassRow = { id: string; name: string; term: string; createdAt: string };
+type ClassRow = { id: string; name: string; term: string; createdAt: string; archivedAt: string | null };
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -16,11 +16,12 @@ export default function DashboardPage() {
   const [name, setName] = useState('');
   const [term, setTerm] = useState(defaultAcademicTerm());
   const [error, setError] = useState<string | null>(null);
+  const [includeArchived, setIncludeArchived] = useState(false);
   const presets = termPresets();
 
   async function load() {
     setLoading(true);
-    const res = await fetch('/api/classes');
+    const res = await fetch(`/api/classes${includeArchived ? '?includeArchived=1' : ''}`);
     if (res.ok) {
       const data = await res.json();
       setClasses(data.classes);
@@ -30,7 +31,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     load();
-  }, []);
+  }, [includeArchived]);
 
   function openForm() {
     setShowForm((s) => {
@@ -77,6 +78,8 @@ export default function DashboardPage() {
           </button>
         </div>
       </div>
+
+      <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={includeArchived} onChange={e => setIncludeArchived(e.target.checked)} />Show archived classes</label>
 
       {showForm && (
         <form onSubmit={createClass} className="card space-y-3">
@@ -139,7 +142,7 @@ export default function DashboardPage() {
             <Link key={c.id} href={`/dashboard/${c.id}`} className="card hover:border-accent transition-colors">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="font-medium">{c.name}</p>
+                  <p className="font-medium">{c.name}{c.archivedAt && <span className="badge ml-2">Archived</span>}</p>
                   <p className="text-sm text-muted">{c.term}</p>
                 </div>
                 <span className="text-muted text-sm">Manage →</span>

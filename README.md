@@ -3,8 +3,9 @@
 Next.js 14 + Neon PostgreSQL app for professors to manage student project title
 submissions, verification, grouping, and repo tracking — no student accounts required.
 
-Built to match `plan.md` and `TODO.md`. This build has been compiled and
-type-checked successfully (`npm run build`) against a dummy `.env.local`.
+Implementation through Phase 18 (v1.7.3), tracked in `todo.md`. See
+[the Phase 14–16 review](docs/phase14-16-review.md) for verification results and
+remaining release checks.
 
 ## ⚠️ Before you do anything else
 
@@ -68,18 +69,46 @@ npm run dev
   - **Project Updates**: Activity feed inside the Board where group members can post, edit, and soft-delete progress updates, milestone entries, and notes.
   - **`My Group`**: Group management, member list, invitations, and leave requests.
 - **Verification & Review**:
-  - Prof queue filterable by status, approve/reject with rejection reason feedback.
+  - Horizontal scrollable **Verification Queue** showing submitter and group member chips with quick approve/reject controls.
   - Professor title review modal showing version reports, lock/unlock toggles, student project updates with deleted/edited flags, and feedback comments.
+- **Tech-Stack Autocomplete**: Combobox tag input suggesting previously used tech tags within the same class/slot while allowing custom new tag additions.
 - **Dark Mode & Theming**: Persisted dark mode preference across professor and student pages.
 - **CSV export**: Client-side roster and slot data exports.
 
+## Phase 14–18 behavior
+
+- Titles require at least five characters after trimming in student and professor create/edit routes. Similarity checks use `pg_trgm` at 0.4 plus literal substring matching, scoped to the class and slot, excluding deleted titles and the edited title itself. Strict slots block; warn slots require confirmation showing the matching titles. Professor edits and verification use the same rules.
+- Slot instructions are plain text, editable under Settings / Rules and displayed above the student tabs.
+- Class settings include archive/restore and permanent deletion requiring the class name. Archived classes are hidden from the default professor list; select **Show archived classes** to restore them. Archiving preserves existing student access; it does not lock submissions.
+- Student Board, professor progress board, and title review use TanStack Query. Cache keys separate roles, titles, classes and slots. Cached data remains visible during refreshes; unvisited projects show an initial loading state. Boards poll every ten seconds while visible, refetch stale data on focus, and retain unused cache for ten minutes. Task moves are optimistic and roll back on errors. Task/update mutations refresh only the affected title. Logging out to a login page clears the cache.
+- Tech-stack inputs display class/slot-scoped combobox suggestions populated from existing title proposals ordered by frequency. Submissions normalize tag formatting and deduplicate entries.
+- Pending title verification queue displays submitter details and groupmate chips for quick scanning on the professor dashboard.
+- The professor update feed checks class ownership before reading activity. Professor audit history continues to include deleted tasks/updates; student feeds omit deleted activity.
+
+For an existing database, apply these additive migrations if needed:
+
+```bash
+node scripts/apply-sql.mjs phase14_schema.sql
+node scripts/apply-sql.mjs phase15_schema.sql
+npm run db:health
+```
+
+The current configured database passed the read-only schema check on 2026-09-29; no migration or record deletion was needed during this review.
+
+Validation:
+
+```bash
+npm run test:roadmap
+npx tsc --noEmit
+npm run build
+```
+
+`npm run test:board` runs isolated browser fixtures with Playwright and Microsoft Edge. See the review document for setup. Real-database click tests and production deployment remain separate release checks.
+
 ## What's not wired up yet (per "Open Decisions" in plan.md)
 
-- Fuzzy duplicate matching (`pg_trgm`) — currently plain `ILIKE`
-- Tech-stack autocomplete from previously-used class tags — currently free-text tags
 - OTP row cleanup (cron or on-login) — expired rows are just ignored by the `expires_at` check, not deleted
 - GitHub commit tracking & background repo ping (`last_commit_sha`, `last_commit_at`)
-- Student drag-and-drop Kanban (currently uses column select dropdown)
 
 ## Folder structure
 

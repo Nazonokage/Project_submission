@@ -1,4 +1,5 @@
 'use client';
+import { titleRequest } from '@/lib/title-request';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { BookOpen, ChevronDown, ChevronUp, ExternalLink, FileText, Loader2, Pencil, Plus } from 'lucide-react';
@@ -169,11 +170,7 @@ export function TitleCard({
   async function saveEdit() {
     setSaving(true);
     try {
-      const res = await fetch(`/api/student/titles/${title.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text, description, techStack, targetUsers }),
-      });
+      const res = await titleRequest(`/api/student/titles/${title.id}`, 'PATCH', { text, description, techStack, targetUsers });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Could not update title');
       toast.success('Title updated');
@@ -505,6 +502,9 @@ export function TitleCard({
             <div className="space-y-1.5">
               <Label>Title</Label>
               <Input value={text} onChange={(e) => setText(e.target.value)} />
+              {text.trim().length > 0 && text.trim().length < 5 && (
+                <p className="text-xs text-destructive">Title must be at least 5 characters long.</p>
+              )}
             </div>
             <div className="space-y-1.5">
               <Label>Description</Label>
@@ -512,7 +512,7 @@ export function TitleCard({
             </div>
             <div className="space-y-1.5">
               <Label>Tech stack</Label>
-              <TechStackInput value={techStack} onChange={setTechStack} />
+              <TechStackInput value={techStack} onChange={setTechStack} suggestionsUrl={effectiveSlotId ? `/api/student/slots/${effectiveSlotId}/tech-tags` : undefined} />
             </div>
             <div className="space-y-1.5">
               <Label>Target users</Label>
@@ -523,7 +523,7 @@ export function TitleCard({
             <Button type="button" variant="outline" onClick={() => setEditOpen(false)}>
               Cancel
             </Button>
-            <Button type="button" onClick={saveEdit} disabled={saving}>
+            <Button type="button" onClick={saveEdit} disabled={saving || !text.trim() || text.trim().length < 5}>
               {saving ? 'Saving…' : 'Save'}
             </Button>
           </DialogFooter>

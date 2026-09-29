@@ -1,5 +1,10 @@
 # Project-Submissions — Task Checklist
 
+> Current roadmap: [todo.md](todo.md). Phases 14–18 were implemented/reviewed on
+> 2026-09-29; see [review and verification](docs/phase14-16-review.md).
+> The historical phases below are retained for context.
+
+
 > Restructured 2026-09-06: shipped v1.5 phases (1–7) collapsed into a summary.
 > Everything currently open is kept in full detail.
 

@@ -1,18 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { classes } from '@/lib/schema';
-import { eq, desc } from 'drizzle-orm';
+import { and, eq, desc, isNull } from 'drizzle-orm';
 import { getProfSession } from '@/lib/auth';
 import { jsonError } from '@/lib/helpers';
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const prof = await getProfSession();
   if (!prof) return jsonError('Not authenticated', 401);
+
+  const includeArchived = req.nextUrl.searchParams.get('includeArchived') === '1';
 
   const rows = await db
     .select()
     .from(classes)
-    .where(eq(classes.profId, prof.profId))
+    .where(
+      includeArchived
+        ? eq(classes.profId, prof.profId)
+        : and(eq(classes.profId, prof.profId), isNull(classes.archivedAt))
+    )
     .orderBy(desc(classes.createdAt));
 
   return NextResponse.json({ classes: rows });

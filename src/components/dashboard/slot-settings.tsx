@@ -13,6 +13,7 @@ export type SlotRules = {
   requireDeploymentUrl: boolean;
   deadline: string | null;
   locked: boolean;
+  instructions?: string | null;
 };
 
 export const DEFAULT_SLOT_RULES: SlotRules = {
@@ -25,6 +26,7 @@ export const DEFAULT_SLOT_RULES: SlotRules = {
   requireDeploymentUrl: false,
   deadline: null,
   locked: false,
+  instructions: null,
 };
 
 export function defaultsKey(classId: string) {
@@ -67,6 +69,15 @@ export function SlotRulesFields({
 
   return (
     <div className="space-y-3">
+      <div>
+        <label className="label">Slot Instructions (optional)</label>
+        <textarea
+          className="input min-h-[80px]"
+          placeholder="Provide special instructions or guidelines for students in this project slot…"
+          value={rules.instructions || ''}
+          onChange={(e) => set('instructions', e.target.value || null)}
+        />
+      </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="label">Group size (1 = solo)</label>

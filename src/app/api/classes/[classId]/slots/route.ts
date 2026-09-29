@@ -37,6 +37,7 @@ export async function POST(req: NextRequest, { params }: { params: { classId: st
     .values({
       classId: params.classId,
       label,
+      instructions: typeof body?.instructions === 'string' ? body.instructions.trim() || null : null,
       groupSize: body?.groupSize ?? 1,
       titlesRequiredMin: body?.titlesRequiredMin ?? 2,
       titlesAllowedMax: body?.titlesAllowedMax ?? 50,

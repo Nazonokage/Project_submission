@@ -1,3 +1,6 @@
+import { normalizeTechStack } from '@/lib/tech-stack';
+import { duplicateGuard } from '@/lib/title-duplicates';
+import { assertSlotInClass } from '@/lib/helpers';
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { documentationFieldTemplates, studentGroupSlots, titles } from '@/lib/schema';
@@ -60,9 +63,22 @@ export async function PATCH(req: NextRequest, { params }: { params: { titleId: s
     typeof body?.targetUsers === 'string';
 
   const patch: Record<string, unknown> = { updatedAt: new Date(), updatedByStudentId: session.studentId };
-  if (typeof body?.text === 'string') patch.text = body.text.trim();
+  if (body && 'text' in body && typeof body.text !== 'string') return jsonError('Title text must be a string', 422);
+  if (typeof body?.text === 'string') {
+    const trimmedText = body.text.trim();
+    if (trimmedText.length < 5) {
+      return jsonError('Title text must be at least 5 characters long', 422);
+    }
+    if (trimmedText !== title.text) {
+      const slot = await assertSlotInClass(title.slotId, session.classId);
+      if (!slot) return jsonError('Slot not found', 404);
+      const error = await duplicateGuard(title.classId, title.slotId, trimmedText, slot.duplicateCheck, body?.confirmDuplicate, title.id);
+      if (error) return error;
+    }
+    patch.text = trimmedText;
+  }
   if (typeof body?.description === 'string') patch.description = body.description.trim();
-  if (Array.isArray(body?.techStack)) patch.techStack = body.techStack;
+  if (Array.isArray(body?.techStack)) patch.techStack = normalizeTechStack(body.techStack);
   if (typeof body?.targetUsers === 'string') patch.targetUsers = body.targetUsers.trim();
 
   let nextProgress: ProgressStatus | null = null;

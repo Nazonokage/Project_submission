@@ -1,4 +1,5 @@
 'use client';
+import { useBoardRequest } from '@/lib/board-query';
 
 import { useEffect, useState } from 'react';
 import { Loader2 } from 'lucide-react';
@@ -52,6 +53,8 @@ export function ProgressReportModal({
     setCommitSha(''); setCommitUrl(''); setVersion(''); setRepoUrl(''); setDeploymentUrl('');
   }
 
+  const request = useBoardRequest(titleId);
+
   async function save() {
     if (!titleId) return;
     if (mode === 'quick' && (!headline.trim() || !body.trim())) {
@@ -65,7 +68,7 @@ export function ProgressReportModal({
 
     setSaving(true);
     try {
-      const res = await fetch(
+      const res = await request(
         mode === 'quick' ? '/api/student/updates' : `/api/student/titles/${titleId}/reports`,
         {
           method: 'POST',

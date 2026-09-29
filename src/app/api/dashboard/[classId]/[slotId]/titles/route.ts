@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { titles, students, studentGroupSlots, titleReports } from '@/lib/schema';
-import { desc, eq, inArray } from 'drizzle-orm';
+import { titles, students, studentGroupSlots, titleReports, professors } from '@/lib/schema';
+import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { getProfSession } from '@/lib/auth';
 import { assertClassOwnedByProf, assertSlotInClass, jsonError } from '@/lib/helpers';
 import { isSchemaDrift } from '@/lib/pg-errors';
@@ -22,24 +22,41 @@ export async function GET(
 
   const statusFilter = req.nextUrl.searchParams.get('status'); // 'pending' | 'verified' | 'rejected' | null (all)
 
+  const search = req.nextUrl.searchParams.get('q')?.trim();
   const rows = await selectTitles(
     titleConditions([
       eq(titles.classId, params.classId),
       eq(titles.slotId, params.slotId),
       statusFilter ? eq(titles.status, statusFilter) : undefined,
+      search ? sql`(strpos(lower(${titles.text}), lower(${search})) > 0 OR strpos(lower(${titles.description}), lower(${search})) > 0)` : undefined,
     ])
   );
 
-  const withMembers = await Promise.all(
-    rows.map(async (t) => {
-      const members = await db
-        .select({ id: students.id, name: students.name, idNumber: students.idNumber })
-        .from(studentGroupSlots)
-        .innerJoin(students, eq(students.id, studentGroupSlots.studentId))
-        .where(eq(studentGroupSlots.groupId, t.groupId));
-      return { ...t, members };
-    })
-  );
+  const groupIds = Array.from(new Set(rows.map(t => t.groupId)));
+  const studentIds = Array.from(new Set(rows.flatMap(t => t.submittedByStudentId ? [t.submittedByStudentId] : [])));
+  const professorIds = Array.from(new Set(rows.flatMap(t => t.addedByProfId ? [t.addedByProfId] : [])));
+  // Batch membership and authors independently: the submitter may have left the group.
+  const [members, studentAuthors, professorAuthors] = await Promise.all([
+    groupIds.length ? db.select({ groupId: studentGroupSlots.groupId, id: students.id, name: students.name, idNumber: students.idNumber })
+      .from(studentGroupSlots).innerJoin(students, eq(students.id, studentGroupSlots.studentId))
+      .where(and(inArray(studentGroupSlots.groupId, groupIds), eq(studentGroupSlots.slotId, params.slotId), eq(students.classId, params.classId))) : [],
+    studentIds.length ? db.select({ id: students.id, name: students.name }).from(students)
+      .where(and(inArray(students.id, studentIds), eq(students.classId, params.classId))) : [],
+    professorIds.length ? db.select({ id: professors.id, name: professors.name }).from(professors)
+      .where(inArray(professors.id, professorIds)) : [],
+  ]);
+  const byGroup = new Map<string, { id: string; name: string; idNumber: string }[]>();
+  for (const { groupId, ...member } of members) {
+    const list = byGroup.get(groupId) || [];
+    list.push(member); byGroup.set(groupId, list);
+  }
+  const studentById = new Map(studentAuthors.map(author => [author.id, author]));
+  const professorById = new Map(professorAuthors.map(author => [author.id, author]));
+  const withMembers = rows.map(t => {
+    const author = t.addedBy === 'prof' ? professorById.get(t.addedByProfId || '') : studentById.get(t.submittedByStudentId || '');
+    return { ...t, members: (byGroup.get(t.groupId) || []).sort((a, b) => a.name.localeCompare(b.name)),
+      submittedBy: author ? { ...author, role: t.addedBy === 'prof' ? 'prof' : 'student' } : null };
+  });
 
   const latestByTitle = new Map<string, {
     version: string | null;
@@ -65,7 +82,7 @@ export async function GET(
           createdAt: titleReports.createdAt,
         })
         .from(titleReports)
-        .where(inArray(titleReports.titleId, ids))
+        .where(and(inArray(titleReports.titleId, ids), isNull(titleReports.deletedAt)))
         .orderBy(desc(titleReports.createdAt));
       for (const r of reports) {
         if (!latestByTitle.has(r.titleId)) latestByTitle.set(r.titleId, r);
