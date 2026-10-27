@@ -20,7 +20,7 @@ export function ProgressSelect({
 
   return (
     <select
-      className={cn('input py-1 text-xs w-auto min-w-[8.5rem]', className)}
+      className={cn('input py-1 text-xs w-auto min-w-[8.5rem] touch-manipulation', className)}
       value={current}
       disabled={disabled}
       onChange={(e) => onChange(e.target.value as ProgressStatus)}

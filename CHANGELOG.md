@@ -1,3 +1,20 @@
+## [1.7.5] - 2026-10-27
+
+### Phase 20 — OTP cleanup & Markdown preview
+- Successful professor OTP request and login now delete used and expired `professor_otps` rows.
+- Single-use and expiry checks are unchanged. Notebook aesthetic and anti-copy were left off.
+- Added custom `MarkdownView` supporting headings, bold, italic, strikethrough, inline code, code blocks, lists, blockquotes, links, and tables.
+- Added interactive Edit / Preview toggle (`SlotInstructionsField`) in professor slot settings with direct instruction saving and unsaved change detection.
+- Enabled rich Markdown instruction rendering on the student slot dashboard.
+
+## [1.7.4] - 2026-10-25
+
+### Phase 19 — Mobile / touch Kanban
+- Student task board columns scroll horizontally on narrow viewports and stay a four-column grid on large screens, without overflowing the page.
+- HTML5 drag-and-drop remains for mouse/desktop; touch and pen use a long-press pointer drag with highlighted drop targets and edge auto-scroll.
+- Status can still change from the card select, with a phone-only Move sheet as a fallback.
+- My Tasks and New Task stay in a sticky control bar with larger tap targets. Task name, assignee, due date, and actions stay readable on small screens.
+
 ## [1.7.3] - 2026-09-29
 
 ### Phase 18 — Verification Queue UX & Groupmates

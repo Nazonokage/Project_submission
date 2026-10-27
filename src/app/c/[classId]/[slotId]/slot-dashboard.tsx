@@ -41,15 +41,14 @@ import {
 import { StudentHeader } from '@/components/student/student-header';
 import { GroupMembers } from '@/components/student/group-members';
 import { TitleCard } from '@/components/student/title-card';
-import { TaskCard } from '@/components/student/task-card';
+import { KanbanBoard } from '@/components/student/kanban-board';
 import { EmptyState } from '@/components/student/empty-state';
 import { StatusBadge } from '@/components/student/status-badge';
 import { TechStackInput } from '@/components/student/tech-stack-input';
-import { ProgressSelect } from '@/components/student/progress-select';
 import { ProgressReportModal } from '@/components/student/progress-report-modal';
+import { MarkdownView } from '@/components/ui/markdown-view';
 import type { Group, LeaveRequest, Member, ProjectTitle, SlotInfo, TaskItem, VerifiedTitle } from '@/components/student/types';
 import type { ProgressStatus } from '@/lib/progress';
-import { PROGRESS_LABELS, PROGRESS_STATUSES } from '@/lib/progress';
 
 
 type Invite = { invite: { id: string }; groupId: string; invitedBy: { name: string } };
@@ -211,7 +210,7 @@ export function SlotDashboard({ classId, slotId }: { classId: string; slotId: st
   }, [hasGroup, tab]);
 
   return (
-    <main className={`${tab === 'board' ? 'max-w-6xl' : 'max-w-3xl'} mx-auto px-6 py-10 space-y-6`}>
+    <main className={`${tab === 'board' ? 'max-w-6xl' : 'max-w-3xl'} mx-auto px-4 sm:px-6 py-10 space-y-6 overflow-x-hidden`}>
       <StudentHeader
         title={slot?.label || 'Project slot'}
         subtitle={[className, term].filter(Boolean).join(' · ') || undefined}
@@ -267,7 +266,7 @@ export function SlotDashboard({ classId, slotId }: { classId: string; slotId: st
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-sm text-foreground whitespace-pre-wrap">{slot.instructions}</p>
+                <MarkdownView content={slot.instructions} />
               </CardContent>
             </Card>
           )}
@@ -291,7 +290,7 @@ export function SlotDashboard({ classId, slotId }: { classId: string; slotId: st
 
           {tab && (
             <Tabs value={tab} onValueChange={setTab}>
-              <TabsList className="w-full sm:w-auto">
+              <TabsList className="w-full sm:w-auto overflow-x-auto justify-start">
                 <TabsTrigger value="titles">Titles</TabsTrigger>
                 <TabsTrigger value="submissions" disabled={!hasGroup}>Submissions</TabsTrigger>
                 <TabsTrigger value="board" disabled={!hasGroup}>Board</TabsTrigger>
@@ -545,8 +544,6 @@ function BoardTab({
   const [addUpdateOpen, setAddUpdateOpen] = useState(false);
   const [editUpdate, setEditUpdate] = useState<ProjectUpdate | null>(null);
 
-  const [dragOverColumn, setDragOverColumn] = useState<ProgressStatus | null>(null);
-
   const selectedTitle = useMemo(
     () => titles.find((t) => t.id === selectedTitleId) ?? titles[0] ?? null,
     [titles, selectedTitleId]
@@ -621,7 +618,7 @@ function BoardTab({
   return (
     <div className="space-y-6 mt-4">
       {/* Title Selector & Controls Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-secondary/20 p-3 rounded-xl border">
+      <div className="sticky top-0 z-20 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-background/95 backdrop-blur p-3 rounded-xl border">
         <div className="flex items-center gap-2 flex-1 min-w-0">
           <Label className="shrink-0 font-medium text-xs uppercase tracking-wide text-muted">Project:</Label>
           <select
@@ -644,7 +641,8 @@ function BoardTab({
             variant={myTasksOnly ? 'default' : 'outline'}
             size="sm"
             onClick={() => setMyTasksOnly((prev) => !prev)}
-            className="text-xs gap-1.5 h-8"
+            className="text-xs gap-1.5 h-10 sm:h-8 flex-1 sm:flex-none"
+            aria-pressed={myTasksOnly}
           >
             <Filter className="h-3.5 w-3.5" />
             {myTasksOnly ? 'My Tasks (Filtered)' : 'All Tasks'}
@@ -653,7 +651,7 @@ function BoardTab({
           <Button
             type="button"
             size="sm"
-            className="text-xs gap-1.5 h-8"
+            className="text-xs gap-1.5 h-10 sm:h-8 flex-1 sm:flex-none"
             onClick={() => {
               setAddTaskInitialStatus('planning');
               setAddTaskOpen(true);
@@ -672,93 +670,17 @@ function BoardTab({
             <p className="mt-1 font-semibold text-base">{selectedTitle.text}</p>
             <p className="mt-1 text-sm text-muted line-clamp-2">{selectedTitle.description}</p>
           </div>
-          {/* Task-Level Kanban Board */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-            {PROGRESS_STATUSES.map((col) => {
-              const colTasks = displayedTasks.filter((t) => t.status === col);
-              const isOver = dragOverColumn === col;
-              return (
-                <div
-                  key={col}
-                  onDragOver={(e) => {
-                    e.preventDefault();
-                    e.dataTransfer.dropEffect = 'move';
-                    if (dragOverColumn !== col) setDragOverColumn(col);
-                  }}
-                  onDragLeave={(e) => {
-                    // Prevent flickering when hovering child elements
-                    if (!e.currentTarget.contains(e.relatedTarget as Node)) {
-                      setDragOverColumn(null);
-                    }
-                  }}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    setDragOverColumn(null);
-                    const taskId = e.dataTransfer.getData('text/plain');
-                    if (taskId) {
-                      handleStatusChange(taskId, col);
-                    }
-                  }}
-                  className={`rounded-xl border p-3 space-y-3 flex flex-col min-h-[14rem] transition-all duration-150 ${
-                    isOver
-                      ? 'border-primary ring-2 ring-primary/30 bg-primary/10'
-                      : 'border-border/80 bg-secondary/15'
-                  }`}
-                >
-                  <div className="flex items-center justify-between gap-1 pb-1 border-b border-border/40">
-                    <div className="flex items-center gap-2">
-                      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                        {PROGRESS_LABELS[col]}
-                      </p>
-                      <Badge variant="secondary" className="text-[11px] h-5 px-1.5 font-normal">
-                        {colTasks.length}
-                      </Badge>
-                    </div>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="h-6 w-6 text-muted-foreground hover:text-foreground"
-                      onClick={() => {
-                        setAddTaskInitialStatus(col);
-                        setAddTaskOpen(true);
-                      }}
-                    >
-                      <Plus className="h-3.5 w-3.5" />
-                      <span className="sr-only">Add task to {PROGRESS_LABELS[col]}</span>
-                    </Button>
-                  </div>
-
-                  <div className="space-y-2 flex-1">
-                    {tasksLoading ? (
-                      <div className="space-y-2">
-                        <Skeleton className="h-20 w-full rounded-xl" />
-                        <Skeleton className="h-20 w-full rounded-xl" />
-                      </div>
-                    ) : colTasks.length === 0 ? (
-                      <div
-                        className={`h-24 flex items-center justify-center border border-dashed rounded-lg text-xs transition-colors ${
-                          isOver ? 'border-primary text-primary font-medium' : 'text-muted-foreground/70'
-                        }`}
-                      >
-                        {isOver ? `Drop to move to ${PROGRESS_LABELS[col]}` : `No tasks in ${PROGRESS_LABELS[col].toLowerCase()}`}
-                      </div>
-                    ) : (
-                      colTasks.map((t) => (
-                        <TaskCard
-                          key={t.id}
-                          task={t}
-                          members={members}
-                          onStatusChange={handleStatusChange}
-                          onDelete={handleDeleteTask}
-                        />
-                      ))
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+          <KanbanBoard
+            tasks={displayedTasks}
+            members={members}
+            loading={tasksLoading}
+            onAdd={(status) => {
+              setAddTaskInitialStatus(status);
+              setAddTaskOpen(true);
+            }}
+            onStatusChange={handleStatusChange}
+            onDelete={handleDeleteTask}
+          />
 
           {/* Activity & Updates Feed */}
           <Card className="rounded-xl shadow-xs border">

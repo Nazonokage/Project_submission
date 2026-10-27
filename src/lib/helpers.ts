@@ -1,12 +1,18 @@
 import { NextResponse } from 'next/server';
 import { db } from './db';
-import { classes, projectSlots, groups, students } from './schema';
-import { and, eq } from 'drizzle-orm';
+import { classes, projectSlots, groups, students, professorOtps } from './schema';
+import { and, eq, lt, or } from 'drizzle-orm';
 
 export const FALLBACK_STUDENT_PASSWORD = '2026';
 
 export function generateOtp() {
   return Math.floor(100000 + Math.random() * 900000).toString();
+}
+
+export async function cleanupProfessorOtps() {
+  await db
+    .delete(professorOtps)
+    .where(or(eq(professorOtps.used, true), lt(professorOtps.expiresAt, new Date())));
 }
 
 export function generatePassword(length = 8) {

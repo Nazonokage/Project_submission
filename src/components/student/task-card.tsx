@@ -3,12 +3,14 @@ import { useBoardRequest } from '@/lib/board-query';
 import { toast } from 'sonner';
 
 import { useState } from 'react';
-import { Calendar, CheckCircle2, Clock, MoreVertical, Pencil, Trash2, User } from 'lucide-react';
+import { Calendar, Clock, GripVertical, Pencil, Trash2, User } from 'lucide-react';
+import { isKanbanInteractiveTarget, useKanbanDnd } from '@/components/student/kanban-dnd';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ProgressSelect } from '@/components/student/progress-select';
 import type { Member, ProgressStatus, TaskItem } from '@/components/student/types';
+import { PROGRESS_LABELS, PROGRESS_STATUSES } from '@/lib/progress';
 import {
   Dialog,
   DialogContent,
@@ -36,7 +38,9 @@ export function TaskCard({
   onDelete?: (taskId: string) => void;
 }) {
   const request = useBoardRequest(task.titleId);
+  const dnd = useKanbanDnd();
   const [editOpen, setEditOpen] = useState(false);
+  const [moveOpen, setMoveOpen] = useState(false);
   const [name, setName] = useState(task.name);
   const [description, setDescription] = useState(task.description || '');
   const [assigneeId, setAssigneeId] = useState(task.assigneeStudentId || '');
@@ -88,24 +92,37 @@ export function TaskCard({
       <Card
         draggable={!readOnly}
         onDragStart={(e) => {
-          if (readOnly) return;
+          if (readOnly || isKanbanInteractiveTarget(e.target)) {
+            e.preventDefault();
+            return;
+          }
           e.dataTransfer.setData('text/plain', task.id);
           e.dataTransfer.effectAllowed = 'move';
+          dnd?.beginHtml5Drag(task.id);
         }}
-        className={`rounded-xl shadow-xs border bg-card hover:border-primary/40 transition-colors ${
+        onDragEnd={() => dnd?.endDrag()}
+        onPointerDown={(e) => {
+          if (!readOnly) dnd?.onCardPointerDown(e, task.id, task.name);
+        }}
+        className={`rounded-xl shadow-xs border bg-card hover:border-primary/40 transition-colors overflow-visible ${
           !readOnly ? 'cursor-grab active:cursor-grabbing' : ''
-        }`}
+        } ${dnd?.draggingId === task.id ? 'opacity-60' : ''}`}
       >
         <CardContent className="p-3 space-y-2.5">
           <div className="flex items-start justify-between gap-2">
-            <p className="text-sm font-medium leading-snug break-words flex-1">
+            {!readOnly && (
+              <span className="mt-0.5 text-muted-foreground/70 shrink-0" aria-hidden>
+                <GripVertical className="h-4 w-4" />
+              </span>
+            )}
+            <p className="text-sm font-medium leading-snug break-words flex-1 min-w-0">
               {task.name}
             </p>
             {!readOnly && (
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-6 w-6 text-muted-foreground hover:text-foreground shrink-0"
+                className="h-8 w-8 md:h-6 md:w-6 text-muted-foreground hover:text-foreground shrink-0"
                 onClick={() => {
                   setName(task.name);
                   setDescription(task.description || '');
@@ -154,13 +171,25 @@ export function TaskCard({
             <ProgressSelect
               value={task.status}
               disabled={readOnly}
+              className="min-h-10 min-w-[9.5rem] flex-1 md:min-h-0 md:py-1"
               onChange={(next) => onStatusChange?.(task.id, next)}
             />
+            {!readOnly && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-10 px-2 text-xs md:hidden"
+                onClick={() => setMoveOpen(true)}
+              >
+                Move
+              </Button>
+            )}
             {!readOnly && onDelete && (
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-7 w-7 text-muted-foreground hover:text-destructive shrink-0"
+                className="h-10 w-10 md:h-7 md:w-7 text-muted-foreground hover:text-destructive shrink-0"
                 onClick={() => onDelete(task.id)}
               >
                 <Trash2 className="h-3.5 w-3.5" />
@@ -170,6 +199,30 @@ export function TaskCard({
           </div>
         </CardContent>
       </Card>
+
+      <Dialog open={moveOpen} onOpenChange={setMoveOpen}>
+        <DialogContent className="left-0 right-0 top-auto bottom-0 max-w-none translate-x-0 translate-y-0 rounded-b-none rounded-t-2xl sm:left-[50%] sm:right-auto sm:top-[50%] sm:bottom-auto sm:max-w-sm sm:translate-x-[-50%] sm:translate-y-[-50%] sm:rounded-xl">
+          <DialogHeader>
+            <DialogTitle>Move task</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-2">
+            {PROGRESS_STATUSES.map((next) => (
+              <Button
+                key={next}
+                type="button"
+                variant={task.status === next ? 'default' : 'outline'}
+                className="h-11 justify-start"
+                onClick={() => {
+                  onStatusChange?.(task.id, next);
+                  setMoveOpen(false);
+                }}
+              >
+                {PROGRESS_LABELS[next]}
+              </Button>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Edit Task Dialog */}
       <Dialog open={editOpen} onOpenChange={setEditOpen}>

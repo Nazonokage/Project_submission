@@ -21,8 +21,8 @@ let tasks = titles.map((t, i) => ({ id: `task-${i}`, titleId: t.id, name: `Task 
 let updates = [];
 const errors = [];
 const requests = [];
-async function context(role) {
-  const ctx = await browser.newContext();
+async function context(role, options = {}) {
+  const ctx = await browser.newContext(options);
   const token = await new SignJWT({ studentId: 'student-test', classId: 'class-test', profId: 'prof-test' }).setProtectedHeader({ alg: 'HS256' }).setExpirationTime('1h').sign(new TextEncoder().encode('phase14-16-local-test-only'));
   await ctx.addCookies([{ name: role === 'student' ? 'student_token' : 'prof_token', value: token, url: base }]);
   await ctx.route('**/api/**', async route => {
@@ -181,6 +181,21 @@ try {
   assert.ok(pagePolls > 0, 'Visible tab resumes polling');
   assert.equal(await page.getByText('Task 0', { exact: true }).isVisible(), true);
   page.off('request', countPoll);
+  const mobile = await context('student', { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+  await mobile.page.goto(`${base}/c/class-test/slot-test`);
+  await mobile.page.getByRole('tab', { name: 'Board' }).click();
+  await visible(mobile.page.getByText('Task 0', { exact: true }));
+  await visible(mobile.page.getByRole('button', { name: 'New Task', exact: true }));
+  await visible(mobile.page.getByRole('button', { name: 'All Tasks', exact: true }));
+  assert.ok(await mobile.page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), 'Phone board should not overflow the page');
+  const scroller = mobile.page.locator('[data-kanban-scroller]');
+  assert.ok(await scroller.evaluate(el => el.scrollWidth > el.clientWidth), 'Kanban columns should scroll horizontally on a phone');
+  const phoneCard = mobile.page.locator('[draggable="true"]').filter({ hasText: 'Task 0' });
+  await visible(phoneCard.getByRole('button', { name: 'Move', exact: true }));
+  await phoneCard.getByRole('combobox').selectOption('done');
+  assert.equal(await phoneCard.getByRole('combobox').inputValue(), 'done');
+  await mobile.ctx.close();
+  console.log('PASS Phase 19: phone layout, horizontal column scroller, reachable controls, status fallback');
   console.log('PASS student: instructions, title cache isolation, optimistic move/rollback, drag-and-drop, task create/edit/delete, hidden/visible polling, update create/edit/delete, two-context polling, tab cache');
   const prof = await context('prof');
   await prof.page.goto(`${base}/dashboard/class-test`);

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { professorOtps, professors } from '@/lib/schema';
 import { and, desc, eq, gt } from 'drizzle-orm';
-import { jsonError } from '@/lib/helpers';
+import { cleanupProfessorOtps, jsonError } from '@/lib/helpers';
 import { signProfToken, setProfCookie } from '@/lib/auth';
 
 export async function POST(req: NextRequest) {
@@ -33,6 +33,11 @@ export async function POST(req: NextRequest) {
   }
 
   await db.update(professorOtps).set({ used: true }).where(eq(professorOtps.id, record.id));
+  try {
+    await cleanupProfessorOtps();
+  } catch (err) {
+    console.error('Failed to clean up professor OTPs', err);
+  }
 
   // Upsert professor
   let [prof] = await db.select().from(professors).where(eq(professors.email, email)).limit(1);

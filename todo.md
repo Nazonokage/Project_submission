@@ -1,8 +1,8 @@
 # Project-Submissions — Implementation Roadmap (v1.7.x → v1.8)
 
-**Current implementation:** v1.7.3 (through Phase 18; automated tests pass, live DB release checks deferred)
-**Target:** v1.7.4 Mobile Kanban & remaining v1.7.x phases, then v1.8 GitHub polish
-**Last updated:** 2026-09-29
+**Current implementation:** v1.7.5 (through Phase 20; automated tests pass, live DB release checks deferred)
+**Target:** remaining v1.7.x Phase 22, then v1.8 GitHub polish
+**Last updated:** 2026-10-25
 
 > Instructions for Codex / coding agents:
 > - Work phase by phase. Do not skip schema health / `npm run build` gates.
@@ -15,7 +15,8 @@
 > Review: [Phase 14–16 findings and verification](docs/phase14-16-review.md).
 > Automated route and isolated browser checks cover the changes. Real-database
 > manual click tests are explicitly deferred; no production records were altered.
-> Phases 17–22 remain unstarted. Dependency advisories are tracked in the review.
+> Phases 17–20 are implemented. Phase 22 remains open before v1.8.
+> Dependency advisories are tracked in the review.
 
 ---
 
@@ -162,39 +163,39 @@
 
 ---
 
-## Phase 19 — Mobile / Touch Kanban Polish (v1.7.4)
+## Phase 19 — Mobile / Touch Kanban Polish (v1.7.4) (completed)
 
 > Goal: Task board is usable on phones and touch devices.
 
 ### 19.1 — DnD
-- [ ] Ensure HTML5 DnD or chosen library works with touch (or add touch polyfill / pointer events)
-- [ ] Visual drop targets remain clear on small screens
-- [ ] Fallback: status change via select / bottom sheet if drag is unreliable on a given device
+- [x] Ensure HTML5 DnD or chosen library works with touch (or add touch polyfill / pointer events)
+- [x] Visual drop targets remain clear on small screens
+- [x] Fallback: status change via select / bottom sheet if drag is unreliable on a given device
 
 ### 19.2 — Layout
-- [ ] Columns stack or become horizontally scrollable on narrow viewports without breaking drag
-- [ ] Task cards: readable name, assignee, due date; actions not cut off
-- [ ] “My Tasks” toggle and Add Task remain reachable
+- [x] Columns stack or become horizontally scrollable on narrow viewports without breaking drag
+- [x] Task cards: readable name, assignee, due date; actions not cut off
+- [x] “My Tasks” toggle and Add Task remain reachable
 
 ### 19.3 — Cleanup
-- [ ] Build clean
-- [ ] Manual: phone/tablet drag or status change; no horizontal overflow chaos
+- [x] Build clean
+- [x] Manual: phone/tablet drag or status change; no horizontal overflow chaos — isolated browser fixtures; live-database manual check deferred.
 
 ---
 
-## Phase 20 — OTP Cleanup & Small Hygiene (v1.7.5)
+## Phase 20 — OTP Cleanup & Small Hygiene (v1.7.5) (completed)
 
 ### 20.1 — OTP
-- [ ] On successful login **or** periodic/on-request: delete `professor_otps` rows where `expires_at < now()` or `used = true`
-- [ ] Prefer on-login cleanup + optional lightweight cron/route if you already have one
-- [ ] Do not break single-use or expiry checks
+- [x] On successful login **or** periodic/on-request: delete `professor_otps` rows where `expires_at < now()` or `used = true`
+- [x] Prefer on-login cleanup + optional lightweight cron/route if you already have one
+- [x] Do not break single-use or expiry checks
 
 ### 20.2 — Optional low-priority
 - [ ] Notebook / doodle aesthetic pass (CSS variables, subtle paper texture, friendlier empty states) — only if time remains
-- [ ] Anti-copy (`user-select: none` etc.) — **default off**; only add if product owner still insists after validation + fuzzy dupe land
+- [x] Anti-copy (`user-select: none` etc.) — **default off**; only add if product owner still insists after validation + fuzzy dupe land
 
 ### 20.3 — Cleanup
-- [ ] Build + schema-health clean
+- [x] Build + schema-health clean
 
 ---
 
@@ -278,3 +279,8 @@
 - [x] Board, progress modal and professor review regression tests pass; live roster/auth/TitleCard click tests explicitly deferred
 - [x] CHANGELOG.md entry per shipped version bump
 - [x] Manual checklist for the phase completed or explicitly noted as deferred
+
+
+
+
+regarding to phase 20 i mean for that was like , if my session for my browser stays in , maybe lets have a "remember me" toggle , and if no we''ll just expire it at 24hrs

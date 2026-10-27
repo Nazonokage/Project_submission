@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { professorOtps } from '@/lib/schema';
-import { generateOtp, jsonError } from '@/lib/helpers';
+import { cleanupProfessorOtps, generateOtp, jsonError } from '@/lib/helpers';
 import { sendOtpEmail } from '@/lib/mailer';
 import { assertOtpRateLimit } from '@/lib/rate-limit';
 
@@ -19,6 +19,11 @@ export async function POST(req: NextRequest) {
   const otp = generateOtp();
 
   await db.insert(professorOtps).values({ email, otp });
+  try {
+    await cleanupProfessorOtps();
+  } catch (err) {
+    console.error('Failed to clean up professor OTPs', err);
+  }
 
   try {
     await sendOtpEmail(email, otp);

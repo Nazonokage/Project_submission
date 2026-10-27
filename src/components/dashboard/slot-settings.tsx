@@ -1,7 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
+import { Check, Eye, Pencil, X } from 'lucide-react';
+import { MarkdownView } from '@/components/ui/markdown-view';
 
 export type SlotRules = {
   groupSize: number;
@@ -54,14 +56,169 @@ function datetimeLocal(value: string | null) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+export function SlotInstructionsField({
+  instructions,
+  onChange,
+  onSaveDirect,
+}: {
+  instructions: string | null | undefined;
+  onChange: (val: string | null) => void;
+  onSaveDirect?: (val: string | null) => Promise<void> | void;
+}) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [draft, setDraft] = useState(instructions || '');
+  const [baseline, setBaseline] = useState(instructions || '');
+  const [saving, setSaving] = useState(false);
+
+  // Sync baseline and draft when instructions prop updates from outside while not editing
+  useEffect(() => {
+    if (!isEditing) {
+      setDraft(instructions || '');
+      setBaseline(instructions || '');
+    }
+  }, [instructions, isEditing]);
+
+  const hasChanged = draft !== baseline;
+
+  const handleEdit = () => {
+    setDraft(baseline);
+    setIsEditing(true);
+  };
+
+  const handleTogglePreview = () => {
+    setIsEditing(false);
+  };
+
+  const handleSave = async () => {
+    const nextVal = draft.trim() || null;
+    setBaseline(draft);
+    onChange(nextVal);
+    if (onSaveDirect) {
+      setSaving(true);
+      try {
+        await onSaveDirect(nextVal);
+        toast.success('Slot instructions saved');
+      } catch {
+        // error handled by caller
+      } finally {
+        setSaving(false);
+      }
+    } else {
+      toast.success('Instructions saved');
+    }
+    setIsEditing(false);
+  };
+
+  const handleExit = () => {
+    setDraft(baseline);
+    onChange(baseline.trim() || null);
+    setIsEditing(false);
+    toast.info('Changes discarded');
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const nextVal = e.target.value;
+    setDraft(nextVal);
+    onChange(nextVal.trim() || null);
+  };
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1.5">
+        <label className="label mb-0">Slot Instructions (optional)</label>
+        <div className="flex items-center gap-1.5">
+          {!isEditing ? (
+            <button
+              type="button"
+              className="btn-secondary h-7 px-2.5 text-xs flex items-center gap-1.5"
+              onClick={handleEdit}
+              title="Edit slot instructions"
+            >
+              <Pencil className="h-3.5 w-3.5 text-muted" />
+              Edit
+            </button>
+          ) : hasChanged ? (
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                disabled={saving}
+                className="btn-primary h-7 px-2.5 text-xs flex items-center gap-1 shadow-sm"
+                onClick={handleSave}
+                title="Save changes and view preview"
+              >
+                <Check className="h-3.5 w-3.5" />
+                {saving ? 'Saving…' : 'Save'}
+              </button>
+              <button
+                type="button"
+                disabled={saving}
+                className="btn-secondary h-7 px-2.5 text-xs flex items-center gap-1 text-muted-foreground hover:text-danger hover:border-danger/30"
+                onClick={handleExit}
+                title="Discard changes and exit"
+              >
+                <X className="h-3.5 w-3.5" />
+                Exit
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              className="btn-secondary h-7 px-2.5 text-xs flex items-center gap-1.5"
+              onClick={handleTogglePreview}
+              title="Toggle back to preview"
+            >
+              <Eye className="h-3.5 w-3.5 text-muted" />
+              Preview
+            </button>
+          )}
+        </div>
+      </div>
+
+      {!isEditing ? (
+        <div
+          onClick={handleEdit}
+          title="Click to edit instructions"
+          className="rounded-xl border border-line bg-background/50 p-3 min-h-[85px] cursor-pointer hover:border-primary/40 transition-colors"
+        >
+          <MarkdownView
+            content={instructions}
+            placeholder="No instructions provided yet. Click 'Edit' to write guidelines in Markdown (headings, lists, code, links)."
+          />
+        </div>
+      ) : (
+        <div className="space-y-1.5">
+          <textarea
+            className="input min-h-[110px] font-mono text-sm leading-relaxed"
+            placeholder="Provide special instructions or guidelines for students in this project slot… (Markdown supported)"
+            value={draft}
+            onChange={handleInputChange}
+            autoFocus
+          />
+          <div className="flex items-center justify-between text-[11px] text-muted px-1">
+            <span>Markdown supported: **bold**, *italic*, # heading, - list, `code`, [link](url)</span>
+            {hasChanged && (
+              <span className="font-medium text-warn flex items-center gap-1">
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-warn animate-pulse" />
+                Unsaved edits
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function SlotRulesFields({
   rules,
   onChange,
   includeLock,
+  onSaveInstructions,
 }: {
   rules: SlotRules;
   onChange: (next: SlotRules) => void;
   includeLock?: boolean;
+  onSaveInstructions?: (val: string | null) => Promise<void> | void;
 }) {
   function set<K extends keyof SlotRules>(key: K, value: SlotRules[K]) {
     onChange({ ...rules, [key]: value });
@@ -69,15 +226,11 @@ export function SlotRulesFields({
 
   return (
     <div className="space-y-3">
-      <div>
-        <label className="label">Slot Instructions (optional)</label>
-        <textarea
-          className="input min-h-[80px]"
-          placeholder="Provide special instructions or guidelines for students in this project slot…"
-          value={rules.instructions || ''}
-          onChange={(e) => set('instructions', e.target.value || null)}
-        />
-      </div>
+      <SlotInstructionsField
+        instructions={rules.instructions}
+        onChange={(val) => set('instructions', val)}
+        onSaveDirect={onSaveInstructions}
+      />
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="label">Group size (1 = solo)</label>
@@ -198,11 +351,27 @@ export function SlotSettingsPanel({
     }
   }
 
+  async function saveInstructionsDirect(instructions: string | null) {
+    const res = await fetch(`/api/classes/${classId}/slots/${slotId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ instructions }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Could not save instructions');
+    onSaved();
+  }
+
   return (
     <div className="border-t border-line pt-3 space-y-6">
       <div>
         <h3 className="text-sm font-semibold mb-2">Slot Rules & Constraints</h3>
-        <SlotRulesFields rules={rules} onChange={setRules} includeLock />
+        <SlotRulesFields
+          rules={rules}
+          onChange={setRules}
+          includeLock
+          onSaveInstructions={saveInstructionsDirect}
+        />
         <div className="flex flex-wrap gap-2 mt-3">
           <button type="button" className="btn-primary" disabled={saving} onClick={save}>
             {saving ? 'Saving…' : 'Save rules'}
