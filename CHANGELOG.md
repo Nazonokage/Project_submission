@@ -6,6 +6,8 @@
 - Added custom `MarkdownView` supporting headings, bold, italic, strikethrough, inline code, code blocks, lists, blockquotes, links, and tables.
 - Added interactive Edit / Preview toggle (`SlotInstructionsField`) in professor slot settings with direct instruction saving and unsaved change detection.
 - Enabled rich Markdown instruction rendering on the student slot dashboard.
+- Added predefined standard tech stack catalog with typo-tolerant fuzzy suggestions, canonical casing, alias resolution, and 1-click quick-add pills.
+- Added resilient retry wrapper for Neon serverless connect timeouts on cold starts.
 
 ## [1.7.4] - 2026-10-25
 
