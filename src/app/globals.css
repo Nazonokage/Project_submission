@@ -225,3 +225,39 @@ summary { border-radius: .5rem; padding: .5rem; text-decoration: underline; text
 @media (hover: hover) and (pointer: fine) {
   :where(.striped-list) > label.striped-row:hover { background-color: hsl(var(--primary) / .1); }
 }
+
+/* Native scrolling with theme-aware rails and clearly grabbable thumbs. */
+:root {
+  --scrollbar-track: var(--secondary);
+  --scrollbar-thumb: var(--muted-foreground);
+  --scrollbar-hover: var(--link);
+}
+* {
+  scrollbar-width: auto;
+  scrollbar-color: hsl(var(--scrollbar-thumb)) hsl(var(--scrollbar-track));
+}
+/* Chromium/WebKit support rounded thumbs; keep the standard fallback elsewhere. */
+@supports selector(::-webkit-scrollbar) {
+  * { scrollbar-color: auto; }
+  ::-webkit-scrollbar { width: 12px; height: 12px; }
+  ::-webkit-scrollbar-track { background: hsl(var(--scrollbar-track)); border-radius: 999px; }
+  ::-webkit-scrollbar-thumb {
+    background: hsl(var(--scrollbar-thumb));
+    border: 2px solid hsl(var(--scrollbar-track));
+    border-radius: 999px;
+    min-height: 32px;
+    min-width: 32px;
+  }
+  ::-webkit-scrollbar-thumb:hover { background: hsl(var(--scrollbar-hover)); }
+  ::-webkit-scrollbar-thumb:active { background: hsl(var(--foreground)); }
+  ::-webkit-scrollbar-corner { background: hsl(var(--scrollbar-track)); }
+}
+@media (prefers-contrast: more) {
+  :root { --scrollbar-thumb: var(--foreground); }
+}
+@media (forced-colors: active) {
+  * { scrollbar-color: auto; }
+  ::-webkit-scrollbar-track, ::-webkit-scrollbar-corner { background: Canvas; }
+  ::-webkit-scrollbar-thumb { background: ButtonText; border-color: Canvas; }
+  ::-webkit-scrollbar-thumb:hover, ::-webkit-scrollbar-thumb:active { background: Highlight; }
+}

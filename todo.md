@@ -356,3 +356,5 @@ No schema migration is required. Optional aesthetic work and v1.8 integrations r
 - [x] Shared UI screenshot checks: light/dark, desktop/mobile width, mouse hover, keyboard navigation and reduced motion.
 
 - [x] Alternating table/list rows with light/dark screenshots; type checking, build, schema health, hover/filter/keyboard browser checks passed.
+
+- [x] Theme-aware native scrollbars across page and nested scrolling regions, including horizontal boards; preserve native scrolling and forced-color support.

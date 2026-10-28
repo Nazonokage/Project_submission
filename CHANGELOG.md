@@ -1,6 +1,7 @@
 ## [1.7.6] - 2026-10-28
 
 ### Interface polish
+- Style native vertical and horizontal scrollbars with rounded thumbs, theme-aware tracks, hover/pressed feedback, and high-contrast support.
 - Add alternating light/dark-aware backgrounds to data tables, profile rows, group member lists and classmate pickers; retain hover and keyboard-focus emphasis.
 - Apply shared hover, pressed and visible keyboard-focus states to controls, links, tabs and clickable cards/roster rows. Reserve the strongest accent for primary actions; improve button contrast in both themes.
 - Add larger touch targets and respect reduced-motion preferences.
