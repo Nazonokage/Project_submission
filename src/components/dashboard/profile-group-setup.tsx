@@ -55,8 +55,8 @@ export function ProfileGroupSetup({ classId, studentId, initialSlotId, onClose, 
         </select>
         {!slots.length && <p className="text-sm text-muted">Create a project slot in class Settings first.</p>}
         <div className="rounded-2xl bg-secondary/40 p-4 text-sm"><p className="font-medium">{current ? 'Current members' : 'Solo by default'}</p><p>{members.map(item => item.name).join(', ')}</p><p className="text-muted mt-1">{members.length + selected.length} / {slot?.groupSize || 1} members</p></div>
-        <fieldset disabled={saving} className="space-y-2"><legend className="text-sm font-medium mb-2">Add groupmates (optional)</legend>
-          {available.map(item => <label key={item.id} className="flex items-center gap-3 rounded-xl border p-3 text-sm"><input type="checkbox" checked={selected.includes(item.id)} disabled={full && !selected.includes(item.id)} onChange={event => setSelected(ids => event.target.checked ? [...ids, item.id] : ids.filter(id => id !== item.id))} />{item.name} · {item.idNumber}</label>)}
+        <fieldset disabled={saving} className="striped-list space-y-2"><legend className="text-sm font-medium mb-2">Add groupmates (optional)</legend>
+          {available.map(item => <label key={item.id} className="striped-row flex items-center gap-3 rounded-xl border p-3 text-sm"><input type="checkbox" checked={selected.includes(item.id)} disabled={full && !selected.includes(item.id)} onChange={event => setSelected(ids => event.target.checked ? [...ids, item.id] : ids.filter(id => id !== item.id))} />{item.name} · {item.idNumber}</label>)}
           {!available.length && <p className="text-sm text-muted">No unassigned classmates in this slot.</p>}
         </fieldset>
         <p className="text-xs text-muted">Students already assigned to another group are not moved. Slot size limits still apply.</p>

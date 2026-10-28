@@ -1133,7 +1133,7 @@ function GroupTab({ group, members, without, pendingInviteeIds, creating, leaveR
             <CardHeader><CardTitle className="text-base">Students without a group</CardTitle></CardHeader>
             <CardContent>
               {without.length === 0 ? <p className="text-sm text-muted">Everyone is already in a group.</p> : (
-                <ul className="space-y-2">{without.map((s) => <li key={s.id} className="text-sm"><span className="font-medium">{s.name}</span><span className="text-muted"> · {s.idNumber}</span></li>)}</ul>
+                <ul className="striped-list space-y-2">{without.map((s) => <li key={s.id} className="striped-row text-sm"><span className="font-medium">{s.name}</span><span className="text-muted"> · {s.idNumber}</span></li>)}</ul>
               )}
             </CardContent>
           </Card>
@@ -1211,10 +1211,10 @@ function GroupTab({ group, members, without, pendingInviteeIds, creating, leaveR
             <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted" />
             <Input className="pl-9" placeholder="Search by name or ID" value={query} onChange={(e) => setQuery(e.target.value)} />
           </div>
-          <div className="max-h-64 overflow-y-auto space-y-2">
+          <div className="striped-list max-h-64 overflow-y-auto space-y-2">
             {filtered.length === 0 ? <p className="text-sm text-muted py-4 text-center">No students to invite.</p> : (
               filtered.map((s) => (
-                <div key={s.id} className="flex items-center justify-between gap-2 text-sm">
+                <div key={s.id} className="striped-row flex items-center justify-between gap-2 text-sm">
                   <div><p className="font-medium">{s.name}</p><p className="text-xs text-muted">{s.idNumber}</p></div>
                   <Button size="sm" variant="outline" disabled={busy} onClick={() => invite(s.id)}>Invite</Button>
                 </div>

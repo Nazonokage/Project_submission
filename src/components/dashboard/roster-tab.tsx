@@ -371,7 +371,7 @@ export function RosterTab({
               {(selected.slotProgress || []).map((slot) => <section key={slot.slotId} className="rounded-2xl border border-line p-4 space-y-2">
                 <h3 className="font-semibold text-sm">{slot.slotLabel}</h3>
                 <p className="text-sm text-muted">{slot.inGroup ? slot.members?.map((member) => `${member.name} (${member.idNumber})`).join(', ') || 'Solo project' : 'No group'}</p>
-                {slot.titles?.length ? <ul className="space-y-2">{slot.titles.map((title) => <li key={title.id} className="flex items-start justify-between gap-3 text-sm"><span>{title.text}</span><span className={`shrink-0 rounded-full px-2 py-0.5 text-xs ${title.status === 'verified' ? 'bg-sage/30 text-ok' : title.status === 'rejected' ? 'bg-red-100 text-red-900' : 'bg-amber-100 text-amber-900'}`}>{title.status}</span></li>)}</ul> : <p className="text-sm text-muted">{slot.latestTitleText || 'No project yet'}</p>}
+                {slot.titles?.length ? <ul className="striped-list space-y-2">{slot.titles.map((title) => <li key={title.id} className="striped-row flex items-start justify-between gap-3 text-sm"><span>{title.text}</span><span className={`shrink-0 rounded-full px-2 py-0.5 text-xs ${title.status === 'verified' ? 'bg-sage/30 text-ok' : title.status === 'rejected' ? 'bg-red-100 text-red-900' : 'bg-amber-100 text-amber-900'}`}>{title.status}</span></li>)}</ul> : <p className="text-sm text-muted">{slot.latestTitleText || 'No project yet'}</p>}
               </section>)}
             </div>
             <DialogFooter className="gap-2 sm:space-x-0">

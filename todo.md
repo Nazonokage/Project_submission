@@ -354,3 +354,5 @@ No schema migration is required. Optional aesthetic work and v1.8 integrations r
 - [x] Route checks cover authentication, ownership, invalid input and repeat requests.
 - [x] Isolated browser checks: unread/read display, failed-save retry, badge removal, reload persistence; notification screenshots captured.
 - [x] Shared UI screenshot checks: light/dark, desktop/mobile width, mouse hover, keyboard navigation and reduced motion.
+
+- [x] Alternating table/list rows with light/dark screenshots; type checking, build, schema health, hover/filter/keyboard browser checks passed.

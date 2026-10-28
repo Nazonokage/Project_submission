@@ -18,9 +18,9 @@ export function GroupMembers({
   maxSize?: number;
 }) {
   return (
-    <ul className="space-y-2">
+    <ul className="striped-list space-y-2">
       {members.map((m) => (
-        <li key={m.id} className="flex items-center gap-3">
+        <li key={m.id} className="striped-row flex items-center gap-3">
           <Avatar className="h-9 w-9">
             <AvatarFallback>{initials(m.name) || '?'}</AvatarFallback>
           </Avatar>

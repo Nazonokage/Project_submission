@@ -199,9 +199,9 @@ export default function ProfessorStudentProfilePage() {
             {memberships.length === 0 ? (
               <p className="text-sm text-muted">Not in a group yet.</p>
             ) : (
-              <div className="space-y-3">
+              <div className="striped-list space-y-3">
                 {memberships.map((m) => (
-                  <div key={`${m.slotId}-${m.groupId}`}>
+                  <div className="striped-row" key={`${m.slotId}-${m.groupId}`}>
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <p className="font-medium">{m.slotLabel}</p>
                       <button type="button" className="btn-secondary" onClick={() => setGroupSetup({ slotId: m.slotId })}>Add groupmates</button>
@@ -221,9 +221,9 @@ export default function ProfessorStudentProfilePage() {
             {titles.length === 0 ? (
               <p className="text-sm text-muted">No titles linked to this student’s groups.</p>
             ) : (
-              <ul className="space-y-2">
+              <ul className="striped-list space-y-2">
                 {titles.map((t) => (
-                  <li key={t.id} className="flex items-start justify-between gap-3">
+                  <li key={t.id} className="striped-row flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <p className="break-words">{t.text}</p>
                       <p className="text-xs text-muted mt-1">{memberships.find((m) => m.groupId === t.groupId)?.slotLabel} · {t.status}</p>
@@ -239,10 +239,10 @@ export default function ProfessorStudentProfilePage() {
           </section>
 
           {leaveRequests.length > 0 && (
-            <section className="card space-y-2">
+            <section className="card striped-list space-y-2">
               <h2 className="font-medium">Leave requests</h2>
               {leaveRequests.map((req) => (
-                <p key={req.id} className="text-sm text-muted">
+                <p key={req.id} className="striped-row text-sm text-muted">
                   {req.status}
                   {req.reason ? ` · ${req.reason}` : ''}
                 </p>

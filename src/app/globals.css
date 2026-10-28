@@ -214,3 +214,14 @@ summary { border-radius: .5rem; padding: .5rem; text-decoration: underline; text
   :is(.btn-primary, .btn-secondary, .btn-danger, .action-control, .interactive-card, .tab-control) { outline: 1px solid currentColor; }
   :is(button, a[href], summary, input, select, textarea, [tabindex]):focus-visible { outline: 3px solid hsl(var(--foreground)); }
 }
+
+/* Alternating data rows; low specificity lets interaction states take priority. */
+:root { --row-odd: var(--background); --row-even: var(--card); }
+.dark { --row-odd: var(--card); --row-even: var(--secondary); }
+:where(tbody) > tr:nth-child(odd), :where(.striped-list) > .striped-row:nth-of-type(odd) { background-color: hsl(var(--row-odd)); }
+:where(tbody) > tr:nth-child(even), :where(.striped-list) > .striped-row:nth-of-type(even) { background-color: hsl(var(--row-even)); }
+.striped-row { border-radius: .65rem; padding: .75rem; }
+:where(tbody) > .interactive-row:focus-visible { background-color: hsl(var(--primary) / .12); outline-offset: -2px; }
+@media (hover: hover) and (pointer: fine) {
+  :where(.striped-list) > label.striped-row:hover { background-color: hsl(var(--primary) / .1); }
+}

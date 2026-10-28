@@ -406,7 +406,7 @@ export function MarkdownView({ content, className, placeholder = 'No instruction
                     {block.rows.map((row, rowIdx) => (
                       <tr
                         key={rowIdx}
-                        className={rowIdx % 2 === 1 ? 'bg-secondary/20' : 'bg-transparent'}
+
                       >
                         {row.map((cell, cellIdx) => (
                           <td key={cellIdx} className="border-b border-border/40 px-3 py-1.5">
