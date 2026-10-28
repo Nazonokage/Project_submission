@@ -1,7 +1,8 @@
+import { requireStudentProjectReady } from '@/lib/student-project-access';
 import { NextRequest, NextResponse } from 'next/server';
 import { and, eq, isNull } from 'drizzle-orm';
 import { db } from '@/lib/db';
-import { activityLog, studentGroupSlots, tasks } from '@/lib/schema';
+import { activityLog, studentGroupSlots, tasks, titles } from '@/lib/schema';
 import { getStudentSession } from '@/lib/auth';
 import { jsonError } from '@/lib/helpers';
 import { isProgressStatus, type ProgressStatus } from '@/lib/progress';
@@ -30,6 +31,9 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
     )
     .limit(1);
   if (!membership) return jsonError('Only group members can edit this task', 403);
+
+  const requiredInfo = await requireStudentProjectReady(existing.titleId, session.classId);
+  if (requiredInfo) return requiredInfo;
 
   const body = await req.json().catch(() => null);
   const patch: Record<string, unknown> = { updatedAt: new Date() };
@@ -61,6 +65,12 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
   if (body?.status !== undefined) {
     if (!isProgressStatus(body.status)) {
       return jsonError('Invalid status', 422);
+    }
+    if (body.status === 'done') {
+      const [title] = await db.select().from(titles).where(and(
+        eq(titles.id, existing.titleId), eq(titles.classId, session.classId), isNull(titles.deletedAt)
+      )).limit(1);
+      if (!title || title.status !== 'verified') return jsonError('Your project title must be approved before moving to Done.', 403);
     }
     if (body.status !== existing.status) {
       patch.status = body.status;
@@ -112,6 +122,8 @@ export async function DELETE(_req: NextRequest, { params }: Ctx) {
     .limit(1);
   if (!membership) return jsonError('Only group members can delete this task', 403);
 
+  const requiredInfo = await requireStudentProjectReady(existing.titleId, session.classId);
+  if (requiredInfo) return requiredInfo;
   const [deleted] = await db
     .update(tasks)
     .set({ deletedAt: new Date() })

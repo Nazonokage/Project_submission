@@ -49,8 +49,8 @@ export async function POST(req: NextRequest) {
       .returning();
   }
 
-  const token = await signProfToken({ profId: prof.id, email: prof.email });
-  await setProfCookie(token);
+  const token = await signProfToken({ profId: prof.id, email: prof.email }, body?.rememberMe === true);
+  await setProfCookie(token, body?.rememberMe === true);
 
   return NextResponse.json({ ok: true, prof: { id: prof.id, email: prof.email, name: prof.name } });
 }

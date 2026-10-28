@@ -1,3 +1,4 @@
+import { projectRequirementsError } from '@/lib/project-readiness';
 import { NextRequest, NextResponse } from 'next/server';
 import { and, desc, eq, isNull, asc } from 'drizzle-orm';
 import { db } from '@/lib/db';
@@ -16,6 +17,7 @@ export async function GET(req: NextRequest) {
     eq(tasks.assigneeStudentId, session.studentId),
     eq(tasks.classId, session.classId),
     isNull(tasks.deletedAt),
+    isNull(titles.deletedAt),
   ];
   if (groupId) {
     conditions.push(eq(tasks.groupId, groupId));
@@ -26,6 +28,8 @@ export async function GET(req: NextRequest) {
       id: tasks.id,
       titleId: tasks.titleId,
       titleText: titles.text,
+      projectDescription: titles.description,
+      projectRepoUrl: titles.repoUrl,
       groupId: tasks.groupId,
       classId: tasks.classId,
       slotId: tasks.slotId,
@@ -41,5 +45,5 @@ export async function GET(req: NextRequest) {
     .where(and(...conditions))
     .orderBy(asc(tasks.dueDate), desc(tasks.createdAt));
 
-  return NextResponse.json({ tasks: rows });
+  return NextResponse.json({ tasks: rows.filter(row => !projectRequirementsError({ description: row.projectDescription, repoUrl: row.projectRepoUrl })).map(({ projectDescription, projectRepoUrl, ...task }) => task) });
 }

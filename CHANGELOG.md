@@ -1,3 +1,27 @@
+## [1.7.6] - 2026-10-28
+
+### Student workflow
+- Open project slots on My group by default, so students can create a solo group or find groupmates first. Feedback links still open Submissions.
+- Require an abstract and valid GitHub repository URL before students use project tools, whether the title is pending, rejected or approved. Students can complete professor-predefined titles through the editing form.
+- Enforce required information in task, update, report and progress APIs. Incomplete projects are excluded from the usable board and personal task list; group setup and feedback remain available.
+- Require title approval before moving project progress or tasks to Done. New tasks always start in Planning.
+- Add feedback notifications with open-feedback counts, professor messages and project links.
+- Add Remember me to student login and professor OTP verification: 24-hour sessions by default, seven days when selected.
+
+### Professor workflow
+- Simplify roster rows to student, ID number, group members and project title. Click a row or use the keyboard to open Edit, View profile and Open on board in a modal.
+- Create solo groups or choose available groupmates from View profile. Add classmates within slot capacity while preserving existing assignments and titles.
+- Create and edit project titles from View profile with the student's group preselected. New titles default to pending, with an explicit immediate-approval option.
+- Send comments, change requests and approval messages from each profile title's Feedback panel; clearly highlight the selected feedback category.
+- Place compact, horizontally scrolling approval cards above the board. Approve all previews the filtered pending titles in the selected slot and reports successes and failures.
+- Clarify that stalled tasks are unfinished tasks with no changes for seven days, rather than a separate task status.
+
+### Development and validation
+- Set the default development and production-start port to 3467.
+- Separate development output in `.next-dev` from production output in `.next` to prevent missing chunks and asset errors during concurrent builds.
+- Update the roadmap and add route and browser regressions covering required information, approval rules, notifications, roster interactions, professor group/title management and feedback.
+- Type checking, production build, read-only schema health, route regressions and isolated browser workflows passed. No schema migration is required; live-user acceptance remains pending in `todo.md`.
+
 ## [1.7.5] - 2026-10-27
 
 ### Phase 20 — OTP cleanup & Markdown preview

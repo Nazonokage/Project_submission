@@ -1,0 +1,67 @@
+'use client';
+import { useEffect, useState } from 'react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+
+type Slot = { id: string; label: string; groupSize: number };
+type Student = { id: string; name: string; idNumber: string; memberships?: { groupId: string; slotId: string }[] };
+export function ProfileGroupSetup({ classId, studentId, initialSlotId, onClose, onSaved }: {
+  classId: string; studentId: string; initialSlotId?: string; onClose: () => void; onSaved: (slotId: string, groupId: string) => void;
+}) {
+  const [slots, setSlots] = useState<Slot[]>([]);
+  const [students, setStudents] = useState<Student[]>([]);
+  const [slotId, setSlotId] = useState(initialSlotId || '');
+  const [selected, setSelected] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  useEffect(() => {
+    const controller = new AbortController();
+    async function load() {
+      try {
+        const responses = await Promise.all([fetch(`/api/classes/${classId}/slots`, { signal: controller.signal }), fetch(`/api/classes/${classId}/students`, { signal: controller.signal })]);
+        if (responses.some(response => !response.ok)) throw new Error('Could not load classmates and project slots. Close and try again.');
+        const [slotData, studentData] = await Promise.all(responses.map(response => response.json()));
+        setSlots(slotData.slots || []); setStudents(studentData.students || []);
+        setSlotId(initialSlotId || slotData.slots?.[0]?.id || '');
+      } catch (err) { if (!controller.signal.aborted) setError(err instanceof Error ? err.message : 'Could not load groups'); }
+      finally { if (!controller.signal.aborted) setLoading(false); }
+    }
+    void load(); return () => controller.abort();
+  }, [classId, initialSlotId]);
+  const slot = slots.find(item => item.id === slotId);
+  const current = students.find(item => item.id === studentId)?.memberships?.find(item => item.slotId === slotId);
+  const members = current ? students.filter(item => item.memberships?.some(m => m.groupId === current.groupId && m.slotId === slotId)) : students.filter(item => item.id === studentId);
+  const available = students.filter(item => item.id !== studentId && !item.memberships?.some(m => m.slotId === slotId));
+  const full = members.length + selected.length >= (slot?.groupSize || 1);
+  async function save(event: React.FormEvent) {
+    event.preventDefault(); if (!slot || saving) return;
+    setSaving(true); setError('');
+    try {
+      const response = await fetch(`/api/classes/${classId}/students/${studentId}/group`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ slotId, memberIds: selected }) });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Could not save group');
+      onSaved(slotId, data.groupId); onClose();
+    } catch (err) { setError(err instanceof Error ? err.message : 'Could not save group'); }
+    finally { setSaving(false); }
+  }
+  return <Dialog open onOpenChange={open => { if (!open && !saving) onClose(); }}><DialogContent className="rounded-3xl max-h-[85dvh] overflow-auto w-[calc(100%-2rem)]">
+    <form onSubmit={save} className="space-y-4">
+      <DialogHeader><DialogTitle>Set up project group</DialogTitle><DialogDescription>Start solo, or choose available classmates. Existing members and project titles stay with their group.</DialogDescription></DialogHeader>
+      {loading ? <p>Loading classmates…</p> : <>
+        <label className="label" htmlFor="profile-group-slot">Project slot</label>
+        <select id="profile-group-slot" className="input" value={slotId} disabled={saving} onChange={event => { setSlotId(event.target.value); setSelected([]); }}>
+          {slots.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}
+        </select>
+        {!slots.length && <p className="text-sm text-muted">Create a project slot in class Settings first.</p>}
+        <div className="rounded-2xl bg-secondary/40 p-4 text-sm"><p className="font-medium">{current ? 'Current members' : 'Solo by default'}</p><p>{members.map(item => item.name).join(', ')}</p><p className="text-muted mt-1">{members.length + selected.length} / {slot?.groupSize || 1} members</p></div>
+        <fieldset disabled={saving} className="space-y-2"><legend className="text-sm font-medium mb-2">Add groupmates (optional)</legend>
+          {available.map(item => <label key={item.id} className="flex items-center gap-3 rounded-xl border p-3 text-sm"><input type="checkbox" checked={selected.includes(item.id)} disabled={full && !selected.includes(item.id)} onChange={event => setSelected(ids => event.target.checked ? [...ids, item.id] : ids.filter(id => id !== item.id))} />{item.name} · {item.idNumber}</label>)}
+          {!available.length && <p className="text-sm text-muted">No unassigned classmates in this slot.</p>}
+        </fieldset>
+        <p className="text-xs text-muted">Students already assigned to another group are not moved. Slot size limits still apply.</p>
+      </>}
+      {error && <p role="alert" className="text-sm text-danger">{error}</p>}
+      <DialogFooter className="gap-2"><button type="button" className="btn-secondary" disabled={saving} onClick={onClose}>Cancel</button><button type="submit" className="btn-primary" disabled={loading || saving || !slot || (!current && !members.length)}>{saving ? 'Saving…' : current ? 'Save groupmates' : selected.length ? 'Create group' : 'Create solo group'}</button></DialogFooter>
+    </form>
+  </DialogContent></Dialog>;
+}

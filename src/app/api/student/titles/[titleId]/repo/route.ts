@@ -1,3 +1,4 @@
+import { isGithubRepoUrl } from '@/lib/project-readiness';
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { projectSlots, studentGroupSlots, titles } from '@/lib/schema';
@@ -18,9 +19,7 @@ export async function PATCH(
     .where(and(eq(titles.id, params.titleId), eq(titles.classId, session.classId)))
     .limit(1);
   if (!title) return jsonError('Title not found', 404);
-  if (title.status !== 'verified') {
-    return jsonError('Repo URL can only be submitted after verification', 409);
-  }
+
 
   const [membership] = await db
     .select()
@@ -37,8 +36,8 @@ export async function PATCH(
   const repoUrl = (body?.repoUrl as string | undefined)?.trim();
   const deploymentUrl = (body?.deploymentUrl as string | undefined)?.trim();
 
-  if (!repoUrl) return jsonError('repoUrl is required', 422);
-  if (slot?.requireDeploymentUrl && !deploymentUrl) {
+  if (!isGithubRepoUrl(repoUrl)) return jsonError('A valid GitHub repository URL is required', 422);
+  if (title.status === 'verified' && slot?.requireDeploymentUrl && !deploymentUrl) {
     return jsonError('deploymentUrl is required for this project slot', 422);
   }
 

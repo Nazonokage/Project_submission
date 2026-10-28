@@ -1,3 +1,4 @@
+import { projectRequirementsError, isGithubRepoUrl } from '@/lib/project-readiness';
 import { normalizeTechStack } from '@/lib/tech-stack';
 import { duplicateGuard } from '@/lib/title-duplicates';
 import { assertSlotInClass } from '@/lib/helpers';
@@ -77,14 +78,26 @@ export async function PATCH(req: NextRequest, { params }: { params: { titleId: s
     }
     patch.text = trimmedText;
   }
-  if (typeof body?.description === 'string') patch.description = body.description.trim();
+  if (body && 'description' in body) {
+    if (typeof body.description !== 'string' || !body.description.trim()) return jsonError('Abstract is required', 422);
+    patch.description = body.description.trim();
+  }
+  if (body && 'repoUrl' in body) {
+    if (!isGithubRepoUrl(body.repoUrl)) return jsonError('Enter a valid GitHub repository URL (https://github.com/owner/repository)', 422);
+    patch.repoUrl = body.repoUrl.trim();
+  }
   if (Array.isArray(body?.techStack)) patch.techStack = normalizeTechStack(body.techStack);
   if (typeof body?.targetUsers === 'string') patch.targetUsers = body.targetUsers.trim();
 
   let nextProgress: ProgressStatus | null = null;
   if (body?.progressStatus !== undefined) {
+    const requiredInfo = projectRequirementsError({ ...title, ...patch });
+    if (requiredInfo) return jsonError(requiredInfo, 428);
     if (!isProgressStatus(body.progressStatus)) {
       return jsonError('progressStatus must be planning, in_progress, review, or done', 422);
+    }
+    if (body.progressStatus === 'done' && title.status !== 'verified') {
+      return jsonError('Your project title must be approved before moving to Done.', 403);
     }
     patch.progressStatus = body.progressStatus;
     nextProgress = body.progressStatus;

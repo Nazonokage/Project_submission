@@ -1,8 +1,8 @@
 # Project-Submissions — Implementation Roadmap (v1.7.x → v1.8)
 
-**Current implementation:** v1.7.5 (through Phase 20; automated tests pass, live DB release checks deferred)
-**Target:** remaining v1.7.x Phase 22, then v1.8 GitHub polish
-**Last updated:** 2026-10-25
+**Current implementation:** v1.7.6 (Phase 22 roster and student workflow updates implemented; live user acceptance checks deferred)
+**Target:** validate v1.7.6 with real users, then v1.8 GitHub polish
+**Last updated:** 2026-10-28
 
 > Instructions for Codex / coding agents:
 > - Work phase by phase. Do not skip schema health / `npm run build` gates.
@@ -15,7 +15,7 @@
 > Review: [Phase 14–16 findings and verification](docs/phase14-16-review.md).
 > Automated route and isolated browser checks cover the changes. Real-database
 > manual click tests are explicitly deferred; no production records were altered.
-> Phases 17–20 are implemented. Phase 22 remains open before v1.8.
+> Phases 17–20 and the core Phase 22 roster are implemented. Release click tests remain before v1.8.
 > Dependency advisories are tracked in the review.
 
 ---
@@ -204,46 +204,49 @@
 > Goal: Professors can see group membership and title activity per project slot at a glance, without opening every profile. Keep the roster readable on desktop and tablet.
 
 ### 22.1 — API: richer roster payload
-- [ ] Extend `GET /api/classes/[classId]/students` (or add `?includeProgress=1`) with a per-student `slotProgress` array containing `slotId`, `slotLabel`, `inGroup`, nullable `groupId`, `pendingCount`, `verifiedCount`, `rejectedCount`, and optional `latestTitleText` / `latestTitleStatus` (`pending` | `verified` | `rejected` | `null`)
-- [ ] Derive progress from existing tables only: `student_group_slots` → `groups` → `titles`, filtered by slot and `deleted_at IS NULL`; no new tables
-- [ ] Keep the payload efficient: one query or a small fixed number of queries for the whole class, never N+1 queries per student
-- [ ] Return the class `slots` as `{ id, label }[]` so the UI can align progress columns even when a student has no group membership
+- [x] Extend `GET /api/classes/[classId]/students` (or add `?includeProgress=1`) with a per-student `slotProgress` array containing `slotId`, `slotLabel`, `inGroup`, nullable `groupId`, `pendingCount`, `verifiedCount`, `rejectedCount`, and optional `latestTitleText` / `latestTitleStatus` (`pending` | `verified` | `rejected` | `null`)
+- [x] Derive progress from existing tables only: `student_group_slots` → `groups` → `titles`, filtered by slot and `deleted_at IS NULL`; no new tables
+- [x] Keep the payload efficient: one query or a small fixed number of queries for the whole class, never N+1 queries per student
+- [x] Return the class `slots` as `{ id, label }[]` so the UI can align progress columns even when a student has no group membership
 
 ### 22.2 — Table layout
-- [ ] Widen the roster container on this tab (`max-w-6xl` or the board tab's full width)
-- [ ] Use a clear column structure: Name | ID | Creds | Status | Progress by slot | Actions
-- [ ] Name: primary text and optional inactive badge
-- [ ] ID: compact monospace text
-- [ ] Creds: password in monospace, with an optional small “default” hint when it matches the class default
-- [ ] Status: one compact block for group (`In group` / `No group`) and login (relative time / `Never`)
-- [ ] Progress by slot: compact chip row, e.g. `P1 · none`, `P1 · 1 pending`, `P1 · verified`, or `P2 · 2 titles (1 verified)`
-- [ ] Use muted styling for no work, amber for pending-only work, green when verified work exists, and a red tint when work is rejected-only; keep empty states short (`—` / `No work`)
-- [ ] Actions: keep Edit, Profile, and Board in one horizontal row of compact controls on desktop; use an overflow menu on narrow screens if needed
+- [x] Widen the roster container to `max-w-6xl`.
+- [x] Keep four columns: Student | ID number | Group members | Project title.
+- [x] Show groupmates with IDs and all non-deleted project titles, grouped by slot; show concise no-group/no-project states.
+- [x] Remove per-row action buttons, credentials and progress chips from the table; move details into the row modal.
+- [x] Make the whole row clickable, keyboard-operable with Enter/Space, with visible focus and immediate pressed feedback.
+- [x] Keep bulk import, export, add student, and class password tools inside a collapsed Manage roster section.
 
-### 22.3 — Optional student detail panel
-- [ ] If the table remains dense, let a row or Details control open a right-side sheet/drawer rather than navigating away
-- [ ] Show identity and credentials, per-slot group members (if any), title list with status, and last activity
-- [ ] Include Edit, Open on board, and View full profile shortcuts
-- [ ] Reuse the enriched roster payload; lazy-load deep title details from the existing student profile API if needed
+### 22.3 — Student detail modal
+- [x] Open a modal from a roster row; Escape closes it and restores focus to that row.
+- [x] Show identity, revealable credentials, per-slot group members, project titles/statuses, and last login.
+- [x] Include Edit student, View profile, and Open on board actions inside the modal; disable Board for students without a group.
+- [x] Edit within the same modal; Cancel returns to the detail view without saving.
+- [x] Reuse the enriched roster payload, including members and titles, without per-student requests.
+- [x] Apply restrained Apple-inspired typography, spacing, depth, translucent table header, and accessibility preferences using the supplied design skill.
 
 ### 22.4 — Filters and sorting
-- [ ] Add client-side search by name or ID
-- [ ] Add filter chips for `No group`, `Never logged in`, `Has pending`, and `Has verified`
-- [ ] Keep the current default sort behavior unless intentionally changing it; name A–Z is the suggested default
+- [x] Add client-side search by name or ID
+- [x] Add filter chips for `No group`, `Never logged in`, `Has pending`, and `Has verified`
+- [x] Keep the current default sort behavior unless intentionally changing it; name A–Z is the suggested default
 
 ### 22.5 — UI polish
-- [ ] Use a sticky table header for long rosters
-- [ ] Add subtle row hover or zebra styling
-- [ ] Optionally add an eye-icon reveal/hide toggle for passwords while keeping credentials available for distribution
-- [ ] Keep progress chips concise and aligned across slots
+- [x] Use a sticky table header for long rosters
+- [x] Add subtle row hover or zebra styling
+- [x] Add a reveal/hide toggle inside the student modal; CSV distribution remains available
+- [x] Keep project titles and group members aligned by slot
 
 ### 22.6 — Cleanup
-- [ ] `npx tsc --noEmit` and `npm run build` clean
-- [ ] Manual: a student with no group shows no-work chips for every slot
-- [ ] Manual: a student with only pending titles shows an amber pending chip on the relevant slot
-- [ ] Manual: a student with a verified title shows a green verified chip
-- [ ] Manual: Actions stay on one line on desktop and remain usable on tablet
-- [ ] Manual: if implemented, the detail panel matches the roster summary and its Board/Profile links work
+
+Real-database manual checks below are explicitly deferred. The requested detail modal is implemented.
+
+- [x] Isolated browser fixtures: four-column roster with no row action buttons, groupmates and titles, progress filtering and ID search, keyboard-opened modal and focus restoration, Edit/Cancel, profile link and tablet Open on board. Full board/mobile/notifications/professor suite passed (175 intercepted API requests, zero database writes); tablet modal screenshot visually reviewed.
+- [x] `npx tsc --noEmit`, `npm run build`, and live read-only schema health clean
+- [ ] Manual: a student with no group shows no-group/no-project states
+- [ ] Manual: a student with pending titles shows the titles in the row and pending status in the modal
+- [ ] Manual: a student with a verified title shows its title in the row and verified status in the modal
+- [ ] Manual: Rows and modal actions remain usable on desktop and tablet
+- [ ] Manual: the detail modal matches the roster summary and its Board/Profile links work
 
 ---
 
@@ -283,4 +286,56 @@
 
 
 
-regarding to phase 20 i mean for that was like , if my session for my browser stays in , maybe lets have a "remember me" toggle , and if no we''ll just expire it at 24hrs
+## Student workflow additions — 2026-10-27
+
+- [x] Students can move project progress and existing tasks to Done only when the project title is verified; enforced by the API and disabled in the title selector.
+- [x] New tasks always start in Planning, including requests that supply another initial status.
+- [x] Explain Stalled as unfinished tasks with no edits/status changes for more than seven days; it is an inactivity reminder.
+- [x] Remember me on student login and professor code verification: unchecked = 24 hours; checked = 7 days. JWT expiry and cookie lifetime match. Applies to new logins.
+- [x] Student feedback notification button with open-feedback count, full feedback text, and project links; polls every 10 seconds while visible.
+- [x] Notification API scopes results to the current student's group memberships and class, excluding deleted projects.
+- [x] Route regressions: `node scripts/test-phase22.mjs` covers approval gates, Planning defaults, roster summaries, notification auth/scope, and real JWT/cookie lifetime.
+- [ ] Real-user click checks for notifications, roster desktop/tablet, and remembered login expiry — explicitly deferred; do not treat this as deployment sign-off.
+
+No schema migration is required. Optional aesthetic work and v1.8 integrations remain deferred.
+- [x] Default local dev and production-start port changed to **3467**; README login URLs updated.
+
+## Professor title management from View profile — 2026-10-28
+
+- [x] Add title for group on each group/slot in the student's full profile, with that group preselected.
+- [x] Allow selection among the student's current groups; display the slot and group members before saving.
+- [x] Create pending titles by default, with an explicit Approve this title immediately option; project progress starts in Planning.
+- [x] Edit existing group titles using the shared professor title editor; keep group assignment unchanged.
+- [x] Refresh the profile and invalidate the affected professor board cache after saves.
+- [x] Reuse existing ownership checks, title validation and duplicate confirmation routes.
+- [x] Type checking, production build, read-only schema health and route regressions pass.
+- [x] `scripts/test-profile-titles.mjs`: isolated browser verification of preselected group, validation, failed-save retry, pending/approved creation, editing and refreshed title list; no live database writes.
+- [ ] Live professor/student acceptance check for assigned titles — explicitly deferred.
+
+## Professor group setup and feedback from View profile — 2026-10-28
+
+- [x] Set up a group directly from a student profile, including students who have never logged in.
+- [x] Choose the project slot; default to a solo group with optional available classmates.
+- [x] Add groupmates to an existing group without removing its members or moving its project titles.
+- [x] Enforce professor class ownership, classmate eligibility, slot membership uniqueness and group size (including reserved invitation seats).
+- [x] Save group/membership changes atomically; return a conflict if a student becomes unavailable. No schema migration required.
+- [x] Add a focused Feedback panel beside each project title on View profile, reusing the professor feedback form/history and student notification feed.
+- [x] Verify type checking, production build, schema health, route tests and read-only SQL EXPLAIN.
+- [x] Isolated browser flow: create solo, add a chosen classmate, create/edit group titles, and send feedback; zero live database writes.
+- [ ] Real-user acceptance for group setup and feedback delivery — explicitly deferred. Students already assigned elsewhere require a separate move/merge workflow; this flow does not reassign them.
+
+## Development cache repair — 2026-10-28
+- [x] Separate `.next-dev` development output from `.next` production output to prevent missing vendor chunks and asset 500s during concurrent builds.
+- [x] Verify a production build while the development server remains running, then check home/login pages, the not-found page and all their script assets.
+
+## Student required information and approval queue — 2026-10-28
+- [x] Open student project slots on My group by default; feedback links still open Submissions.
+- [x] Require an abstract and valid HTTPS GitHub repository URL for student title submissions.
+- [x] Keep the completion form available for pending, rejected and approved titles, including professor-predefined projects.
+- [x] Enforce completeness in student task, update, report and progress APIs and hide incomplete projects from the usable board/personal task list. Group setup and feedback remain available.
+- [x] Preserve the separate rule that Done requires title approval; professors can still predefine titles without a repository.
+- [x] Move compact approval cards into a horizontal scroll row above the professor board.
+- [x] Approve all applies to visible pending titles in the selected slot, previews the titles, prevents duplicate clicks, and reports successes/failures.
+- [x] Give the selected feedback category a solid highlight and accessible pressed state.
+- [x] Type checking, production build, read-only schema health, route regression checks and isolated browser workflows pass. No schema migration or live database writes.
+- [ ] Live student/professor acceptance of required-info completion and batch approvals remains deferred.

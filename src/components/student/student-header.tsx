@@ -1,5 +1,6 @@
 'use client';
 
+import { FeedbackNotifications } from './feedback-notifications';
 import Link from 'next/link';
 import { LogOut, UserRound } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -33,8 +34,9 @@ export function StudentHeader({
         <h1 className="text-2xl font-semibold tracking-tight mt-1">{title}</h1>
         {subtitle && <p className="text-sm text-muted mt-1">{subtitle}</p>}
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         {actions}
+        <FeedbackNotifications />
         {accountHref && (
           <Button type="button" variant="outline" size="sm" asChild>
             <Link href={accountHref}>

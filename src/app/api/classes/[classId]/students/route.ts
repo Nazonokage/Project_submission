@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { students, studentGroupSlots } from '@/lib/schema';
-import { eq, asc } from 'drizzle-orm';
+import { students, studentGroupSlots, projectSlots, titles } from '@/lib/schema';
+import { eq, asc, and, isNull, desc } from 'drizzle-orm';
 import { getProfSession } from '@/lib/auth';
 import {
   assertClassOwnedByProf,
@@ -40,8 +40,45 @@ export async function GET(_req: NextRequest, { params }: { params: { classId: st
     byStudent.set(m.studentId, list);
   }
 
+  const studentById = new Map(rows.map((student) => [student.id, student]));
+  const membersByGroupSlot = new Map<string, { id: string; name: string; idNumber: string }[]>();
+  for (const membership of memberships) {
+    const student = studentById.get(membership.studentId);
+    if (!student) continue;
+    const key = `${membership.groupId}:${membership.slotId}`;
+    const members = membersByGroupSlot.get(key) || [];
+    members.push({ id: student.id, name: student.name, idNumber: student.idNumber });
+    membersByGroupSlot.set(key, members);
+  }
+  const slots = await db.select({ id: projectSlots.id, label: projectSlots.label })
+    .from(projectSlots).where(eq(projectSlots.classId, params.classId)).orderBy(asc(projectSlots.createdAt));
+  const classTitles = await db.select({ id: titles.id, groupId: titles.groupId, slotId: titles.slotId, status: titles.status, text: titles.text })
+    .from(titles).where(and(eq(titles.classId, params.classId), isNull(titles.deletedAt))).orderBy(desc(titles.createdAt));
+  const byGroupSlot = new Map<string, typeof classTitles>();
+  for (const title of classTitles) {
+    const key = `${title.groupId}:${title.slotId}`;
+    const list = byGroupSlot.get(key) || [];
+    list.push(title);
+    byGroupSlot.set(key, list);
+  }
   return NextResponse.json({
-    students: rows.map((s) => ({ ...s, memberships: byStudent.get(s.id) || [] })),
+    slots,
+    students: rows.map((s) => {
+      const memberships = byStudent.get(s.id) || [];
+      return { ...s, memberships, slotProgress: slots.map((slot) => {
+        const membership = memberships.find((m) => m.slotId === slot.id);
+        const work = membership ? byGroupSlot.get(`${membership.groupId}:${slot.id}`) || [] : [];
+        return {
+          slotId: slot.id, slotLabel: slot.label, inGroup: !!membership, groupId: membership?.groupId || null,
+          members: membership ? membersByGroupSlot.get(`${membership.groupId}:${slot.id}`) || [] : [],
+          titles: work.map((title) => ({ id: title.id, text: title.text, status: title.status })),
+          pendingCount: work.filter((t) => t.status === 'pending').length,
+          verifiedCount: work.filter((t) => t.status === 'verified').length,
+          rejectedCount: work.filter((t) => t.status === 'rejected').length,
+          latestTitleText: work[0]?.text || null, latestTitleStatus: work[0]?.status || null,
+        };
+      }) };
+    }),
   });
 }
 

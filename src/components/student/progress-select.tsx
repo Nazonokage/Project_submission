@@ -8,11 +8,13 @@ export function ProgressSelect({
   onChange,
   disabled,
   className,
+  canComplete = true,
 }: {
   value?: string | null;
   onChange: (next: ProgressStatus) => void;
   disabled?: boolean;
   className?: string;
+  canComplete?: boolean;
 }) {
   const current = (PROGRESS_STATUSES as readonly string[]).includes(value || '')
     ? (value as ProgressStatus)
@@ -27,8 +29,8 @@ export function ProgressSelect({
       aria-label="Progress status"
     >
       {PROGRESS_STATUSES.map((status) => (
-        <option key={status} value={status}>
-          {PROGRESS_LABELS[status]}
+        <option key={status} value={status} disabled={status === 'done' && !canComplete}>
+          {status === 'done' && !canComplete ? 'Done (title approval required)' : PROGRESS_LABELS[status]}
         </option>
       ))}
     </select>

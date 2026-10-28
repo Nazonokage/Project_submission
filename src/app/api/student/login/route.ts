@@ -29,8 +29,8 @@ export async function POST(req: NextRequest) {
 
   await db.update(students).set({ lastLoginAt: new Date() }).where(eq(students.id, student.id));
 
-  const token = await signStudentToken({ studentId: student.id, classId });
-  await setStudentCookie(token);
+  const token = await signStudentToken({ studentId: student.id, classId }, body?.rememberMe === true);
+  await setStudentCookie(token, body?.rememberMe === true);
 
   return NextResponse.json({ ok: true, student: { id: student.id, name: student.name } });
 }

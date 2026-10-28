@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import {
@@ -12,7 +12,16 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 
+export type SlotProgress = {
+  slotId: string; slotLabel: string; inGroup: boolean; groupId: string | null;
+  pendingCount: number; verifiedCount: number; rejectedCount: number;
+  latestTitleText?: string | null;
+  members?: { id: string; name: string; idNumber: string }[];
+  titles?: { id: string; text: string; status: string }[];
+};
+
 export type RosterStudent = {
+  slotProgress?: SlotProgress[];
   id: string;
   name: string;
   idNumber: string;
@@ -35,6 +44,27 @@ export function RosterTab({
   onChange: () => void;
   onOpenStudent: (student: RosterStudent) => void;
 }) {
+  const [search, setSearch] = useState('');
+  const [filter, setFilter] = useState('all');
+  const [showPasswords, setShowPasswords] = useState(false);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const selected = students.find((student) => student.id === selectedId) || null;
+  const rowTrigger = useRef<HTMLTableRowElement | null>(null);
+  function closeDetails() {
+    setSelectedId(null);
+    setEditing(null);
+    setError(null);
+    setShowPasswords(false);
+  }
+  const filteredStudents = students.filter((s) => {
+    const matches = `${s.name} ${s.idNumber}`.toLowerCase().includes(search.trim().toLowerCase());
+    const progress = s.slotProgress || [];
+    return matches && (filter === 'all' ||
+      (filter === 'no-group' && !s.memberships?.length) ||
+      (filter === 'never' && !s.lastLoginAt) ||
+      (filter === 'pending' && progress.some((p) => p.pendingCount > 0)) ||
+      (filter === 'verified' && progress.some((p) => p.verifiedCount > 0)));
+  });
   const [importText, setImportText] = useState('');
   const [showImport, setShowImport] = useState(false);
   const [name, setName] = useState('');
@@ -113,6 +143,7 @@ export function RosterTab({
   }
 
   function openEdit(student: RosterStudent) {
+    setError(null);
     setEditing(student);
     setEditName(student.name);
     setEditIdNumber(student.idNumber);
@@ -154,6 +185,7 @@ export function RosterTab({
       return;
     }
     setEditing(null);
+    setSelectedId(null);
     toast.success('Student deleted');
     onChange();
   }
@@ -172,6 +204,9 @@ export function RosterTab({
 
   return (
     <div className="space-y-4">
+      <details className="rounded-2xl border border-line bg-card p-4">
+        <summary className="cursor-pointer text-sm font-medium touch-manipulation">Manage roster</summary>
+        <div className="mt-4 space-y-4">
       <form onSubmit={saveClassPassword} className="card space-y-2">
         <label className="label">Class default password</label>
         <div className="flex flex-wrap items-end gap-3">
@@ -223,44 +258,60 @@ export function RosterTab({
         </button>
         <p className="w-full text-sm text-muted">ID is auto-generated. Password uses the class default.</p>
       </form>
-      {error && <p className="text-sm text-danger">{error}</p>}
-      {students.length === 0 ? (
-        <p className="text-sm text-muted">No students yet.</p>
+        </div>
+      </details>
+      {error && !selected && <p role="alert" className="text-sm text-danger">{error}</p>}
+      <div className="flex flex-wrap items-center gap-2">
+        <input aria-label="Search students by name or ID" className="input max-w-xs" placeholder="Search name or ID" value={search} onChange={(e) => setSearch(e.target.value)} />
+        {([['all', 'All'], ['no-group', 'No group'], ['never', 'Never logged in'], ['pending', 'Has pending'], ['verified', 'Has verified']] as const).map(([value, label]) => (
+          <button type="button" key={value} aria-pressed={filter === value} className={filter === value ? 'btn-primary' : 'btn-secondary'} onClick={() => setFilter(value)}>{label}</button>
+        ))}
+
+      </div>
+      {filteredStudents.length === 0 ? (
+        <p className="text-sm text-muted">No matching students.</p>
       ) : (
-        <div className="card overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-muted border-b border-line">
-                <th className="py-2 pr-4">Name</th>
-                <th className="py-2 pr-4">ID</th>
-                <th className="py-2 pr-4">Password</th>
-                <th className="py-2 pr-4">Info</th>
-                <th className="py-2 pr-4">Actions</th>
+        <div className="overflow-auto max-h-[70vh] rounded-2xl border border-line bg-card shadow-sm">
+          <table className="w-full text-sm text-left">
+            <caption className="sr-only">Student roster. Select a row to view details and manage the student.</caption>
+            <thead className="roster-material sticky top-0 z-10 text-xs font-medium tracking-wide text-muted">
+              <tr>
+                <th scope="col" className="px-5 py-3">Student</th>
+                <th scope="col" className="px-5 py-3">ID number</th>
+                <th scope="col" className="px-5 py-3">Group members</th>
+                <th scope="col" className="px-5 py-3">Project title</th>
               </tr>
             </thead>
             <tbody>
-              {students.map((s) => (
-                <tr key={s.id} className="border-b border-line last:border-0 align-top">
-                  <td className="py-2 pr-4 font-medium">{s.name}</td>
-                  <td className="py-2 pr-4 font-mono">{s.idNumber}</td>
-                  <td className="py-2 pr-4 font-mono">{s.password}</td>
-                  <td className="py-2 pr-4 text-muted">
-                    <div>{(s.memberships?.length ?? 0) > 0 ? 'In group' : 'No group'}</div>
-                    <div>{s.lastLoginAt ? `Last login ${new Date(s.lastLoginAt).toLocaleString()}` : 'Never logged in'}</div>
-                    {s.isActive === false && <div className="text-danger">Inactive</div>}
+              {filteredStudents.map((student) => (
+                <tr key={student.id} tabIndex={0} aria-label={`View ${student.name}`} aria-haspopup="dialog"
+                  onClick={(event) => { rowTrigger.current = event.currentTarget; setSelectedId(student.id); }}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault(); rowTrigger.current = event.currentTarget; setSelectedId(student.id);
+                    }
+                  }}
+                  className="cursor-pointer touch-manipulation border-t border-line/60 align-top hover:bg-secondary/50 active:bg-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent focus-visible:-outline-offset-2">
+                  <th scope="row" className="px-5 py-4 font-medium min-w-[10rem]">
+                    {student.name}{student.isActive === false && <span className="block text-xs font-normal text-muted">Inactive</span>}
+                  </th>
+                  <td className="px-5 py-4 font-mono tabular-nums whitespace-nowrap">{student.idNumber}</td>
+                  <td className="px-5 py-4 min-w-[13rem]">
+                    {(student.slotProgress || []).filter((slot) => slot.inGroup).map((slot) => (
+                      <div key={slot.slotId} className="mb-2 last:mb-0">
+                        <p className="text-xs text-muted mb-1">{slot.slotLabel}</p>
+                        <p>{slot.members?.filter((member) => member.id !== student.id).map((member) => `${member.name} (${member.idNumber})`).join(', ') || 'Solo project'}</p>
+                      </div>
+                    ))}
+                    {!student.slotProgress?.some((slot) => slot.inGroup) && <span className="text-muted">No group</span>}
                   </td>
-                  <td className="py-2 pr-4">
-                    <div className="flex flex-wrap gap-2">
-                      <button type="button" className="btn-secondary" onClick={() => openEdit(s)}>
-                        Edit
-                      </button>
-                      <Link className="btn-secondary" href={`/dashboard/${classId}/students/${s.id}`}>
-                        View profile
-                      </Link>
-                      <button type="button" className="btn-secondary" onClick={() => onOpenStudent(s)}>
-                        Open on board
-                      </button>
-                    </div>
+                  <td className="px-5 py-4 min-w-[15rem]">
+                    {(student.slotProgress || []).map((slot) => (
+                      <div key={slot.slotId} className="mb-2 last:mb-0">
+                        <p className="text-xs text-muted mb-1">{slot.slotLabel}</p>
+                        {slot.titles?.length ? slot.titles.map((title) => <p key={title.id} className="leading-relaxed">{title.text}</p>) : <p className="text-muted">{slot.latestTitleText || 'No project yet'}</p>}
+                      </div>
+                    ))}
                   </td>
                 </tr>
               ))}
@@ -269,25 +320,27 @@ export function RosterTab({
         </div>
       )}
 
-      <Dialog open={!!editing} onOpenChange={(open) => !open && setEditing(null)}>
-        <DialogContent>
-          <form onSubmit={saveEdit} className="space-y-4">
+      <Dialog open={!!selected} onOpenChange={(open) => !open && closeDetails()}>
+        <DialogContent className="roster-detail max-w-2xl w-[calc(100%-2rem)] max-h-[85dvh] overflow-y-auto rounded-3xl shadow-2xl"
+          onCloseAutoFocus={(event) => { event.preventDefault(); rowTrigger.current?.focus(); }}>
+          {editing ? <form onSubmit={saveEdit} className="space-y-4">
             <DialogHeader>
               <DialogTitle>Edit student</DialogTitle>
               <DialogDescription>Save sends a single update. Cancel discards changes.</DialogDescription>
             </DialogHeader>
             <div>
-              <label className="label">Name</label>
-              <input className="input" required value={editName} onChange={(e) => setEditName(e.target.value)} />
+              <label htmlFor="roster-edit-name" className="label">Name</label>
+              <input id="roster-edit-name" className="input" required value={editName} onChange={(e) => setEditName(e.target.value)} />
             </div>
             <div>
-              <label className="label">ID number</label>
-              <input className="input" required value={editIdNumber} onChange={(e) => setEditIdNumber(e.target.value)} />
+              <label htmlFor="roster-edit-id" className="label">ID number</label>
+              <input id="roster-edit-id" className="input" required value={editIdNumber} onChange={(e) => setEditIdNumber(e.target.value)} />
             </div>
             <div>
-              <label className="label">Password</label>
-              <input className="input" required value={editPassword} onChange={(e) => setEditPassword(e.target.value)} />
+              <label htmlFor="roster-edit-password" className="label">Password</label>
+              <input id="roster-edit-password" className="input" required value={editPassword} onChange={(e) => setEditPassword(e.target.value)} />
             </div>
+            {error && <p role="alert" className="text-sm text-danger">{error}</p>}
             <DialogFooter className="gap-2">
               <button type="button" className="btn-danger mr-auto" onClick={deleteStudent}>
                 Delete
@@ -299,7 +352,33 @@ export function RosterTab({
                 {savingEdit ? 'Saving…' : 'Save'}
               </button>
             </DialogFooter>
-          </form>
+          </form> : selected && <>
+            <DialogHeader className="pr-6">
+              <DialogTitle className="text-2xl tracking-tight leading-tight">{selected.name}</DialogTitle>
+              <DialogDescription>Student details · <span className="font-mono">{selected.idNumber}</span></DialogDescription>
+            </DialogHeader>
+            <div className="rounded-2xl bg-secondary/40 p-4 space-y-2 text-sm">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-muted">Password</span>
+                <span className="font-mono">{showPasswords ? selected.password : '••••••'}</span>
+                <button type="button" className="ml-auto text-accent min-h-11 px-2 rounded-lg focus-visible:ring-2 focus-visible:ring-accent" onClick={() => setShowPasswords(!showPasswords)}>{showPasswords ? 'Hide password' : 'Show password'}</button>
+              </div>
+              <p className="text-muted">{selected.lastLoginAt ? `Last login ${new Date(selected.lastLoginAt).toLocaleString()}` : 'Never logged in'}</p>
+              {selected.isActive === false && <p className="text-danger">Inactive student</p>}
+            </div>
+            <div className="space-y-4">
+              {(selected.slotProgress || []).map((slot) => <section key={slot.slotId} className="rounded-2xl border border-line p-4 space-y-2">
+                <h3 className="font-semibold text-sm">{slot.slotLabel}</h3>
+                <p className="text-sm text-muted">{slot.inGroup ? slot.members?.map((member) => `${member.name} (${member.idNumber})`).join(', ') || 'Solo project' : 'No group'}</p>
+                {slot.titles?.length ? <ul className="space-y-2">{slot.titles.map((title) => <li key={title.id} className="flex items-start justify-between gap-3 text-sm"><span>{title.text}</span><span className={`shrink-0 rounded-full px-2 py-0.5 text-xs ${title.status === 'verified' ? 'bg-sage/30 text-ok' : title.status === 'rejected' ? 'bg-red-100 text-red-900' : 'bg-amber-100 text-amber-900'}`}>{title.status}</span></li>)}</ul> : <p className="text-sm text-muted">{slot.latestTitleText || 'No project yet'}</p>}
+              </section>)}
+            </div>
+            <DialogFooter className="gap-2 sm:space-x-0">
+              <button type="button" className="btn-secondary min-h-11" onClick={() => { onOpenStudent(selected); closeDetails(); }} disabled={!selected.memberships?.length}>Open on board</button>
+              <Link className="btn-secondary min-h-11" href={`/dashboard/${classId}/students/${selected.id}`}>View profile</Link>
+              <button type="button" className="btn-primary min-h-11" onClick={() => openEdit(selected)}>Edit student</button>
+            </DialogFooter>
+          </>}
         </DialogContent>
       </Dialog>
     </div>

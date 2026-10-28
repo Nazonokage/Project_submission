@@ -1,3 +1,4 @@
+import { requireStudentProjectReady } from '@/lib/student-project-access';
 import { NextRequest, NextResponse } from 'next/server';
 import { and, eq } from 'drizzle-orm';
 import { db } from '@/lib/db';
@@ -27,6 +28,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { reportId: 
       .limit(1);
     if (!membership) return jsonError('Only group members can edit this report', 403);
 
+    const requiredInfo = await requireStudentProjectReady(report.titleId, session.classId);
+    if (requiredInfo) return requiredInfo;
     const patch: Record<string, unknown> = { updatedAt: new Date() };
     if (typeof body?.version === 'string') patch.version = body.version.trim();
     if (typeof body?.changelog === 'string') patch.changelog = body.changelog.trim();

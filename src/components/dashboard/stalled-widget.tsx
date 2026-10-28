@@ -76,6 +76,7 @@ export function StalledWidget({ classId }: { classId: string }) {
         </div>
       </CardHeader>
       <CardContent>
+        <p className="mb-3 text-xs text-muted-foreground">Unfinished tasks with no edits or status changes for more than {thresholdDays} days. This is an inactivity reminder, not a separate task status.</p>
         {loading ? (
           <div className="space-y-2">
             <Skeleton className="h-14 w-full rounded-lg" />
@@ -84,7 +85,7 @@ export function StalledWidget({ classId }: { classId: string }) {
         ) : tasks.length === 0 ? (
           <div className="flex items-center gap-2 py-3 text-sm text-muted-foreground">
             <CheckCircle className="h-4 w-4 text-ok" />
-            <span>All tasks are active and moving forward.</span>
+            <span>No unfinished tasks exceed the inactivity threshold.</span>
           </div>
         ) : (
           <div className="divide-y divide-border/60">

@@ -8,6 +8,7 @@ function VerifyForm() {
   const params = useSearchParams();
   const email = params.get('email') || '';
   const [otp, setOtp] = useState('');
+  const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -19,7 +20,7 @@ function VerifyForm() {
       const res = await fetch('/api/auth/verify-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, otp }),
+        body: JSON.stringify({ email, otp, rememberMe }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Invalid code');
@@ -54,6 +55,11 @@ function VerifyForm() {
           onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
         />
       </div>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} />
+            Remember me for 7 days
+          </label>
+          <p className="text-xs text-muted">Otherwise, your session expires after 24 hours.</p>
       {error && <p className="text-sm text-danger">{error}</p>}
       <button type="submit" className="btn-primary w-full" disabled={loading || otp.length !== 6}>
         {loading ? 'Verifying…' : 'Verify & continue'}

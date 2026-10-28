@@ -1,3 +1,4 @@
+import { projectRequirementsError } from '@/lib/project-readiness';
 import { NextRequest, NextResponse } from 'next/server';
 import { and, desc, eq, isNull, asc } from 'drizzle-orm';
 import { db } from '@/lib/db';
@@ -20,6 +21,8 @@ export async function GET(req: NextRequest) {
     .where(and(eq(titles.id, titleId), eq(titles.classId, session.classId), isNull(titles.deletedAt)))
     .limit(1);
   if (!title) return jsonError('Title not found', 404);
+  const requiredInfo = projectRequirementsError(title);
+  if (requiredInfo) return jsonError(requiredInfo, 428);
 
   const rows = await db
     .select({
@@ -58,7 +61,8 @@ export async function POST(req: NextRequest) {
   const description = (body?.description as string | undefined)?.trim() || null;
   const assigneeStudentId = (body?.assigneeStudentId as string | undefined) || null;
   const dueDateStr = body?.dueDate as string | undefined;
-  const status = (body?.status as string | undefined) || 'planning';
+  // All newly created tasks start in Planning, regardless of client input.
+  const status = 'planning';
 
   if (!titleId) return jsonError('titleId is required', 400);
   if (!name) return jsonError('Task name is required', 400);
@@ -70,6 +74,8 @@ export async function POST(req: NextRequest) {
     .where(and(eq(titles.id, titleId), eq(titles.classId, session.classId), isNull(titles.deletedAt)))
     .limit(1);
   if (!title) return jsonError('Title not found', 404);
+  const requiredInfo = projectRequirementsError(title);
+  if (requiredInfo) return jsonError(requiredInfo, 428);
 
   const [membership] = await db
     .select()

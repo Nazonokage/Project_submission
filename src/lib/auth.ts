@@ -10,16 +10,18 @@ const secret = new TextEncoder().encode(process.env.JWT_SECRET);
 export const PROF_COOKIE = 'prof_token';
 export const STUDENT_COOKIE = 'student_token';
 
+export const sessionMaxAge = (rememberMe = false) => 60 * 60 * 24 * (rememberMe ? 7 : 1);
+
 export type ProfPayload = { profId: string; email: string };
 export type StudentPayload = { studentId: string; classId: string };
 
 // ---------- Prof session ----------
 
-export async function signProfToken(payload: ProfPayload) {
+export async function signProfToken(payload: ProfPayload, rememberMe = false) {
   return new SignJWT({ ...payload })
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
-    .setExpirationTime('7d')
+    .setExpirationTime(rememberMe ? '7d' : '1d')
     .sign(secret);
 }
 
@@ -32,14 +34,14 @@ export async function verifyProfToken(token: string): Promise<ProfPayload | null
   }
 }
 
-export async function setProfCookie(token: string) {
+export async function setProfCookie(token: string, rememberMe = false) {
   const store = await cookies();
   store.set(PROF_COOKIE, token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
     path: '/',
-    maxAge: 60 * 60 * 24 * 7,
+    maxAge: sessionMaxAge(rememberMe),
   });
 }
 
@@ -57,11 +59,11 @@ export async function getProfSession(): Promise<ProfPayload | null> {
 
 // ---------- Student session ----------
 
-export async function signStudentToken(payload: StudentPayload) {
+export async function signStudentToken(payload: StudentPayload, rememberMe = false) {
   return new SignJWT({ ...payload })
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
-    .setExpirationTime('1d')
+    .setExpirationTime(rememberMe ? '7d' : '1d')
     .sign(secret);
 }
 
@@ -74,14 +76,14 @@ export async function verifyStudentToken(token: string): Promise<StudentPayload 
   }
 }
 
-export async function setStudentCookie(token: string) {
+export async function setStudentCookie(token: string, rememberMe = false) {
   const store = await cookies();
   store.set(STUDENT_COOKIE, token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
     path: '/',
-    maxAge: 60 * 60 * 24,
+    maxAge: sessionMaxAge(rememberMe),
   });
 }
 

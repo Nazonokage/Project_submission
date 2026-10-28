@@ -1,11 +1,13 @@
 'use client';
+import { projectRequirementsError } from '@/lib/project-readiness';
+
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useBoardQuery, useBoardRequest } from '@/lib/board-query';
 import { boardKeys } from '@/lib/query-keys';
 import { titleRequest } from '@/lib/title-request';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
   AlertCircle,
   BookOpen,
@@ -85,6 +87,8 @@ function deadlineInfo(iso: string | null) {
 
 export function SlotDashboard({ classId, slotId }: { classId: string; slotId: string }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  useEffect(() => { if (searchParams.get('feedback')) setTab('submissions'); }, [searchParams]);
   const [className, setClassName] = useState<string | null>(null);
   const [term, setTerm] = useState<string | null>(null);
   const [slot, setSlot] = useState<SlotInfo | null>(null);
@@ -150,8 +154,7 @@ export function SlotDashboard({ classId, slotId }: { classId: string; slotId: st
 
     setTab((prev) => {
       if (prev) return prev;
-      const hasVerified = currentTitles.some((t) => t.status === 'verified');
-      return hasVerified ? 'submissions' : 'titles';
+      return 'group';
     });
 
     setLoading(false);
@@ -206,7 +209,7 @@ export function SlotDashboard({ classId, slotId }: { classId: string; slotId: st
     requiredMin > 0 ? Math.min(100, (Math.min(titles.length, requiredMin) / requiredMin) * 100) : 0;
 
   useEffect(() => {
-    if (!hasGroup && (tab === 'submissions' || tab === 'board')) setTab('titles');
+    if (!hasGroup && (tab === 'submissions' || tab === 'board')) setTab('group');
   }, [hasGroup, tab]);
 
   return (
@@ -313,9 +316,10 @@ export function SlotDashboard({ classId, slotId }: { classId: string; slotId: st
               </TabsContent>
 
               <TabsContent value="board">
+                {titles.some(t => projectRequirementsError(t)) && <div className="card mb-4 space-y-2"><p className="font-medium">Complete your project information</p><p className="text-sm text-muted">Add an abstract and GitHub repository in Submissions to unlock project tools, regardless of approval status.</p><Button variant="outline" onClick={() => setTab('submissions')}>Complete required information</Button></div>}
                 {group && slot ? (
                   <BoardTab
-                    titles={titles.filter((t) => t.status === 'verified')}
+                    titles={titles.filter((t) => t.status === 'verified' && !projectRequirementsError(t))}
                     members={members}
                     myStudentId={myStudentId}
                   />
@@ -447,6 +451,7 @@ function SubmissionsTab({ slotId, slot, titles, hasVerifiedTitle, onReload }: {
 function TitleSubmitForm({ slotId, slot, onSuccess }: { slotId: string; slot: SlotInfo; onSuccess: () => Promise<void>; }) {
   const [text, setText] = useState('');
   const [description, setDescription] = useState('');
+  const [repoUrl, setRepoUrl] = useState('');
   const [techStack, setTechStack] = useState<string[]>([]);
   const [targetUsers, setTargetUsers] = useState('');
   const [dupWarning, setDupWarning] = useState<string[]>([]);
@@ -471,7 +476,7 @@ function TitleSubmitForm({ slotId, slot, onSuccess }: { slotId: string; slot: Sl
   const isTitleTooShort = text.trim().length > 0 && text.trim().length < 5;
   const isTitleEmpty = text.trim().length === 0;
   const isStrictBlocked = slot.duplicateCheck === 'strict' && dupWarning.length > 0;
-  const isSubmitDisabled = submitting || slot.locked || isTitleTooShort || isTitleEmpty || isStrictBlocked;
+  const isSubmitDisabled = submitting || slot.locked || isTitleTooShort || isTitleEmpty || isStrictBlocked || !!projectRequirementsError({ description, repoUrl });
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -482,11 +487,11 @@ function TitleSubmitForm({ slotId, slot, onSuccess }: { slotId: string; slot: Sl
     setSubmitting(true);
     try {
       if (slot.requireTechStack && techStack.length === 0) throw new Error('Add at least one tech stack tag');
-      const res = await titleRequest('/api/student/titles', 'POST', { slotId, text: text.trim(), description: description.trim(), techStack, targetUsers: targetUsers.trim() || undefined });
+      const res = await titleRequest('/api/student/titles', 'POST', { slotId, text: text.trim(), description: description.trim(), repoUrl: repoUrl.trim(), techStack, targetUsers: targetUsers.trim() || undefined });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Could not submit title');
       toast.success(data.warnings?.length ? 'Submitted with a similarity warning' : 'Title submitted');
-      setText(''); setDescription(''); setTechStack([]); setTargetUsers('');
+      setText(''); setDescription(''); setRepoUrl(''); setTechStack([]); setTargetUsers('');
       await onSuccess();
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Could not submit title');
@@ -508,8 +513,13 @@ function TitleSubmitForm({ slotId, slot, onSuccess }: { slotId: string; slot: Sl
         )}
       </div>
       <div className="space-y-1.5">
-        <Label htmlFor="title-desc">Description</Label>
+        <Label htmlFor="title-desc">Abstract</Label>
         <Textarea id="title-desc" required className="min-h-24" value={description} onChange={(e) => setDescription(e.target.value)} />
+      </div>
+      <div className="space-y-1.5">
+        <Label htmlFor="title-repo">GitHub repository</Label>
+        <Input id="title-repo" type="url" required placeholder="https://github.com/owner/repository" value={repoUrl} onChange={e => setRepoUrl(e.target.value)} />
+        <p className="text-xs text-muted">Abstract and repository are required before using project tools.</p>
       </div>
       <div className="space-y-1.5">
         <Label>Tech stack{slot.requireTechStack ? ' (required)' : ''}</Label>
@@ -675,7 +685,7 @@ function BoardTab({
             members={members}
             loading={tasksLoading}
             onAdd={(status) => {
-              setAddTaskInitialStatus(status);
+              setAddTaskInitialStatus('planning');
               setAddTaskOpen(true);
             }}
             onStatusChange={handleStatusChange}
@@ -882,19 +892,7 @@ function AddTaskDialog({
               />
             </div>
           </div>
-          <div className="space-y-1.5">
-            <Label>Initial Column</Label>
-            <select
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-xs"
-              value={status}
-              onChange={(e) => setStatus(e.target.value as ProgressStatus)}
-            >
-              <option value="planning">Planning</option>
-              <option value="in_progress">In Progress</option>
-              <option value="review">Review</option>
-              <option value="done">Done</option>
-            </select>
-          </div>
+          <p className="text-sm text-muted">New tasks start in Planning.</p>
           <DialogFooter className="pt-2">
             <Button type="button" variant="outline" onClick={onClose}>
               Cancel

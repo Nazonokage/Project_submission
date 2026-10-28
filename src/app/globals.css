@@ -124,3 +124,16 @@
   border-radius: 18px 14px 20px 12px;
   box-shadow: 3px 4px 0 hsl(var(--border) / 0.45);
 }
+
+/* Roster surfaces: restrained depth with system accessibility preferences. */
+.roster-material {
+  background: hsl(var(--card) / 0.94);
+  backdrop-filter: blur(16px);
+}
+.roster-detail { font-optical-sizing: auto; }
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  .roster-material { background: hsl(var(--card)); backdrop-filter: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .roster-detail { animation: none; transition: none; }
+}

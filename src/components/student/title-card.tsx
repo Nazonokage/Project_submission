@@ -1,4 +1,6 @@
 'use client';
+import { projectRequirementsError } from '@/lib/project-readiness';
+
 import { titleRequest } from '@/lib/title-request';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -127,7 +129,7 @@ export function TitleCard({
   }, [docTemplates, docValues]);
 
   const loadReports = useCallback(async () => {
-    if (title.status !== 'verified') return;
+    if (title.status !== 'verified' || projectRequirementsError(title)) return;
     setReportsLoading(true);
     try {
       const res = await fetch(`/api/student/titles/${title.id}/reports`);
@@ -140,7 +142,7 @@ export function TitleCard({
     } finally {
       setReportsLoading(false);
     }
-  }, [title.id, title.status]);
+  }, [title.id, title.status, title.description, title.repoUrl]);
 
   useEffect(() => {
     if (title.status === 'verified') {
@@ -170,7 +172,7 @@ export function TitleCard({
   async function saveEdit() {
     setSaving(true);
     try {
-      const res = await titleRequest(`/api/student/titles/${title.id}`, 'PATCH', { text, description, techStack, targetUsers });
+      const res = await titleRequest(`/api/student/titles/${title.id}`, 'PATCH', { text, description, repoUrl, techStack, targetUsers });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Could not update title');
       toast.success('Title updated');
@@ -225,7 +227,7 @@ export function TitleCard({
   const displayedReports = showAllReports ? reports : reports.slice(0, 2);
 
   return (
-    <Card>
+    <Card id={`title-${title.id}`}>
       <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0 pb-3">
         <div className="min-w-0">
           <p className="font-medium leading-snug">{title.text}</p>
@@ -233,7 +235,8 @@ export function TitleCard({
         <div className="flex items-center gap-2 shrink-0">
           <ProgressSelect
             value={title.progressStatus}
-            disabled={progressBusy}
+            canComplete={title.status === 'verified'}
+            disabled={progressBusy || !!projectRequirementsError(title)}
             onChange={saveProgress}
           />
           <StatusBadge kind="title" status={title.status} />
@@ -246,6 +249,7 @@ export function TitleCard({
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
+        {editable && projectRequirementsError(title) && <Alert><AlertDescription><p>{projectRequirementsError(title)}</p><Button className="mt-2" variant="outline" onClick={() => setEditOpen(true)}>Complete required information</Button></AlertDescription></Alert>}
         <p className="text-sm text-muted">{title.description}</p>
         {title.techStack && title.techStack.length > 0 && (
           <div className="flex flex-wrap gap-1">
@@ -264,7 +268,7 @@ export function TitleCard({
             <AlertDescription>Rejected: {title.rejectionReason}</AlertDescription>
           </Alert>
         )}
-        {title.status === 'verified' && (
+        {title.status === 'verified' && !projectRequirementsError(title) && (
           <div className="pt-3 border-t space-y-4">
             {/* Repo and Deployment links */}
             <div className="space-y-2">
@@ -507,8 +511,12 @@ export function TitleCard({
               )}
             </div>
             <div className="space-y-1.5">
-              <Label>Description</Label>
-              <Textarea value={description} onChange={(e) => setDescription(e.target.value)} />
+              <Label htmlFor={`abstract-${title.id}`}>Abstract</Label>
+              <Textarea id={`abstract-${title.id}`} required value={description} onChange={(e) => setDescription(e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor={`repo-${title.id}`}>GitHub repository</Label>
+              <Input id={`repo-${title.id}`} type="url" required placeholder="https://github.com/owner/repository" value={repoUrl} onChange={e => setRepoUrl(e.target.value)} />
             </div>
             <div className="space-y-1.5">
               <Label>Tech stack</Label>
@@ -523,7 +531,7 @@ export function TitleCard({
             <Button type="button" variant="outline" onClick={() => setEditOpen(false)}>
               Cancel
             </Button>
-            <Button type="button" onClick={saveEdit} disabled={saving || !text.trim() || text.trim().length < 5}>
+            <Button type="button" onClick={saveEdit} disabled={saving || text.trim().length < 5 || !!projectRequirementsError({ description, repoUrl })}>
               {saving ? 'Saving…' : 'Save'}
             </Button>
           </DialogFooter>

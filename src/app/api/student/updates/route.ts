@@ -1,3 +1,4 @@
+import { projectRequirementsError } from '@/lib/project-readiness';
 import { NextRequest, NextResponse } from 'next/server';
 import { and, desc, eq, isNull } from 'drizzle-orm';
 import { db } from '@/lib/db';
@@ -19,6 +20,8 @@ export async function GET(req: NextRequest) {
     .where(and(eq(titles.id, titleId), eq(titles.classId, session.classId), isNull(titles.deletedAt)))
     .limit(1);
   if (!title) return jsonError('Title not found', 404);
+  const requiredInfo = projectRequirementsError(title);
+  if (requiredInfo) return jsonError(requiredInfo, 428);
 
   const rows = await db
     .select({
@@ -71,6 +74,8 @@ export async function POST(req: NextRequest) {
     .where(and(eq(titles.id, titleId), eq(titles.classId, session.classId), isNull(titles.deletedAt)))
     .limit(1);
   if (!title) return jsonError('Title not found', 404);
+  const requiredInfo = projectRequirementsError(title);
+  if (requiredInfo) return jsonError(requiredInfo, 428);
   if (title.status !== 'verified') return jsonError('Updates can only be posted for verified titles', 409);
 
   const [membership] = await db

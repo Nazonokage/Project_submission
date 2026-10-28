@@ -1,3 +1,4 @@
+import { projectRequirementsError } from '@/lib/project-readiness';
 import { normalizeTechStack } from '@/lib/tech-stack';
 import { duplicateGuard } from '@/lib/title-duplicates';
 import { NextRequest, NextResponse } from 'next/server';
@@ -36,7 +37,10 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
   const slotId = body?.slotId as string | undefined;
   const text = (typeof body?.text === 'string' ? body.text.trim() : '');
-  const description = (body?.description as string | undefined)?.trim();
+  const description = typeof body?.description === 'string' ? body.description.trim() : '';
+  const repoUrl = typeof body?.repoUrl === 'string' ? body.repoUrl.trim() : '';
+  const requiredInfo = projectRequirementsError({ description, repoUrl });
+  if (requiredInfo) return jsonError(requiredInfo, 422);
   const techStack = normalizeTechStack(body?.techStack);
   const targetUsers = (body?.targetUsers as string | undefined)?.trim() || null;
 
@@ -94,6 +98,7 @@ export async function POST(req: NextRequest) {
       groupId: membership.group.id,
       text,
       description,
+      repoUrl,
       techStack,
       targetUsers,
       addedBy: 'student',

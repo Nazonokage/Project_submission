@@ -231,7 +231,7 @@ export default function ClassPage() {
   }
 
   return (
-    <main className={`${tab === 'board' ? 'max-w-6xl' : 'max-w-4xl'} mx-auto px-6 py-10 space-y-6`}>
+    <main className={`${tab === 'board' || tab === 'roster' ? 'max-w-6xl' : 'max-w-4xl'} mx-auto px-6 py-10 space-y-6`}>
       <div className="flex items-start justify-between gap-3">
         <div>
           <Link href="/dashboard" className="text-sm text-muted hover:underline">
@@ -302,6 +302,8 @@ export default function ClassPage() {
           <p className="text-sm text-muted">Loading board…</p>
         ) : (
           <div className="space-y-6">
+            <VerificationQueue key={`${classId}:${slotId}`} titles={titles}
+              onReview={id => setReviewing(titles.find(t => t.id === id) || null)} onDecision={decide} />
             <StalledWidget classId={classId} />
             <ProgressBoard
               titles={titles}
@@ -373,10 +375,7 @@ export default function ClassPage() {
       )}
 
       {titlesQuery.error && <p role="alert" className="text-sm text-danger">Could not refresh projects. Retrying automatically.</p>}
-      {tab === 'board' && selectedSlot && !loading && !titlesLoading && (
-        <VerificationQueue key={`${classId}:${slotId}`} titles={titles}
-          onReview={id => setReviewing(titles.find(t => t.id === id) || null)} onDecision={decide} />
-      )}
+
 
       {editing && (
         <TitleEditor

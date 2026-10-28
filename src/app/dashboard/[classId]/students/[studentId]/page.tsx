@@ -1,5 +1,11 @@
 'use client';
 
+import { ProfileTitleFeedback } from '@/components/dashboard/profile-title-feedback';
+import { ProfileGroupSetup } from '@/components/dashboard/profile-group-setup';
+import { GroupTitleCreate } from '@/components/dashboard/group-title-create';
+import { TitleEditor, type ProfTitle } from '@/components/dashboard/title-editor';
+import { useQueryClient } from '@tanstack/react-query';
+import { boardKeys } from '@/lib/query-keys';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
@@ -36,6 +42,28 @@ type Student = {
 export default function ProfessorStudentProfilePage() {
   const { classId, studentId } = useParams<{ classId: string; studentId: string }>();
   const router = useRouter();
+  const queryClient = useQueryClient();
+  const [feedbackTitle, setFeedbackTitle] = useState<TitleRow | null>(null);
+  const [groupSetup, setGroupSetup] = useState<{ slotId?: string } | null>(null);
+  const [addingGroupId, setAddingGroupId] = useState<string | null>(null);
+  const [editingTitle, setEditingTitle] = useState<ProfTitle | null>(null);
+  const [loadingTitleId, setLoadingTitleId] = useState<string | null>(null);
+
+  async function openTitleEditor(titleId: string) {
+    setLoadingTitleId(titleId);
+    try {
+      const response = await fetch(`/api/dashboard/titles/${titleId}`, { cache: 'no-store' });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Could not load title');
+      setEditingTitle(data.title);
+    } catch (err) { toast.error(err instanceof Error ? err.message : 'Could not load title'); }
+    finally { setLoadingTitleId(null); }
+  }
+
+  function titleSaved(slotId?: string) {
+    if (slotId) void queryClient.invalidateQueries({ queryKey: boardKeys.slot(classId, slotId) });
+    void load();
+  }
   const [student, setStudent] = useState<Student | null>(null);
   const [memberships, setMemberships] = useState<Membership[]>([]);
   const [titles, setTitles] = useState<TitleRow[]>([]);
@@ -49,6 +77,7 @@ export default function ProfessorStudentProfilePage() {
 
   async function load() {
     setLoading(true);
+    setError(null);
     const res = await fetch(`/api/classes/${classId}/students/${studentId}`);
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
@@ -164,14 +193,18 @@ export default function ProfessorStudentProfilePage() {
           </section>
 
           <section className="card space-y-3">
-            <h2 className="font-medium">Groups</h2>
+            <div className="flex flex-wrap justify-between items-center gap-2"><h2 className="font-medium">Groups</h2><button type="button" className="btn-primary" onClick={() => setGroupSetup({})}>Set up group</button></div>
             {memberships.length === 0 ? (
               <p className="text-sm text-muted">Not in a group yet.</p>
             ) : (
               <div className="space-y-3">
                 {memberships.map((m) => (
                   <div key={`${m.slotId}-${m.groupId}`}>
-                    <p className="font-medium">{m.slotLabel}</p>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="font-medium">{m.slotLabel}</p>
+                      <button type="button" className="btn-secondary" onClick={() => setGroupSetup({ slotId: m.slotId })}>Add groupmates</button>
+                      <button type="button" className="btn-secondary" onClick={() => setAddingGroupId(m.groupId)} aria-label={`Add title for ${m.slotLabel}`}>Add title for group</button>
+                    </div>
                     <p className="text-sm text-muted">
                       {m.status} · {m.members.map((mem) => mem.name).join(', ') || 'No members listed'}
                     </p>
@@ -189,8 +222,14 @@ export default function ProfessorStudentProfilePage() {
               <ul className="space-y-2">
                 {titles.map((t) => (
                   <li key={t.id} className="flex items-start justify-between gap-3">
-                    <span>{t.text}</span>
-                    <span className="text-sm text-muted shrink-0">{t.status}</span>
+                    <div className="min-w-0">
+                      <p className="break-words">{t.text}</p>
+                      <p className="text-xs text-muted mt-1">{memberships.find((m) => m.groupId === t.groupId)?.slotLabel} · {t.status}</p>
+                    </div>
+                    <div className="flex flex-wrap justify-end gap-2">
+                    <button type="button" className="btn-secondary" onClick={() => setFeedbackTitle(t)} aria-label={`Feedback for ${t.text}`}>Feedback</button>
+                    <button type="button" className="btn-secondary shrink-0" disabled={!!loadingTitleId} onClick={() => openTitleEditor(t.id)} aria-label={`Edit title: ${t.text}`}>{loadingTitleId === t.id ? 'Loading…' : 'Edit title'}</button>
+                    </div>
                   </li>
                 ))}
               </ul>
@@ -222,6 +261,11 @@ export default function ProfessorStudentProfilePage() {
           </div>
         </>
       ) : null}
+
+      {feedbackTitle && <ProfileTitleFeedback titleId={feedbackTitle.id} titleText={feedbackTitle.text} onClose={() => setFeedbackTitle(null)} />}
+      {groupSetup && <ProfileGroupSetup classId={classId} studentId={studentId} initialSlotId={groupSetup.slotId} onClose={() => setGroupSetup(null)} onSaved={(slotId) => { toast.success('Group saved. You can now add or edit its project title.'); titleSaved(slotId); }} />}
+      {addingGroupId && <GroupTitleCreate key={addingGroupId} classId={classId} groups={memberships} initialGroupId={addingGroupId} onClose={() => setAddingGroupId(null)} onSaved={titleSaved} />}
+      {editingTitle && <TitleEditor key={editingTitle.id} title={editingTitle} open onOpenChange={(open) => !open && setEditingTitle(null)} onSaved={() => titleSaved(editingTitle.slotId)} />}
 
       <Dialog open={editing} onOpenChange={setEditing}>
         <DialogContent>

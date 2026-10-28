@@ -33,6 +33,7 @@ export function LoginForm({
   const [students, setStudents] = useState<DirectoryStudent[]>([]);
   const [recent, setRecent] = useState<DirectoryStudent[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -81,7 +82,7 @@ export function LoginForm({
       const res = await fetch('/api/student/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ classId, idNumber, password }),
+        body: JSON.stringify({ classId, idNumber, password, rememberMe }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Login failed');
@@ -187,6 +188,11 @@ export function LoginForm({
               onChange={(e) => setPassword(e.target.value)}
             />
           </div>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} />
+            Remember me for 7 days
+          </label>
+          <p className="text-xs text-muted">Otherwise, your session expires after 24 hours.</p>
           {error && (
             <Alert variant="destructive">
               <AlertCircle className="h-4 w-4" />

@@ -1,3 +1,5 @@
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 // Isolated UI fixtures: no API request reaches the database.
 // Start Next with JWT_SECRET=phase14-16-local-test-only on port 3101 first.
 import assert from 'node:assert/strict';
@@ -8,7 +10,7 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const base = process.env.TEST_BASE_URL || 'http://localhost:3101';
 const browser = await chromium.launch({ headless: true, channel: 'msedge' });
 const now = new Date().toISOString();
-const titles = ['Alpha project', 'Beta project'].map((text, i) => ({ id: `title-${i}`, classId: 'class-test', slotId: 'slot-test', groupId: 'group-test', text, description: 'Project description', status: 'verified', progressStatus: 'planning', members: [{ id: 'student-test', name: 'Test Student', idNumber: '001' }], techStack: [], documentation: {} }));
+const titles = ['Alpha project', 'Beta project'].map((text, i) => ({ id: `title-${i}`, classId: 'class-test', slotId: 'slot-test', groupId: 'group-test', text, repoUrl: 'https://github.com/example/project', description: 'Project description', status: 'verified', progressStatus: 'planning', members: [{ id: 'student-test', name: 'Test Student', idNumber: '001' }], techStack: [], documentation: {} }));
 titles.push(...['Gamma proposal', 'Delta proposal'].map((text, i) => ({ ...titles[0], id: `title-${i + 2}`, text, status: 'pending', addedBy: 'student', submittedBy: { id: 'former-student', name: 'Original Submitter', role: 'student' }, members: [{ id: 'member-a', name: 'Alice Groupmate', idNumber: '002' }, { id: 'member-b', name: 'Bob Groupmate', idNumber: '003' }] })));
 let lastTitleBody;
 let lastDecision;
@@ -34,9 +36,11 @@ async function context(role, options = {}) {
     const body = req.postDataJSON();
     let data = {};
     let status = 200;
-    if (path === '/api/student/groups') data = { group: { id: 'group-test', status: 'locked', maxSize: 1 }, members: titles[0].members, studentId: 'student-test' };
+    if (path === '/api/student/notifications') data = { notifications: [{ id: 'feedback-test', titleId: 'title-0', titleText: 'Alpha project', classId: 'class-test', slotId: 'slot-test', body: 'Please add your test results.', status: 'open', type: 'request_changes', professorName: 'Test Professor', createdAt: now }] };
+    else if (path === '/api/student/groups') data = { group: { id: 'group-test', status: 'locked', maxSize: 1 }, members: titles[0].members, studentId: 'student-test' };
     else if (path === '/api/student/slots' || path.endsWith('/slots')) data = { slots: [slot, { ...slot, id: 'slot-other', label: 'Other slot' }] };
     else if (path.includes('class-info')) data = { class: { name: 'Test Class', term: '2026' } };
+    else if (path === '/api/classes/class-test/students') data = { students: [{ id: 'solo', name: 'Solo Student', idNumber: '010', password: 'default', memberships: [], slotProgress: [{ slotId: 'slot-test', slotLabel: 'P1', pendingCount: 0, verifiedCount: 0, rejectedCount: 0 }] }, { id: 'pending', name: 'Pending Student', idNumber: '011', password: 'default', memberships: [{ groupId: 'group-test', slotId: 'slot-test' }], slotProgress: [{ slotId: 'slot-test', slotLabel: 'P1', pendingCount: 1, verifiedCount: 0, rejectedCount: 0 }] }, { id: 'approved', name: 'Approved Student', idNumber: '012', password: 'default', memberships: [{ groupId: 'approved-group', slotId: 'slot-test' }], slotProgress: [{ slotId: 'slot-test', slotLabel: 'P1', pendingCount: 0, verifiedCount: 1, rejectedCount: 0 }] }] };
     else if (path.includes('without-group') || path.endsWith('/students')) data = { students: [] };
     else if (path.includes('invites')) data = { invites: [] };
     else if (path.includes('leave-requests')) data = { requests: [] };
@@ -76,6 +80,13 @@ async function context(role, options = {}) {
       if (method === 'DELETE') { assert.equal(body.confirmName, 'Test Class'); deleted = true; }
       data = { class: { name: 'Test Class', term: '2026', archivedAt } };
     } else { errors.push(`Unexpected API: ${method} ${path}`); status = 501; }
+    if (path === '/api/classes/class-test/students') {
+      for (const student of data.students) for (const progress of student.slotProgress) {
+        progress.inGroup = student.memberships.length > 0;
+        progress.members = progress.inGroup ? [{ id: student.id, name: student.name, idNumber: student.idNumber }, { id: 'teammate', name: 'Jamie Teammate', idNumber: '099' }] : [];
+        progress.titles = progress.inGroup ? [{ id: `project-${student.id}`, text: `${student.name}'s project`, status: progress.verifiedCount ? 'verified' : 'pending' }] : [];
+      }
+    }
     await route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(data) });
   });
   const page = await ctx.newPage();
@@ -87,14 +98,36 @@ try {
   const { ctx, page } = await context('student');
   await page.goto(`${base}/c/class-test/slot-test`);
   await visible(page.getByText(slot.instructions));
+  assert.equal(await page.getByRole('tab', { name: 'My group', exact: false }).getAttribute('aria-selected'), 'true');
+  titles[0].repoUrl = null;
+  await page.reload();
+  await page.getByRole('tab', { name: 'Board', exact: true }).click();
+  await page.getByRole('button', { name: 'Complete required information', exact: true }).click();
+  const incomplete = page.locator('#title-title-0');
+  assert.equal(await incomplete.locator('select').isDisabled(), true);
+  await incomplete.getByRole('button', { name: 'Complete required information', exact: true }).click();
+  const completion = page.getByRole('dialog');
+  assert.equal(await completion.getByRole('button', { name: 'Save', exact: true }).isDisabled(), true);
+  await completion.getByLabel('GitHub repository', { exact: true }).fill('https://github.com/example/project');
+  await completion.getByRole('button', { name: 'Save', exact: true }).click();
+  await completion.waitFor({ state: 'detached' });
+  await incomplete.locator('select:not([disabled])').waitFor({ state: 'visible' });
+  console.log('PASS incomplete approved title locks tools; completing required form unlocks progress');
+  await page.getByRole('button', { name: 'Feedback notifications, 1 open' }).click();
+  await visible(page.getByText('Please add your test results.', { exact: true }));
+  await page.getByRole('link', { name: 'Open project', exact: true }).click();
+  await visible(page.locator('#title-title-0'));
+  assert.equal(await page.locator('#title-title-2 option[value="done"]').isDisabled(), true);
+  console.log('PASS feedback notification content/project link and disabled Done for pending title');
   // Phase 17: submission and editing share a keyboard-accessible, free-entry picker.
   await page.getByRole('button', { name: '+ Submit another title', exact: true }).click();
   const proposal = page.getByRole('dialog');
   await proposal.getByLabel('Title', { exact: true }).fill('New proposal');
-  await proposal.getByLabel('Description', { exact: true }).fill('A test proposal description');
-  const tagInput = proposal.getByRole('combobox', { name: 'Tech stack tag' });
+  await proposal.getByLabel('Abstract', { exact: true }).fill('A test proposal description');
+  await proposal.getByLabel('GitHub repository', { exact: true }).fill('https://github.com/example/project');
+  const tagInput = proposal.getByRole('combobox', { name: 'Search tech stack' });
   await tagInput.fill('rea');
-  await visible(proposal.getByRole('option', { name: 'React', exact: true }));
+  await visible(proposal.getByRole('option', { name: /^React(?: Used in slot)?$/ }));
   await tagInput.press('ArrowDown'); await tagInput.press('Enter');
   await visible(proposal.getByRole('button', { name: 'Remove React' }));
   await tagInput.fill('react'); await tagInput.press('Enter');
@@ -104,8 +137,8 @@ try {
   await proposal.waitFor({ state: 'hidden' });
   assert.deepEqual(lastTitleBody.techStack, ['React', 'CustomStack']);
   await page.getByRole('button', { name: 'Edit', exact: true }).first().click();
-  await page.getByRole('dialog').getByRole('combobox', { name: 'Tech stack tag' }).fill('Node');
-  await page.getByRole('option', { name: 'Node.js', exact: true }).click();
+  await page.getByRole('dialog').getByRole('combobox', { name: 'Search tech stack' }).fill('Node');
+  await page.getByRole('option', { name: /^Node\.js/ }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Save', exact: true }).click();
   await page.getByRole('dialog').waitFor({ state: 'hidden' });
   assert.deepEqual(lastTitleBody.techStack, ['Node.js']);
@@ -200,6 +233,38 @@ try {
   const prof = await context('prof');
   await prof.page.goto(`${base}/dashboard/class-test`);
   await visible(prof.page.getByText('Alpha project', { exact: true }));
+  await prof.page.getByRole('button', { name: /Roster \/ Students/ }).click();
+  assert.equal(await prof.page.locator('thead th').count(), 4);
+  assert.equal(await prof.page.locator('tbody button').count(), 0);
+  await visible(prof.page.getByText('No project yet', { exact: true }));
+  await visible(prof.page.getByText("Pending Student's project", { exact: true }));
+  await prof.page.getByRole('button', { name: 'Has pending', exact: true }).click();
+  assert.equal(await prof.page.locator('tbody tr').count(), 1);
+  const pendingRow = prof.page.getByRole('row', { name: 'View Pending Student', exact: true });
+  await pendingRow.focus(); await pendingRow.press('Enter');
+  const detail = prof.page.getByRole('dialog');
+  await visible(detail.getByRole('heading', { name: 'Pending Student', exact: true }));
+  assert.match(await detail.textContent(), /Jamie Teammate/);
+  await detail.getByRole('button', { name: 'Show password' }).click();
+  await visible(detail.getByText('default', { exact: true }));
+  assert.equal(await detail.getByRole('link', { name: 'View profile' }).getAttribute('href'), '/dashboard/class-test/students/pending');
+  await detail.getByRole('button', { name: 'Edit student', exact: true }).click();
+  await detail.getByLabel('Name', { exact: true }).fill('Unsaved change');
+  await detail.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await visible(detail.getByRole('heading', { name: 'Pending Student', exact: true }));
+  await prof.page.keyboard.press('Escape');
+  assert.equal(await pendingRow.evaluate(el => el === document.activeElement), true);
+  await prof.page.getByRole('button', { name: 'All', exact: true }).click();
+  await prof.page.getByLabel('Search students by name or ID').fill('012');
+  assert.equal(await prof.page.locator('tbody tr').count(), 1);
+  await prof.page.setViewportSize({ width: 820, height: 1180 });
+  await prof.page.getByRole('row', { name: 'View Approved Student', exact: true }).click();
+  await visible(detail.getByRole('button', { name: 'Open on board' }));
+  if (process.env.ROSTER_SCREENSHOT) await prof.page.screenshot({ path: process.env.ROSTER_SCREENSHOT });
+  await detail.getByRole('button', { name: 'Open on board' }).click();
+  await detail.waitFor({ state: 'hidden' });
+  await prof.page.setViewportSize({ width: 1280, height: 900 });
+  console.log('PASS simplified roster, group members/titles, search/filter, keyboard modal/focus restore, edit cancel, profile link and tablet board action');
   await prof.page.getByText('Alpha project', { exact: true }).click();
   await visible(prof.page.getByRole('dialog').getByText('Task 0', { exact: true }));
   await prof.page.keyboard.press('Escape');
@@ -233,6 +298,20 @@ try {
   await visible(queue.getByText('All caught up.', { exact: false }));
   await prof.page.getByRole('combobox', { name: 'Project slot', exact: true }).selectOption('slot-test');
   await visible(queue.getByText('All caught up.', { exact: false }));
+  titles[2].status = 'pending'; titles[3].status = 'pending';
+  await prof.page.reload();
+  await visible(queue.getByRole('article', { name: 'Gamma proposal' }));
+  await queue.getByRole('button', { name: 'Approve all (2)', exact: true }).click();
+  await visible(prof.page.getByRole('dialog').getByText('Gamma proposal', { exact: true }));
+  await prof.page.getByRole('button', { name: 'Confirm approvals', exact: true }).click();
+  await visible(queue.getByText('2 approved. 0 could not be approved.', { exact: true }));
+  assert.equal(titles[2].status, 'verified'); assert.equal(titles[3].status, 'verified');
+  await queue.getByRole('combobox', { name: 'Verification status' }).selectOption('all');
+  assert.ok(await queue.locator('[aria-label="Approval cards"]').evaluate(el => el.scrollWidth > el.clientWidth));
+  await prof.page.getByRole('dialog').waitFor({ state: 'detached' });
+  await prof.page.waitForTimeout(250);
+  await prof.page.screenshot({ path: join(tmpdir(), 'approval-queue-check.png'), fullPage: true });
+  console.log('PASS bulk approval, horizontal queue, and My group default');
   console.log('PASS Phase 18: submitter/groupmates, search/status/slot filters, full review, failed approval retry, approve/reject, tablet layout');
   await prof.page.getByRole('button', { name: 'Settings / Rules', exact: true }).click();
   await prof.page.getByRole('button', { name: 'Archive class', exact: true }).click();

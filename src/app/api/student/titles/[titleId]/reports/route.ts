@@ -1,3 +1,4 @@
+import { projectRequirementsError } from '@/lib/project-readiness';
 import { NextRequest, NextResponse } from 'next/server';
 import { desc, eq } from 'drizzle-orm';
 import { db } from '@/lib/db';
@@ -24,6 +25,8 @@ export async function GET(_req: NextRequest, { params }: { params: { titleId: st
 
   const title = await selectTitleBy(and(eq(titles.id, params.titleId), eq(titles.classId, session.classId))!);
   if (!title) return jsonError('Title not found', 404);
+  const requiredInfo = projectRequirementsError(title);
+  if (requiredInfo) return jsonError(requiredInfo, 428);
 
   try {
     const reports = await db
@@ -44,6 +47,8 @@ export async function POST(req: NextRequest, { params }: { params: { titleId: st
 
   const title = await selectTitleBy(and(eq(titles.id, params.titleId), eq(titles.classId, session.classId))!);
   if (!title) return jsonError('Title not found', 404);
+  const requiredInfo = projectRequirementsError(title);
+  if (requiredInfo) return jsonError(requiredInfo, 428);
   if (title.status !== 'verified') return jsonError('Reports can only be submitted after a title is verified', 409);
 
   const membership = await assertMembership(session.studentId, title.groupId);

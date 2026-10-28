@@ -1,3 +1,4 @@
+import { requireStudentProjectReady } from '@/lib/student-project-access';
 import { NextRequest, NextResponse } from 'next/server';
 import { and, eq } from 'drizzle-orm';
 import { db } from '@/lib/db';
@@ -23,6 +24,8 @@ async function resolveUpdate(updateId: string, studentId: string, classId: strin
     .where(and(eq(studentGroupSlots.studentId, studentId), eq(studentGroupSlots.groupId, update.groupId)))
     .limit(1);
   if (!membership) return { update: null, error: jsonError('You are no longer a member of this group', 403) };
+  const requiredInfo = await requireStudentProjectReady(update.titleId, classId);
+  if (requiredInfo) return { update: null, error: requiredInfo };
   return { update, error: null };
 }
 

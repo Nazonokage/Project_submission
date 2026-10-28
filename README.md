@@ -44,8 +44,8 @@ Your Neon DB has all 17 tables (professors, professor_otps, classes, students, p
 npm run dev
 ```
 
-- Professor: `http://localhost:3000/login` → email OTP → `/dashboard`
-- Student: `http://localhost:3000/c/<classId>/login` (link is shown on each
+- Professor: `http://localhost:3467/login` → email OTP → `/dashboard`
+- Student: `http://localhost:3467/c/<classId>/login` (link is shown on each
   class's dashboard page, with a copy button)
 
 ## What's implemented
@@ -55,7 +55,7 @@ npm run dev
 - **Classes & project slots**: create/edit/delete, per-slot group size, title caps,
   duplicate-check mode (`strict`/`warn`), required-fields toggles, locking
 - **Student roster**: `.txt` bulk import (auto-generates ID numbers + passwords),
-  manual add, inline edit, CSV export
+  manual add, clickable detail/edit modal, CSV export
 - **Groups**: solo auto-assign on first visit to a solo slot; multi-member create +
   invite + accept/decline (accepting auto-declines other pending invites); auto-locks
   when full; "students without a group" list; leave request flow with prof approval
@@ -136,3 +136,7 @@ src/
 │   └── project-updates.ts                Progress change logging helper
 └── middleware.ts                         protects /dashboard/* and /c/[classId]/*
 ```
+
+### Local build output
+
+Development (`npm run dev`, port 3467) uses `.next-dev`. Production (`npm run build` / `npm run start`) uses `.next`. The separate folders prevent production checks from overwriting a running development server's chunks. Restart any development server started before this setting changed, then refresh the browser.

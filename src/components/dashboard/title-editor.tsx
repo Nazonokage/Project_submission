@@ -112,13 +112,13 @@ export function TitleEditor({
         </DialogHeader>
         <div className="space-y-3">
           <div className="space-y-1.5">
-            <Label>Title</Label>
-            <Input value={text} onChange={(e) => setText(e.target.value)} />
+            <Label htmlFor="prof-title-text">Title</Label>
+            <Input id="prof-title-text" value={text} onChange={(e) => setText(e.target.value)} />
             {text.trim().length < 5 && <p className="text-xs text-danger">Title must be at least 5 characters long.</p>}
           </div>
           <div className="space-y-1.5">
-            <Label>Description</Label>
-            <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={4} />
+            <Label htmlFor="prof-title-description">Description</Label>
+            <Textarea id="prof-title-description" value={description} onChange={(e) => setDescription(e.target.value)} rows={4} />
           </div>
           <div className="space-y-1.5">
             <Label>Tech stack</Label>

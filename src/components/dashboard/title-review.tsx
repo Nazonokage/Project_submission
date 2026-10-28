@@ -130,7 +130,8 @@ export function ProfessorFeedbackForm({
           <button
             key={value}
             type="button"
-            className={`btn-secondary text-xs py-1 ${type === value ? 'bg-accent text-white border-accent' : ''}`}
+            aria-pressed={type === value}
+            className={`${type === value ? 'btn-primary ring-2 ring-primary/30 ring-offset-2 ring-offset-background' : 'btn-secondary'} text-xs py-1`}
             onClick={() => setType(value)}
           >
             {TYPE_LABEL[value]}
