@@ -12,6 +12,8 @@ const browser = await chromium.launch({ headless: true, channel: 'msedge' });
 const now = new Date().toISOString();
 const titles = ['Alpha project', 'Beta project'].map((text, i) => ({ id: `title-${i}`, classId: 'class-test', slotId: 'slot-test', groupId: 'group-test', text, repoUrl: 'https://github.com/example/project', description: 'Project description', status: 'verified', progressStatus: 'planning', members: [{ id: 'student-test', name: 'Test Student', idNumber: '001' }], techStack: [], documentation: {} }));
 titles.push(...['Gamma proposal', 'Delta proposal'].map((text, i) => ({ ...titles[0], id: `title-${i + 2}`, text, status: 'pending', addedBy: 'student', submittedBy: { id: 'former-student', name: 'Original Submitter', role: 'student' }, members: [{ id: 'member-a', name: 'Alice Groupmate', idNumber: '002' }, { id: 'member-b', name: 'Bob Groupmate', idNumber: '003' }] })));
+let notificationReadAt = null;
+let failRead = false;
 let lastTitleBody;
 let lastDecision;
 let failDecision = true;
@@ -36,7 +38,11 @@ async function context(role, options = {}) {
     const body = req.postDataJSON();
     let data = {};
     let status = 200;
-    if (path === '/api/student/notifications') data = { notifications: [{ id: 'feedback-test', titleId: 'title-0', titleText: 'Alpha project', classId: 'class-test', slotId: 'slot-test', body: 'Please add your test results.', status: 'open', type: 'request_changes', professorName: 'Test Professor', createdAt: now }] };
+    if (path === '/api/student/notifications' && method === 'PATCH') {
+      if (failRead) { failRead = false; status = 500; data = { error: 'Simulated read failure' }; }
+      else { notificationReadAt = now; data = { success: true }; }
+    }
+    else if (path === '/api/student/notifications') data = { notifications: [{ readAt: notificationReadAt, id: 'feedback-test', titleId: 'title-0', titleText: 'Alpha project', classId: 'class-test', slotId: 'slot-test', body: 'Please add your test results.', status: 'open', type: 'request_changes', professorName: 'Test Professor', createdAt: now }] };
     else if (path === '/api/student/groups') data = { group: { id: 'group-test', status: 'locked', maxSize: 1 }, members: titles[0].members, studentId: 'student-test' };
     else if (path === '/api/student/slots' || path.endsWith('/slots')) data = { slots: [slot, { ...slot, id: 'slot-other', label: 'Other slot' }] };
     else if (path.includes('class-info')) data = { class: { name: 'Test Class', term: '2026' } };
@@ -113,7 +119,7 @@ try {
   await completion.waitFor({ state: 'detached' });
   await incomplete.locator('select:not([disabled])').waitFor({ state: 'visible' });
   console.log('PASS incomplete approved title locks tools; completing required form unlocks progress');
-  await page.getByRole('button', { name: 'Feedback notifications, 1 open' }).click();
+  await page.getByRole('button', { name: 'Feedback notifications, 1 unread' }).click();
   await visible(page.getByText('Please add your test results.', { exact: true }));
   await page.getByRole('link', { name: 'Open project', exact: true }).click();
   await visible(page.locator('#title-title-0'));

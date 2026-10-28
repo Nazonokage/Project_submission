@@ -1,12 +1,13 @@
 'use client';
-import { useEffect, useState } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { useEffect, useRef, useState } from 'react';
 
 type Slot = { id: string; label: string; groupSize: number };
 type Student = { id: string; name: string; idNumber: string; memberships?: { groupId: string; slotId: string }[] };
 export function ProfileGroupSetup({ classId, studentId, initialSlotId, onClose, onSaved }: {
   classId: string; studentId: string; initialSlotId?: string; onClose: () => void; onSaved: (slotId: string, groupId: string) => void;
 }) {
+  const panel = useRef<HTMLElement>(null);
+  useEffect(() => { panel.current?.focus({ preventScroll: true }); panel.current?.scrollIntoView({ block: 'nearest' }); }, []);
   const [slots, setSlots] = useState<Slot[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [slotId, setSlotId] = useState(initialSlotId || '');
@@ -44,9 +45,9 @@ export function ProfileGroupSetup({ classId, studentId, initialSlotId, onClose, 
     } catch (err) { setError(err instanceof Error ? err.message : 'Could not save group'); }
     finally { setSaving(false); }
   }
-  return <Dialog open onOpenChange={open => { if (!open && !saving) onClose(); }}><DialogContent className="rounded-3xl max-h-[85dvh] overflow-auto w-[calc(100%-2rem)]">
+  return <section ref={panel} tabIndex={-1} aria-labelledby="group-setup-heading" className="card rounded-3xl focus:outline-none focus-visible:ring-2 focus-visible:ring-primary">
     <form onSubmit={save} className="space-y-4">
-      <DialogHeader><DialogTitle>Set up project group</DialogTitle><DialogDescription>Start solo, or choose available classmates. Existing members and project titles stay with their group.</DialogDescription></DialogHeader>
+      <header className="space-y-1"><h2 id="group-setup-heading" className="text-lg font-semibold">Set up project group</h2><p className="text-sm text-muted">Start solo, or choose available classmates. Existing members and project titles stay with their group.</p></header>
       {loading ? <p>Loading classmates…</p> : <>
         <label className="label" htmlFor="profile-group-slot">Project slot</label>
         <select id="profile-group-slot" className="input" value={slotId} disabled={saving} onChange={event => { setSlotId(event.target.value); setSelected([]); }}>
@@ -61,7 +62,7 @@ export function ProfileGroupSetup({ classId, studentId, initialSlotId, onClose, 
         <p className="text-xs text-muted">Students already assigned to another group are not moved. Slot size limits still apply.</p>
       </>}
       {error && <p role="alert" className="text-sm text-danger">{error}</p>}
-      <DialogFooter className="gap-2"><button type="button" className="btn-secondary" disabled={saving} onClick={onClose}>Cancel</button><button type="submit" className="btn-primary" disabled={loading || saving || !slot || (!current && !members.length)}>{saving ? 'Saving…' : current ? 'Save groupmates' : selected.length ? 'Create group' : 'Create solo group'}</button></DialogFooter>
+      <div className="flex flex-wrap justify-end gap-2"><button type="button" className="btn-secondary" disabled={saving} onClick={onClose}>Cancel</button><button type="submit" className="btn-primary" disabled={loading || saving || !slot || (!current && !members.length)}>{saving ? 'Saving…' : current ? 'Save groupmates' : selected.length ? 'Create group' : 'Create solo group'}</button></div>
     </form>
-  </DialogContent></Dialog>;
+  </section>;
 }

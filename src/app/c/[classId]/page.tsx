@@ -81,7 +81,7 @@ export default function StudentClassHomePage() {
       ) : (
         <div className="grid gap-3">
           {slots.map((s) => (
-            <Link key={s.id} href={`/c/${classId}/${s.id}`}>
+            <Link className="interactive-card block rounded-xl" key={s.id} href={`/c/${classId}/${s.id}`}>
               <Card className="rounded-xl shadow-sm hover:border-primary/40 transition-colors">
                 <CardContent className="pt-5 flex items-center justify-between gap-3">
                   <div>

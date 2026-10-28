@@ -45,6 +45,7 @@ const expectedTables = [
   'title_reports',
   'project_updates',
   'feedback',
+  'feedback_reads',
   'activity_log',
   'rate_limits',
 ];
@@ -57,7 +58,7 @@ const tables = await sql`
 const tableNames = new Set(tables.map((r) => r.table_name));
 
 let ok = true;
-console.log('--- Checking Public Tables (17 expected) ---');
+console.log('--- Checking Public Tables (18 expected) ---');
 for (const table of expectedTables) {
   const present = tableNames.has(table);
   console.log(`${present ? 'ok' : 'MISSING'}  ${table}`);
@@ -87,6 +88,7 @@ await checkColumns('title_reports', ['updated_at', 'deleted_at', 'project_update
 await checkColumns('classes', ['updated_at', 'default_student_password', 'archived_at']);
 await checkColumns('project_slots', ['updated_at', 'instructions']);
 await checkColumns('groups', ['updated_at']);
+await checkColumns('feedback_reads', ['student_id', 'feedback_id', 'read_at']);
 
 console.log('\n--- Checking Extensions & Indexes ---');
 const extRes = await sql`SELECT extname FROM pg_extension WHERE extname = 'pg_trgm'`;
@@ -103,4 +105,4 @@ if (!ok) {
   console.error('\nSchema validation failed: missing tables, columns, extensions, or indexes.');
   process.exit(1);
 }
-console.log('\nAll 17 tables, key columns, extensions, and indexes verified cleanly.');
+console.log('\nAll 18 tables, key columns, extensions, and indexes verified cleanly.');

@@ -139,7 +139,7 @@ export default function DashboardPage() {
       ) : (
         <div className="grid gap-3">
           {classes.map((c) => (
-            <Link key={c.id} href={`/dashboard/${c.id}`} className="card hover:border-accent transition-colors">
+            <Link key={c.id} href={`/dashboard/${c.id}`} className="interactive-card card hover:border-accent transition-colors">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="font-medium">{c.name}{c.archivedAt && <span className="badge ml-2">Archived</span>}</p>

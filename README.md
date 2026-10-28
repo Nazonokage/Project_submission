@@ -140,3 +140,7 @@ src/
 ### Local build output
 
 Development (`npm run dev`, port 3467) uses `.next-dev`. Production (`npm run build` / `npm run start`) uses `.next`. The separate folders prevent production checks from overwriting a running development server's chunks. Restart any development server started before this setting changed, then refresh the browser.
+
+### Feedback notification read receipts
+
+Run `node scripts/apply-sql.mjs add_feedback_reads.sql` before deploying the Mark as read feature, then `npm run db:health`. This additive migration stores read state per student without resolving feedback.

@@ -339,3 +339,18 @@ No schema migration is required. Optional aesthetic work and v1.8 integrations r
 - [x] Give the selected feedback category a solid highlight and accessible pressed state.
 - [x] Type checking, production build, read-only schema health, route regression checks and isolated browser workflows pass. No schema migration or live database writes.
 - [ ] Live student/professor acceptance of required-info completion and batch approvals remains deferred.
+
+- [x] Profile group setup expands below Credentials and above Groups/Titles instead of opening a centered modal.
+
+## Shared interaction polish — 2026-10-28
+- [x] Consistent primary/secondary hierarchy, hover/press feedback, underlined links, clickable-row chevrons, selected tabs and visible keyboard focus.
+- [x] Mouse-only hover motion, larger touch controls, reduced-motion and increased-contrast support.
+- [ ] Live acceptance of interaction styling on desktop and touch devices.
+
+## Feedback read receipts — 2026-10-28
+- [x] Per-student Mark as read with persisted read receipts and unread badge count.
+- [x] Read state remains independent of feedback resolution and other group members.
+- [x] Add and apply `add_feedback_reads.sql`; update schema-health checks.
+- [x] Route checks cover authentication, ownership, invalid input and repeat requests.
+- [x] Isolated browser checks: unread/read display, failed-save retry, badge removal, reload persistence; notification screenshots captured.
+- [x] Shared UI screenshot checks: light/dark, desktop/mobile width, mouse hover, keyboard navigation and reduced motion.

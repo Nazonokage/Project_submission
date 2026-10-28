@@ -9,7 +9,7 @@ const config: Config = {
         ink: 'hsl(var(--foreground))',
         paper: 'hsl(var(--background))',
         accent: {
-          DEFAULT: '#E07A5F',
+          DEFAULT: 'hsl(var(--primary))',
           foreground: '#ffffff',
         },
         muted: {

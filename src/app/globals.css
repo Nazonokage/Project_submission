@@ -10,7 +10,8 @@
     --card-foreground: 18 13% 15%;
     --popover: 44 70% 92%;
     --popover-foreground: 18 13% 15%;
-    --primary: 13 68% 63%;
+    --primary: 13 62% 40%;
+    --link: 13 62% 36%;
     --primary-foreground: 0 0% 100%;
     --secondary: 40 45% 90%;
     --secondary-foreground: 18 13% 15%;
@@ -34,7 +35,8 @@
     --card-foreground: 40 24% 92%;
     --popover: 22 12% 16%;
     --popover-foreground: 40 24% 92%;
-    --primary: 13 62% 58%;
+    --primary: 13 62% 42%;
+    --link: 15 80% 73%;
     --primary-foreground: 0 0% 100%;
     --secondary: 22 10% 18%;
     --secondary-foreground: 40 20% 88%;
@@ -136,4 +138,79 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .roster-detail { animation: none; transition: none; }
+}
+
+/* Shared action hierarchy: accent for primary actions; outlined secondary controls. */
+:root { --interaction-ease: cubic-bezier(.23, 1, .32, 1); }
+:is(button, a[href], summary, select, input[type='checkbox'], input[type='radio'], [role='button']):not(:disabled):not([aria-disabled='true']) {
+  cursor: pointer;
+  touch-action: manipulation;
+}
+:is(button, a[href], summary, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 3px;
+  transition: none;
+}
+:is(button, input, select, textarea):disabled, [aria-disabled='true'] {
+  cursor: not-allowed;
+}
+:is(.btn, .btn-primary, .btn-secondary, .btn-danger, .action-control, .interactive-card, .tab-control) {
+  transition: transform 140ms var(--interaction-ease), background-color 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
+}
+:is(.btn-primary, .action-primary) {
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  box-shadow: 0 2px 3px hsl(var(--foreground) / .12), inset 0 1px 0 hsl(var(--primary-foreground) / .16);
+}
+.btn-secondary { border-color: hsl(var(--foreground) / .3); }
+a[href]:not(.btn-primary):not(.btn-secondary):not(.btn-danger):not(.action-control):not(.interactive-card):not(:has(button)) {
+  color: hsl(var(--link));
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: .2em;
+}
+.action-link { color: hsl(var(--link)); }
+.interactive-card { position: relative; }
+.interactive-row { transition: background-color 140ms ease; }
+.row-chevron { color: hsl(var(--link)); transition: transform 140ms var(--interaction-ease); }
+.tab-control { border-radius: .6rem .6rem 0 0; }
+.tab-control:is([aria-pressed='true'], [data-state='active']) {
+  background: hsl(var(--primary) / .12);
+  color: hsl(var(--foreground));
+  box-shadow: inset 0 -2px 0 hsl(var(--primary));
+}
+summary { border-radius: .5rem; padding: .5rem; text-decoration: underline; text-underline-offset: .2em; }
+@media (hover: hover) and (pointer: fine) {
+  :is(.btn-primary, .btn-secondary, .btn-danger, .action-control):not(:disabled):not([aria-disabled='true']):hover {
+    transform: translateY(-1px);
+    box-shadow: 0 3px 8px hsl(var(--foreground) / .16);
+  }
+  :is(.btn-secondary, .action-control:not(.action-primary)):not(:disabled):hover { border-color: hsl(var(--foreground) / .55); }
+  .interactive-card:hover { transform: translateY(-2px); box-shadow: 0 5px 12px hsl(var(--foreground) / .12); }
+  .interactive-card:hover, .interactive-card:hover > div { border-color: hsl(var(--primary)); }
+  .interactive-row:hover { background: hsl(var(--primary) / .09); }
+  .interactive-row:hover .row-chevron { transform: translateX(3px); }
+  button:not(:disabled):not(.btn-primary):not(.btn-secondary):not(.btn-danger):not(.action-control):not(.tab-control):hover { background-color: hsl(var(--primary) / .1); }
+  .tab-control:not(:disabled):hover, summary:hover { background-color: hsl(var(--primary) / .1); }
+  :is(select, input[type='checkbox'], input[type='radio']):not(:disabled):hover { border-color: hsl(var(--primary)); }
+  a[href]:hover { text-decoration-thickness: 2px; }
+}
+:is(.btn-primary, .btn-secondary, .btn-danger, .action-control):not(:disabled):not([aria-disabled='true']):active:not(:focus-visible) {
+  transform: scale(.98);
+  transition-duration: 100ms;
+}
+.interactive-row:active { background: hsl(var(--primary) / .15); }
+@media (pointer: coarse) {
+  :is(button, .btn-primary, .btn-secondary, .btn-danger, .action-control, .tab-control, select, summary) { min-height: 44px; }
+  .action-control { min-width: 44px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  :is(.btn, .btn-primary, .btn-secondary, .btn-danger, .action-control, .interactive-card, .interactive-row, .tab-control, .row-chevron) {
+    transition: none !important;
+    transform: none !important;
+  }
+}
+@media (prefers-contrast: more) {
+  :is(.btn-primary, .btn-secondary, .btn-danger, .action-control, .interactive-card, .tab-control) { outline: 1px solid currentColor; }
+  :is(button, a[href], summary, input, select, textarea, [tabindex]):focus-visible { outline: 3px solid hsl(var(--foreground)); }
 }

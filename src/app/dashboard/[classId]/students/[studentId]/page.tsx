@@ -192,6 +192,8 @@ export default function ProfessorStudentProfilePage() {
             </div>
           </section>
 
+          {groupSetup && <ProfileGroupSetup key={groupSetup.slotId || 'new'} classId={classId} studentId={studentId} initialSlotId={groupSetup.slotId} onClose={() => setGroupSetup(null)} onSaved={(slotId) => { toast.success('Group saved. You can now add or edit its project title.'); titleSaved(slotId); }} />}
+
           <section className="card space-y-3">
             <div className="flex flex-wrap justify-between items-center gap-2"><h2 className="font-medium">Groups</h2><button type="button" className="btn-primary" onClick={() => setGroupSetup({})}>Set up group</button></div>
             {memberships.length === 0 ? (
@@ -263,7 +265,6 @@ export default function ProfessorStudentProfilePage() {
       ) : null}
 
       {feedbackTitle && <ProfileTitleFeedback titleId={feedbackTitle.id} titleText={feedbackTitle.text} onClose={() => setFeedbackTitle(null)} />}
-      {groupSetup && <ProfileGroupSetup classId={classId} studentId={studentId} initialSlotId={groupSetup.slotId} onClose={() => setGroupSetup(null)} onSaved={(slotId) => { toast.success('Group saved. You can now add or edit its project title.'); titleSaved(slotId); }} />}
       {addingGroupId && <GroupTitleCreate key={addingGroupId} classId={classId} groups={memberships} initialGroupId={addingGroupId} onClose={() => setAddingGroupId(null)} onSaved={titleSaved} />}
       {editingTitle && <TitleEditor key={editingTitle.id} title={editingTitle} open onOpenChange={(open) => !open && setEditingTitle(null)} onSaved={() => titleSaved(editingTitle.slotId)} />}
 

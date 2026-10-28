@@ -1,6 +1,11 @@
 ## [1.7.6] - 2026-10-28
 
+### Interface polish
+- Apply shared hover, pressed and visible keyboard-focus states to controls, links, tabs and clickable cards/roster rows. Reserve the strongest accent for primary actions; improve button contrast in both themes.
+- Add larger touch targets and respect reduced-motion preferences.
+
 ### Student workflow
+- Add per-student Mark as read to feedback notifications, persistent across devices. The badge counts unread messages independently of feedback resolution.
 - Open project slots on My group by default, so students can create a solo group or find groupmates first. Feedback links still open Submissions.
 - Require an abstract and valid GitHub repository URL before students use project tools, whether the title is pending, rejected or approved. Students can complete professor-predefined titles through the editing form.
 - Enforce required information in task, update, report and progress APIs. Incomplete projects are excluded from the usable board and personal task list; group setup and feedback remain available.
@@ -9,6 +14,7 @@
 - Add Remember me to student login and professor OTP verification: 24-hour sessions by default, seven days when selected.
 
 ### Professor workflow
+- Expand group setup inline below student credentials and above the group/title rows on View profile.
 - Simplify roster rows to student, ID number, group members and project title. Click a row or use the keyboard to open Edit, View profile and Open on board in a modal.
 - Create solo groups or choose available groupmates from View profile. Add classmates within slot capacity while preserving existing assignments and titles.
 - Create and edit project titles from View profile with the student's group preselected. New titles default to pending, with an explicit immediate-approval option.
@@ -20,7 +26,7 @@
 - Set the default development and production-start port to 3467.
 - Separate development output in `.next-dev` from production output in `.next` to prevent missing chunks and asset errors during concurrent builds.
 - Update the roadmap and add route and browser regressions covering required information, approval rules, notifications, roster interactions, professor group/title management and feedback.
-- Type checking, production build, read-only schema health, route regressions and isolated browser workflows passed. No schema migration is required; live-user acceptance remains pending in `todo.md`.
+- Type checking, production build, read-only schema health, route regressions and isolated browser workflows passed. Apply `add_feedback_reads.sql` for persistent notification receipts; live-user acceptance remains pending in `todo.md`.
 
 ## [1.7.5] - 2026-10-27
 

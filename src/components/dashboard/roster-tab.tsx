@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import { ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   Dialog,
@@ -291,9 +292,9 @@ export function RosterTab({
                       event.preventDefault(); rowTrigger.current = event.currentTarget; setSelectedId(student.id);
                     }
                   }}
-                  className="cursor-pointer touch-manipulation border-t border-line/60 align-top hover:bg-secondary/50 active:bg-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent focus-visible:-outline-offset-2">
+                  className="interactive-row cursor-pointer touch-manipulation border-t border-line/60 align-top hover:bg-secondary/50 active:bg-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent focus-visible:-outline-offset-2">
                   <th scope="row" className="px-5 py-4 font-medium min-w-[10rem]">
-                    {student.name}{student.isActive === false && <span className="block text-xs font-normal text-muted">Inactive</span>}
+                    <span className="inline-flex items-center gap-2"><span className="underline decoration-dotted underline-offset-4">{student.name}</span><ChevronRight aria-hidden="true" className="row-chevron h-4 w-4 shrink-0" /></span>{student.isActive === false && <span className="block text-xs font-normal text-muted">Inactive</span>}
                   </th>
                   <td className="px-5 py-4 font-mono tabular-nums whitespace-nowrap">{student.idNumber}</td>
                   <td className="px-5 py-4 min-w-[13rem]">

@@ -338,6 +338,13 @@ export const feedback = pgTable('feedback', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
+// Read receipts belong to each student, independently of feedback resolution.
+export const feedbackReads = pgTable('feedback_reads', {
+  studentId: uuid('student_id').notNull().references(() => students.id, { onDelete: 'cascade' }),
+  feedbackId: uuid('feedback_id').notNull().references(() => feedback.id, { onDelete: 'cascade' }),
+  readAt: timestamp('read_at', { withTimezone: true }).notNull().defaultNow(),
+}, t => ({ studentFeedbackUnique: unique('feedback_reads_student_feedback_unique').on(t.studentId, t.feedbackId) }));
+
 // ============================================================
 // RATE LIMITS
 // ============================================================

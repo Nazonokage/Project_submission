@@ -283,7 +283,8 @@ export default function ClassPage() {
         {tabs.map((item) => (
           <button
             key={item.id}
-            className={`px-3 py-2 text-sm font-medium border-b-2 ${
+            aria-pressed={tab === item.id}
+            className={`tab-control px-3 py-2 text-sm font-medium border-b-2 ${
               tab === item.id ? 'border-accent text-accent' : 'border-transparent text-muted'
             }`}
             onClick={() => setTab(item.id)}
