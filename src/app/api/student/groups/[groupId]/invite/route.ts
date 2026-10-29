@@ -3,7 +3,8 @@ import { db } from '@/lib/db';
 import { groupInvites, groupLeaveRequests, groups, studentGroupSlots, titles } from '@/lib/schema';
 import { and, eq } from 'drizzle-orm';
 import { getStudentSession } from '@/lib/auth';
-import { assertStudentInClass, jsonError } from '@/lib/helpers';
+import { assertSlotInClass, assertStudentInClass, jsonError } from '@/lib/helpers';
+import { isSlotParticipant } from '@/lib/slot-participation';
 
 export async function POST(
   req: NextRequest,
@@ -22,6 +23,8 @@ export async function POST(
     .where(and(eq(groups.id, params.groupId), eq(groups.classId, session.classId)))
     .limit(1);
   if (!group) return jsonError('Group not found', 404);
+  const slot = await assertSlotInClass(group.slotId, session.classId);
+  if (!slot || !isSlotParticipant(slot, session.studentId) || !isSlotParticipant(slot, invitedStudentId)) return jsonError('Both students must be enrolled in this project slot', 403);
   if (group.status === 'locked') return jsonError('This group is already locked', 409);
 
   const members = await db

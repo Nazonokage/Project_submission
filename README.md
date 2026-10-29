@@ -51,6 +51,7 @@ npm run dev
 ## What's implemented
 
 - **Prof auth**: email → 6-digit OTP (10 min expiry, single use) → JWT cookie (`prof_token`, 7 days)
+- **Professor Remember me**: After verifying an OTP with Remember me checked, the same browser can sign back in using that email for 7 days without another code, including after logout. Browser trust uses a separate signed, HTTP-only cookie. New/expired browsers and other emails still require OTP. “Forget this browser” removes both browser trust and the active professor session.
 - **Student auth**: ID number + password → JWT cookie (`student_token`, 1 day)
 - **Classes & project slots**: create/edit/delete, per-slot group size, title caps,
   duplicate-check mode (`strict`/`warn`), required-fields toggles, locking
@@ -72,6 +73,8 @@ npm run dev
   - Horizontal scrollable **Verification Queue** showing submitter and group member chips with quick approve/reject controls.
   - Professor title review modal showing version reports, lock/unlock toggles, student project updates with deleted/edited flags, and feedback comments.
 - **Tech-Stack Autocomplete**: Combobox tag input suggesting previously used tech tags within the same class/slot while allowing custom new tag additions.
+- **Default tech stack**: Professors choose starting tags under slot Rules. New student projects prefill those tags; students can remove or replace them. Existing projects retain their saved tags. “Require tech stack” still requires at least one tag on a new submission.
+- **Per-slot enrollment**: When creating a slot or editing its Rules, uncheck students who do not take that subject. The class roster and other slots are unchanged. The selected-slot roster counts enrolled students, with an option to show exclusions. Excluded students cannot create/join groups or submit in that slot. Students already in a group must be removed from that group before exclusion; existing work is never reassigned automatically. Newly added roster students are included by default. Enrollment selections are not copied by “Use as class defaults”.
 - **Dark Mode & Theming**: Persisted dark mode preference across professor and student pages.
 - **CSV export**: Client-side roster and slot data exports.
 
@@ -90,6 +93,8 @@ For an existing database, apply these additive migrations if needed:
 ```bash
 node scripts/apply-sql.mjs phase14_schema.sql
 node scripts/apply-sql.mjs phase15_schema.sql
+node scripts/apply-sql.mjs add_default_tech_stack.sql
+node scripts/apply-sql.mjs add_slot_participation.sql
 npm run db:health
 ```
 

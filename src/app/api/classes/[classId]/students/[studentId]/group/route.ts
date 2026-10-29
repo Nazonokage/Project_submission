@@ -2,12 +2,42 @@ import { randomUUID } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { and, eq, sql } from 'drizzle-orm';
 import { db } from '@/lib/db';
-import { studentGroupSlots } from '@/lib/schema';
+import { activityLog, groupLeaveRequests, groups, studentGroupSlots } from '@/lib/schema';
+import { applyApprovedLeave } from '@/lib/leave';
+import { isSlotParticipant } from '@/lib/slot-participation';
 import { getProfSession } from '@/lib/auth';
 import { assertClassOwnedByProf, assertSlotInClass, assertStudentInClass, jsonError } from '@/lib/helpers';
 import { pgErrorCode } from '@/lib/pg-errors';
 
 type Context = { params: { classId: string; studentId: string } };
+
+export async function DELETE(req: NextRequest, { params }: Context) {
+  const prof = await getProfSession();
+  if (!prof) return jsonError('Not authenticated', 401);
+  if (!await assertClassOwnedByProf(params.classId, prof.profId)) return jsonError('Class not found', 404);
+  if (!await assertStudentInClass(params.studentId, params.classId)) return jsonError('Student not found', 404);
+  const body = await req.json().catch(() => null);
+  if (typeof body?.groupId !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(body.groupId)) {
+    return jsonError('Choose a valid group', 422);
+  }
+  const [group] = await db.select().from(groups).where(and(eq(groups.id, body.groupId), eq(groups.classId, params.classId))).limit(1);
+  if (!group) return jsonError('Group not found', 404);
+  const [membership] = await db.select().from(studentGroupSlots).where(and(
+    eq(studentGroupSlots.studentId, params.studentId), eq(studentGroupSlots.groupId, group.id), eq(studentGroupSlots.slotId, group.slotId)
+  )).limit(1);
+  if (!membership) return jsonError('This student is no longer in this group. Refresh and try again.', 409);
+
+  // Resolve any existing request before an empty group is removed by the shared leave flow.
+  await db.update(groupLeaveRequests).set({ status: 'approved', resolvedAt: new Date(), resolvedByProfId: prof.profId }).where(and(
+    eq(groupLeaveRequests.groupId, group.id), eq(groupLeaveRequests.studentId, params.studentId), eq(groupLeaveRequests.status, 'pending')
+  ));
+  const result = await applyApprovedLeave(group.id, params.studentId);
+  await db.insert(activityLog).values({
+    classId: params.classId, actorId: prof.profId, action: 'group.member_removed', targetId: params.studentId,
+  });
+  return NextResponse.json({ ok: true, ...result });
+}
+
 export async function POST(req: NextRequest, { params }: Context) {
   const prof = await getProfSession();
   if (!prof) return jsonError('Not authenticated', 401);
@@ -18,6 +48,7 @@ export async function POST(req: NextRequest, { params }: Context) {
   if (typeof body?.slotId !== 'string' || !Array.isArray(memberIds) || memberIds.some((id: unknown) => typeof id !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id))) return jsonError('Choose a project slot and valid classmates', 422);
   const slot = await assertSlotInClass(body.slotId, params.classId);
   if (!slot) return jsonError('Slot not found', 404);
+  if (wantedExcluded(slot, params.studentId, memberIds)) return jsonError('Every group member must be enrolled in this project slot', 422);
   const wanted = [...new Set<string>([params.studentId, ...memberIds])];
   if (wanted.length > slot.groupSize) return jsonError(`This slot allows at most ${slot.groupSize} members`, 422);
   const [membership] = await db.select().from(studentGroupSlots).where(and(eq(studentGroupSlots.studentId, params.studentId), eq(studentGroupSlots.slotId, slot.id))).limit(1);
@@ -31,6 +62,7 @@ export async function POST(req: NextRequest, { params }: Context) {
       SELECT p.group_size FROM project_slots p
       WHERE p.id = ${slot.id}::uuid AND p.class_id = ${params.classId}::uuid
       AND NOT EXISTS (SELECT 1 FROM requested r LEFT JOIN students s ON s.id = r.student_id AND s.class_id = p.class_id WHERE s.id IS NULL)
+      AND NOT EXISTS (SELECT 1 FROM requested r WHERE r.student_id = ANY(p.excluded_student_ids))
       AND NOT EXISTS (SELECT 1 FROM student_group_slots m JOIN requested r ON r.student_id = m.student_id WHERE m.slot_id = p.id AND m.group_id <> ${groupId}::uuid)
       AND (SELECT count(*) FROM (SELECT student_id FROM requested UNION SELECT student_id FROM student_group_slots WHERE group_id = ${groupId}::uuid) all_members)
         + (SELECT count(*) FROM group_invites i WHERE i.group_id = ${groupId}::uuid AND i.status = 'pending' AND NOT (i.invited_student_id = ANY(${ids}))) <= p.group_size
@@ -65,4 +97,8 @@ export async function POST(req: NextRequest, { params }: Context) {
     if (pgErrorCode(err) === '23505') return jsonError('A student joined another group. Refresh and try again.', 409);
     throw err;
   }
+}
+
+function wantedExcluded(slot: { excludedStudentIds?: string[] | null }, studentId: string, memberIds: string[]) {
+  return [studentId, ...memberIds].some(id => !isSlotParticipant(slot, id));
 }

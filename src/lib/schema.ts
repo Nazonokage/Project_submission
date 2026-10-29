@@ -68,6 +68,8 @@ export const projectSlots = pgTable('project_slots', {
   deadline: timestamp('deadline', { withTimezone: true }),
   requireDeploymentUrl: boolean('require_deployment_url').notNull().default(false),
   requireTechStack: boolean('require_tech_stack').notNull().default(true),
+  defaultTechStack: text('default_tech_stack').array().notNull().default(sql`'{}'::text[]`),
+  excludedStudentIds: uuid('excluded_student_ids').array().notNull().default(sql`'{}'::uuid[]`),
   requireTargetUsers: boolean('require_target_users').notNull().default(false),
   locked: boolean('locked').notNull().default(false),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

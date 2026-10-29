@@ -5,6 +5,7 @@ import { and, eq } from 'drizzle-orm';
 import { getStudentSession } from '@/lib/auth';
 import { assertSlotInClass, jsonError } from '@/lib/helpers';
 import { isSchemaDrift } from '@/lib/pg-errors';
+import { isSlotParticipant } from '@/lib/slot-participation';
 
 // GET: returns this student's group for the given slot.
 // If the slot is solo (groupSize === 1) and the student has no group yet,
@@ -18,6 +19,7 @@ export async function GET(req: NextRequest) {
 
   const slot = await assertSlotInClass(slotId, session.classId);
   if (!slot) return jsonError('Slot not found', 404);
+  if (!isSlotParticipant(slot, session.studentId)) return jsonError('You are not enrolled in this project slot', 403);
 
   const [existing] = await db
     .select({ group: groups, membership: studentGroupSlots })
@@ -100,6 +102,7 @@ export async function POST(req: NextRequest) {
   if (!slot) return jsonError('Slot not found', 404);
 
   // Already in a group for this slot?
+  if (!isSlotParticipant(slot, session.studentId)) return jsonError('You are not enrolled in this project slot', 403);
   const [existing] = await db
     .select()
     .from(studentGroupSlots)

@@ -75,8 +75,8 @@ export default function StudentClassHomePage() {
       ) : slots.length === 0 ? (
         <EmptyState
           icon={FolderKanban}
-          title="No project slots yet"
-          description="Check back once your professor adds a slot for this class."
+          title="No project slots available"
+          description="Your professor has not assigned any project slots to you yet."
         />
       ) : (
         <div className="grid gap-3">

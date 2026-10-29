@@ -41,6 +41,7 @@ export type SlotInfo = {
   deadline: string | null;
   requireDeploymentUrl: boolean;
   requireTechStack: boolean;
+  defaultTechStack?: string[];
   requireTargetUsers: boolean;
   locked: boolean;
 };

@@ -50,7 +50,7 @@ export async function GET(_req: NextRequest, { params }: { params: { classId: st
     members.push({ id: student.id, name: student.name, idNumber: student.idNumber });
     membersByGroupSlot.set(key, members);
   }
-  const slots = await db.select({ id: projectSlots.id, label: projectSlots.label })
+  const slots = await db.select({ id: projectSlots.id, label: projectSlots.label, excludedStudentIds: projectSlots.excludedStudentIds })
     .from(projectSlots).where(eq(projectSlots.classId, params.classId)).orderBy(asc(projectSlots.createdAt));
   const classTitles = await db.select({ id: titles.id, groupId: titles.groupId, slotId: titles.slotId, status: titles.status, text: titles.text })
     .from(titles).where(and(eq(titles.classId, params.classId), isNull(titles.deletedAt))).orderBy(desc(titles.createdAt));
@@ -70,6 +70,7 @@ export async function GET(_req: NextRequest, { params }: { params: { classId: st
         const work = membership ? byGroupSlot.get(`${membership.groupId}:${slot.id}`) || [] : [];
         return {
           slotId: slot.id, slotLabel: slot.label, inGroup: !!membership, groupId: membership?.groupId || null,
+          enrolled: !slot.excludedStudentIds?.includes(s.id),
           members: membership ? membersByGroupSlot.get(`${membership.groupId}:${slot.id}`) || [] : [],
           titles: work.map((title) => ({ id: title.id, text: title.text, status: title.status })),
           pendingCount: work.filter((t) => t.status === 'pending').length,

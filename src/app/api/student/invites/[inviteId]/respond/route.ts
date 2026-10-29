@@ -3,7 +3,8 @@ import { db } from '@/lib/db';
 import { groupInvites, groupLeaveRequests, groups, studentGroupSlots, titles } from '@/lib/schema';
 import { and, eq, ne } from 'drizzle-orm';
 import { getStudentSession } from '@/lib/auth';
-import { jsonError } from '@/lib/helpers';
+import { assertSlotInClass, jsonError } from '@/lib/helpers';
+import { isSlotParticipant } from '@/lib/slot-participation';
 
 export async function POST(
   req: NextRequest,
@@ -36,6 +37,8 @@ export async function POST(
     return NextResponse.json({ ok: true });
   }
 
+  const slot = await assertSlotInClass(invite.slotId, session.classId);
+  if (!slot || !isSlotParticipant(slot, session.studentId)) return jsonError('You are not enrolled in this project slot', 403);
   // A solo draft group may be merged into the inviting group. Multi-member and
   // verified groups are deliberately immovable.
   const [existingMembership] = await db

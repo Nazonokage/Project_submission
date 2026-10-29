@@ -4,6 +4,7 @@ import { db } from '@/lib/db';
 import { documentationFieldTemplates, projectSlots } from '@/lib/schema';
 import { getStudentSession } from '@/lib/auth';
 import { jsonError } from '@/lib/helpers';
+import { isSlotParticipant } from '@/lib/slot-participation';
 
 type Ctx = { params: { slotId: string } };
 
@@ -15,11 +16,13 @@ export async function GET(_req: NextRequest, { params }: Ctx) {
     .select({
       id: projectSlots.id,
       classId: projectSlots.classId,
+      excludedStudentIds: projectSlots.excludedStudentIds,
     })
     .from(projectSlots)
     .where(and(eq(projectSlots.id, params.slotId), eq(projectSlots.classId, session.classId)))
     .limit(1);
   if (!slot) return jsonError('Slot not found', 404);
+  if (!isSlotParticipant(slot, session.studentId)) return jsonError('You are not enrolled in this project slot', 403);
 
   const fields = await db
     .select()

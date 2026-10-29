@@ -5,9 +5,9 @@ import { useBoardQuery } from '@/lib/board-query';
 import { VerificationQueue, type VerificationTitle } from '@/components/dashboard/verification-queue';
 import { titleRequest } from '@/lib/title-request';
 import { ClassLifecycle } from '@/components/dashboard/class-lifecycle';
+import { DashboardBreadcrumbs } from '@/components/dashboard/breadcrumbs';
 
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { LeaveRequestsPanel, type LeaveRequestRow } from '@/components/dashboard/leave-requests-panel';
@@ -38,6 +38,8 @@ type Slot = {
   titlesAllowedMax: number;
   duplicateCheck: 'strict' | 'warn';
   requireTechStack: boolean;
+  defaultTechStack?: string[];
+  excludedStudentIds?: string[];
   requireTargetUsers: boolean;
   requireDeploymentUrl: boolean;
   deadline: string | null;
@@ -119,6 +121,9 @@ export default function ClassPage() {
     }
     if (requestedSlot) setSlotId(requestedSlot);
     if (highlight) setHighlightStudentId(highlight);
+  }, [classId, searchParams]);
+
+  useEffect(() => {
     loadAll();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [classId]);
@@ -216,7 +221,7 @@ export default function ClassPage() {
   const tabs: { id: Tab; label: string }[] = [
     { id: 'board', label: 'Board' },
     { id: 'verified', label: 'Verified Titles' },
-    { id: 'roster', label: `Roster / Students (${students.length})` },
+    { id: 'roster', label: `Roster / Students (${students.filter(student => !selectedSlot?.excludedStudentIds?.includes(student.id)).length})` },
     { id: 'settings', label: 'Settings / Rules' },
     { id: 'leaves', label: `Leave Requests${leaveRequests.length ? ` (${leaveRequests.length})` : ''}` },
   ];
@@ -232,11 +237,14 @@ export default function ClassPage() {
 
   return (
     <main className={`${tab === 'board' || tab === 'roster' ? 'max-w-6xl' : 'max-w-4xl'} mx-auto px-6 py-10 space-y-6`}>
+      <DashboardBreadcrumbs items={[
+        { label: 'Dashboard', href: '/dashboard' },
+        { label: cls?.name || 'Class', href: `/dashboard/${classId}?tab=board` },
+        { label: ({ board: 'Board', verified: 'Verified Titles', roster: 'Roster / Students', settings: 'Settings / Rules', leaves: 'Leave Requests' })[tab], href: `/dashboard/${classId}?tab=${tab}` },
+        ...((tab === 'board' || tab === 'verified') && selectedSlot ? [{ label: selectedSlot.label }] : []),
+      ]} />
       <div className="flex items-start justify-between gap-3">
         <div>
-          <Link href="/dashboard" className="text-sm text-muted hover:underline">
-            ← All classes
-          </Link>
           <h1 className="text-xl font-semibold mt-1">{cls?.name || '…'}</h1>
           <p className="text-sm text-muted">{cls?.term}</p>
         </div>
@@ -261,8 +269,9 @@ export default function ClassPage() {
             className="input max-w-xs"
             value={slotId || ''}
             onChange={(e) => {
-              setSlotId(e.target.value);
               setHighlightStudentId(null);
+              const qs = new URLSearchParams({ tab, slot: e.target.value });
+              router.replace(`/dashboard/${classId}?${qs.toString()}`, { scroll: false });
             }}
           >
             {slots.map((s) => (
@@ -287,7 +296,12 @@ export default function ClassPage() {
             className={`tab-control px-3 py-2 text-sm font-medium border-b-2 ${
               tab === item.id ? 'border-accent text-accent' : 'border-transparent text-muted'
             }`}
-            onClick={() => setTab(item.id)}
+            onClick={() => {
+              const qs = new URLSearchParams(searchParams.toString());
+              qs.set('tab', item.id);
+              if (slotId) qs.set('slot', slotId);
+              router.replace(`/dashboard/${classId}?${qs.toString()}`, { scroll: false });
+            }}
           >
             {item.label}
           </button>
@@ -353,6 +367,8 @@ export default function ClassPage() {
         )
       ) : tab === 'roster' ? (
         <RosterTab
+          selectedSlotId={slotId}
+          selectedSlotLabel={selectedSlot?.label}
           classId={classId}
           students={students}
           defaultStudentPassword={cls?.defaultStudentPassword || '2026'}
@@ -360,7 +376,7 @@ export default function ClassPage() {
           onOpenStudent={openStudentOnBoard}
         />
       ) : tab === 'settings' ? (
-        <div className="space-y-6"><SlotsTab classId={classId} slots={slots} onChange={loadAll} />{cls && <ClassLifecycle classId={classId} name={cls.name} archived={!!cls.archivedAt} onChanged={loadAll} />}</div>
+        <div className="space-y-6"><SlotsTab classId={classId} slots={slots} students={students} onChange={loadAll} />{cls && <ClassLifecycle classId={classId} name={cls.name} archived={!!cls.archivedAt} onChanged={loadAll} />}</div>
       ) : (
         <div className="space-y-3">
           {leaveSchemaMissing && (
@@ -406,10 +422,12 @@ export default function ClassPage() {
 function SlotsTab({
   classId,
   slots,
+  students,
   onChange,
 }: {
   classId: string;
   slots: Slot[];
+  students: Student[];
   onChange: () => void;
 }) {
   const [showForm, setShowForm] = useState(false);
@@ -465,7 +483,7 @@ function SlotsTab({
               onChange={(e) => setLabel(e.target.value)}
             />
           </div>
-          <SlotRulesFields rules={rules} onChange={setRules} />
+          <SlotRulesFields rules={rules} onChange={setRules} students={students} />
           <div className="flex flex-wrap gap-2">
             <button type="submit" className="btn-primary">
               Create slot
@@ -512,6 +530,7 @@ function SlotsTab({
                 <SlotSettingsPanel
                   classId={classId}
                   slotId={s.id}
+                  students={students}
                   initial={{
                     instructions: s.instructions,
                     groupSize: s.groupSize,
@@ -519,6 +538,8 @@ function SlotsTab({
                     titlesAllowedMax: s.titlesAllowedMax,
                     duplicateCheck: s.duplicateCheck,
                     requireTechStack: s.requireTechStack,
+                    defaultTechStack: s.defaultTechStack || [],
+                    excludedStudentIds: s.excludedStudentIds || [],
                     requireTargetUsers: s.requireTargetUsers,
                     requireDeploymentUrl: s.requireDeploymentUrl,
                     deadline: s.deadline,

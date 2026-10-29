@@ -7,7 +7,7 @@ const require = createRequire(import.meta.url);
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const base = process.env.TEST_BASE_URL || 'http://localhost:3467';
 const browser = await chromium.launch({ headless: true, channel: 'msedge' });
-const group = { groupId: 'group-one', slotId: 'slot-one', slotLabel: 'Project One', status: 'locked', members: [{ id: 'student', name: 'Test Student' }] };
+const group = { groupId: 'group-one', slotId: 'slot-one', slotLabel: 'Project One', status: 'locked', maxSize: 2, members: [{ id: 'student', name: 'Test Student' }] };
 const memberships = [];
 const rosterMemberships = [];
 const peerMemberships = [];
@@ -23,7 +23,7 @@ try {
   await context.route('**/api/**', async route => {
     const request = route.request(); const path = new URL(request.url()).pathname;
     let data = {}; let status = 200;
-    if (path === '/api/classes/class-test/students/student') data = { student: { id: 'student', name: 'Test Student', idNumber: '001', password: 'example' }, memberships, titles, leaveRequests: [] };
+    if (path === '/api/classes/class-test/students/student') data = { student: { id: 'student', name: 'Test Student', idNumber: '001', password: 'example' }, memberships, titles, leaveRequests: [], unassignedSlotIds: ['slot-one', 'slot-two'].filter(id => !memberships.some(m => m.slotId === id)) };
     else if (path === '/api/classes/class-test/slots') data = { slots: [{ id: 'slot-one', label: 'Project One', groupSize: 2 }, { id: 'slot-two', label: 'Project Two', groupSize: 2 }] };
     else if (path === '/api/classes/class-test/students') data = { students: [{ id: 'student', name: 'Test Student', idNumber: '001', memberships: rosterMemberships }, { id: 'peer', name: 'Chosen Classmate', idNumber: '002', memberships: peerMemberships }] };
     else if (path === '/api/classes/class-test/students/student/group') {
@@ -68,14 +68,22 @@ try {
   await setup.waitFor({ state: 'hidden' });
   assert.equal(memberships[0].members.length, 1);
   await page.getByRole('button', { name: 'Add groupmates', exact: true }).click();
+  assert.equal(await setup.getByRole('button', { name: 'Save groupmates' }).isDisabled(), true);
+  await setup.getByRole('searchbox', { name: 'Search available classmates' }).fill('002');
   await setup.getByRole('checkbox', { name: /Chosen Classmate/ }).check();
+  await setup.getByRole('searchbox', { name: 'Search available classmates' }).fill('missing');
+  await setup.getByText('No classmates match your search.', { exact: true }).waitFor();
+  await setup.getByRole('searchbox', { name: 'Search available classmates' }).fill('chosen');
+  assert.equal(await setup.getByRole('checkbox', { name: /Chosen Classmate/ }).isChecked(), true);
   await setup.getByRole('button', { name: 'Save groupmates' }).click();
   await setup.waitFor({ state: 'hidden' });
   assert.equal(memberships[0].members.length, 2);
-  await page.getByRole('button', { name: 'Set up group', exact: true }).click();
+  assert.equal(await page.getByRole('button', { name: 'Add groupmates', exact: true }).count(), 0);
+  await page.getByRole('button', { name: 'Set up another slot', exact: true }).click();
   await setup.getByLabel('Project slot', { exact: true }).selectOption('slot-two');
   await setup.getByRole('button', { name: 'Create solo group' }).click();
   await setup.waitFor({ state: 'hidden' });
+  assert.equal(await page.getByRole('button', { name: 'Set up another slot', exact: true }).count(), 0);
   await page.getByRole('button', { name: 'Add title for Project Two', exact: true }).click();
   assert.equal(await dialog.getByLabel('Project slot and group').inputValue(), 'group-two');
   assert.equal(await dialog.getByLabel('Approve this title immediately').isChecked(), false);

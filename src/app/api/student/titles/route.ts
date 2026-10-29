@@ -9,6 +9,7 @@ import { getStudentSession } from '@/lib/auth';
 import { assertSlotInClass, jsonError } from '@/lib/helpers';
 import { assertActionRateLimit } from '@/lib/rate-limit';
 import { selectTitles } from '@/lib/titles-query';
+import { isSlotParticipant } from '@/lib/slot-participation';
 
 // GET: titles belonging to the student's group for a slot
 export async function GET(req: NextRequest) {
@@ -41,7 +42,6 @@ export async function POST(req: NextRequest) {
   const repoUrl = typeof body?.repoUrl === 'string' ? body.repoUrl.trim() : '';
   const requiredInfo = projectRequirementsError({ description, repoUrl });
   if (requiredInfo) return jsonError(requiredInfo, 422);
-  const techStack = normalizeTechStack(body?.techStack);
   const targetUsers = (body?.targetUsers as string | undefined)?.trim() || null;
 
   if (!slotId || !text || !description) {
@@ -54,6 +54,9 @@ export async function POST(req: NextRequest) {
 
   const slot = await assertSlotInClass(slotId, session.classId);
   if (!slot) return jsonError('Slot not found', 404);
+  if (!isSlotParticipant(slot, session.studentId)) return jsonError('You are not enrolled in this project slot', 403);
+  // An explicit empty array is a student's choice, not a request to restore defaults.
+  const techStack = normalizeTechStack(body.techStack === undefined ? slot.defaultTechStack : body.techStack);
   if (slot.locked) return jsonError('This project slot is locked', 409);
 
   const limited = await assertActionRateLimit({

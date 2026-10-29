@@ -5,6 +5,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useBoardQuery, useBoardRequest } from '@/lib/board-query';
 import { boardKeys } from '@/lib/query-keys';
 import { titleRequest } from '@/lib/title-request';
+import { normalizeTechStack } from '@/lib/tech-stack';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -114,6 +115,11 @@ export function SlotDashboard({ classId, slotId }: { classId: string; slotId: st
       router.push(`/c/${classId}/login`);
       return;
     }
+    if (groupRes.status === 403) {
+      toast.error('You are not enrolled in this project slot');
+      router.replace(`/c/${classId}`);
+      return;
+    }
 
     const [slotsRes, classRes, withoutRes, invitesRes, titlesRes, verifiedRes] = await Promise.all([
       fetch('/api/student/slots'),
@@ -125,9 +131,11 @@ export function SlotDashboard({ classId, slotId }: { classId: string; slotId: st
     ]);
 
     let currentTitles: ProjectTitle[] = [];
+    let currentHasGroup = false;
 
     if (groupRes.ok) {
       const data = await groupRes.json();
+      currentHasGroup = Boolean(data.group);
       setGroup(data.group);
       setMembers(data.members || []);
       setPendingInviteeIds(data.pendingInvitedStudentIds || []);
@@ -154,7 +162,7 @@ export function SlotDashboard({ classId, slotId }: { classId: string; slotId: st
 
     setTab((prev) => {
       if (prev) return prev;
-      return 'group';
+      return currentHasGroup ? 'submissions' : 'group';
     });
 
     setLoading(false);
@@ -198,6 +206,7 @@ export function SlotDashboard({ classId, slotId }: { classId: string; slotId: st
       if (!res.ok) throw new Error(data.error || 'Could not respond');
       toast.success(action === 'accept' ? 'Joined the group' : 'Invite declined');
       await loadAll();
+      if (action === 'accept') setTab('submissions');
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Could not respond');
     }
@@ -209,8 +218,8 @@ export function SlotDashboard({ classId, slotId }: { classId: string; slotId: st
     requiredMin > 0 ? Math.min(100, (Math.min(titles.length, requiredMin) / requiredMin) * 100) : 0;
 
   useEffect(() => {
-    if (!hasGroup && (tab === 'submissions' || tab === 'board')) setTab('group');
-  }, [hasGroup, tab]);
+    if (!loading && !hasGroup && (tab === 'submissions' || tab === 'board')) setTab('group');
+  }, [hasGroup, loading, tab]);
 
   return (
     <main className={`${tab === 'board' ? 'max-w-6xl' : 'max-w-3xl'} mx-auto px-4 sm:px-6 py-10 space-y-6 overflow-x-hidden`}>
@@ -309,7 +318,7 @@ export function SlotDashboard({ classId, slotId }: { classId: string; slotId: st
 
               <TabsContent value="submissions">
                 {group && slot ? (
-                  <SubmissionsTab slotId={slotId} slot={slot} titles={titles} hasVerifiedTitle={hasVerifiedTitle} onReload={loadAll} />
+                  <SubmissionsTab key={slotId} slotId={slotId} slot={slot} titles={titles} hasVerifiedTitle={hasVerifiedTitle} onReload={loadAll} />
                 ) : (
                   <Card className="rounded-xl"><CardContent><EmptyState icon={FolderPlus} title="Start or join a group first" description="Create a group or accept an invite to submit titles." /></CardContent></Card>
                 )}
@@ -452,7 +461,7 @@ function TitleSubmitForm({ slotId, slot, onSuccess }: { slotId: string; slot: Sl
   const [text, setText] = useState('');
   const [description, setDescription] = useState('');
   const [repoUrl, setRepoUrl] = useState('');
-  const [techStack, setTechStack] = useState<string[]>([]);
+  const [techStack, setTechStack] = useState<string[]>(() => normalizeTechStack(slot.defaultTechStack));
   const [targetUsers, setTargetUsers] = useState('');
   const [dupWarning, setDupWarning] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
@@ -491,7 +500,7 @@ function TitleSubmitForm({ slotId, slot, onSuccess }: { slotId: string; slot: Sl
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Could not submit title');
       toast.success(data.warnings?.length ? 'Submitted with a similarity warning' : 'Title submitted');
-      setText(''); setDescription(''); setRepoUrl(''); setTechStack([]); setTargetUsers('');
+      setText(''); setDescription(''); setRepoUrl(''); setTechStack(normalizeTechStack(slot.defaultTechStack)); setTargetUsers('');
       await onSuccess();
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Could not submit title');
@@ -505,6 +514,12 @@ function TitleSubmitForm({ slotId, slot, onSuccess }: { slotId: string; slot: Sl
       <div className="space-y-1.5">
         <Label htmlFor="title-text">Title</Label>
         <Input id="title-text" required minLength={5} value={text} onChange={(e) => setText(e.target.value)} />
+        <p className="text-xs text-muted">
+          Titles are checked against existing submissions in this class and project slot.
+          {' '}{slot.duplicateCheck === 'strict'
+            ? 'Similar titles are blocked. Choose a more distinct title if a match appears.'
+            : 'Similar titles trigger a warning. You will be asked to confirm before continuing.'}
+        </p>
         {isTitleTooShort && (
           <p className="text-xs text-destructive">Title must be at least 5 characters long.</p>
         )}
@@ -524,6 +539,7 @@ function TitleSubmitForm({ slotId, slot, onSuccess }: { slotId: string; slot: Sl
       <div className="space-y-1.5">
         <Label>Tech stack{slot.requireTechStack ? ' (required)' : ''}</Label>
         <TechStackInput value={techStack} onChange={setTechStack} suggestionsUrl={`/api/student/slots/${slotId}/tech-tags`} />
+        {!!slot.defaultTechStack?.length && <p className="text-xs text-muted">Your professor added starting tags. Remove or replace any that do not fit your project.</p>}
       </div>
       <div className="space-y-1.5">
         <Label htmlFor="target-users">Target users{slot.requireTargetUsers ? ' (required)' : ''}</Label>

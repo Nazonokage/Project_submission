@@ -86,7 +86,7 @@ await checkColumns('documentation_field_templates', ['slot_id', 'field_key', 'la
 await checkColumns('project_updates', ['task_id', 'changelog', 'updated_at', 'deleted_at']);
 await checkColumns('title_reports', ['updated_at', 'deleted_at', 'project_update_id']);
 await checkColumns('classes', ['updated_at', 'default_student_password', 'archived_at']);
-await checkColumns('project_slots', ['updated_at', 'instructions']);
+await checkColumns('project_slots', ['updated_at', 'instructions', 'default_tech_stack', 'excluded_student_ids']);
 await checkColumns('groups', ['updated_at']);
 await checkColumns('feedback_reads', ['student_id', 'feedback_id', 'read_at']);
 

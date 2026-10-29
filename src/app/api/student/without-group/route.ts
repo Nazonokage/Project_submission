@@ -4,6 +4,7 @@ import { groupInvites, groupLeaveRequests, groups, students, studentGroupSlots, 
 import { and, eq } from 'drizzle-orm';
 import { getStudentSession } from '@/lib/auth';
 import { assertSlotInClass, jsonError } from '@/lib/helpers';
+import { isSlotParticipant } from '@/lib/slot-participation';
 
 export async function GET(req: NextRequest) {
   const session = await getStudentSession();
@@ -14,6 +15,7 @@ export async function GET(req: NextRequest) {
 
   const slot = await assertSlotInClass(slotId, session.classId);
   if (!slot) return jsonError('Slot not found', 404);
+  if (!isSlotParticipant(slot, session.studentId)) return jsonError('You are not enrolled in this project slot', 403);
 
   if (slot.groupSize === 1) {
     // No concept of "without a group" for solo slots — everyone gets auto-assigned.
@@ -52,6 +54,7 @@ export async function GET(req: NextRequest) {
   // A classmate is eligible if they are ungrouped, or are the sole member of a
   // draft-only group. The latter supports moving solo work into a new pair/team.
   const rows = classmates.filter((student) => {
+    if (!isSlotParticipant(slot, student.id)) return false;
     if (student.id === session.studentId) return false;
     const groupId = groupForStudent.get(student.id);
     return !groupId || (

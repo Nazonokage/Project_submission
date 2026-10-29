@@ -17,6 +17,7 @@ export type SlotProgress = {
   slotId: string; slotLabel: string; inGroup: boolean; groupId: string | null;
   pendingCount: number; verifiedCount: number; rejectedCount: number;
   latestTitleText?: string | null;
+  enrolled?: boolean;
   members?: { id: string; name: string; idNumber: string }[];
   titles?: { id: string; text: string; status: string }[];
 };
@@ -38,15 +39,22 @@ export function RosterTab({
   defaultStudentPassword,
   onChange,
   onOpenStudent,
+  selectedSlotId,
+  selectedSlotLabel,
 }: {
   classId: string;
   students: RosterStudent[];
   defaultStudentPassword: string;
   onChange: () => void;
   onOpenStudent: (student: RosterStudent) => void;
+  selectedSlotId?: string | null;
+  selectedSlotLabel?: string;
 }) {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('all');
+  const [showExcluded, setShowExcluded] = useState(false);
+  const enrolled = (student: RosterStudent) => !selectedSlotId || student.slotProgress?.find(progress => progress.slotId === selectedSlotId)?.enrolled !== false;
+  const progressFor = (student: RosterStudent) => (student.slotProgress || []).filter(progress => !selectedSlotId || progress.slotId === selectedSlotId);
   const [showPasswords, setShowPasswords] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const selected = students.find((student) => student.id === selectedId) || null;
@@ -59,9 +67,9 @@ export function RosterTab({
   }
   const filteredStudents = students.filter((s) => {
     const matches = `${s.name} ${s.idNumber}`.toLowerCase().includes(search.trim().toLowerCase());
-    const progress = s.slotProgress || [];
-    return matches && (filter === 'all' ||
-      (filter === 'no-group' && !s.memberships?.length) ||
+    const progress = progressFor(s).filter(p => p.enrolled !== false);
+    return matches && (enrolled(s) || showExcluded) && (filter === 'all' ||
+      (filter === 'no-group' && enrolled(s) && (selectedSlotId ? !s.memberships?.some(m => m.slotId === selectedSlotId) : !s.memberships?.length)) ||
       (filter === 'never' && !s.lastLoginAt) ||
       (filter === 'pending' && progress.some((p) => p.pendingCount > 0)) ||
       (filter === 'verified' && progress.some((p) => p.verifiedCount > 0)));
@@ -269,6 +277,10 @@ export function RosterTab({
         ))}
 
       </div>
+      {selectedSlotId && <div className="space-y-2 text-sm">
+        <p className="text-muted">{students.filter(enrolled).length} enrolled in {selectedSlotLabel || 'this slot'} · {students.filter(student => !enrolled(student)).length} not enrolled</p>
+        <label className="flex items-center gap-2"><input type="checkbox" checked={showExcluded} onChange={event => setShowExcluded(event.target.checked)} />Show students not enrolled in this slot</label>
+      </div>}
       {filteredStudents.length === 0 ? (
         <p className="text-sm text-muted">No matching students.</p>
       ) : (
@@ -298,19 +310,19 @@ export function RosterTab({
                   </th>
                   <td className="px-5 py-4 font-mono tabular-nums whitespace-nowrap">{student.idNumber}</td>
                   <td className="px-5 py-4 min-w-[13rem]">
-                    {(student.slotProgress || []).filter((slot) => slot.inGroup).map((slot) => (
+                    {progressFor(student).filter((slot) => slot.inGroup && slot.enrolled !== false).map((slot) => (
                       <div key={slot.slotId} className="mb-2 last:mb-0">
                         <p className="text-xs text-muted mb-1">{slot.slotLabel}</p>
                         <p>{slot.members?.filter((member) => member.id !== student.id).map((member) => `${member.name} (${member.idNumber})`).join(', ') || 'Solo project'}</p>
                       </div>
                     ))}
-                    {!student.slotProgress?.some((slot) => slot.inGroup) && <span className="text-muted">No group</span>}
+                    {!enrolled(student) ? <span className="text-muted">Not enrolled in this slot</span> : !progressFor(student).some(slot => slot.inGroup) && <span className="text-muted">No group</span>}
                   </td>
                   <td className="px-5 py-4 min-w-[15rem]">
-                    {(student.slotProgress || []).map((slot) => (
+                    {progressFor(student).map((slot) => (
                       <div key={slot.slotId} className="mb-2 last:mb-0">
                         <p className="text-xs text-muted mb-1">{slot.slotLabel}</p>
-                        {slot.titles?.length ? slot.titles.map((title) => <p key={title.id} className="leading-relaxed">{title.text}</p>) : <p className="text-muted">{slot.latestTitleText || 'No project yet'}</p>}
+                        {slot.enrolled === false ? <p className="text-muted">Not required for this slot</p> : slot.titles?.length ? slot.titles.map((title) => <p key={title.id} className="leading-relaxed">{title.text}</p>) : <p className="text-muted">{slot.latestTitleText || 'No project yet'}</p>}
                       </div>
                     ))}
                   </td>
@@ -370,7 +382,7 @@ export function RosterTab({
             <div className="space-y-4">
               {(selected.slotProgress || []).map((slot) => <section key={slot.slotId} className="rounded-2xl border border-line p-4 space-y-2">
                 <h3 className="font-semibold text-sm">{slot.slotLabel}</h3>
-                <p className="text-sm text-muted">{slot.inGroup ? slot.members?.map((member) => `${member.name} (${member.idNumber})`).join(', ') || 'Solo project' : 'No group'}</p>
+                <p className="text-sm text-muted">{slot.enrolled === false ? 'Not enrolled in this slot' : slot.inGroup ? slot.members?.map((member) => `${member.name} (${member.idNumber})`).join(', ') || 'Solo project' : 'No group'}</p>
                 {slot.titles?.length ? <ul className="striped-list space-y-2">{slot.titles.map((title) => <li key={title.id} className="striped-row flex items-start justify-between gap-3 text-sm"><span>{title.text}</span><span className={`shrink-0 rounded-full px-2 py-0.5 text-xs ${title.status === 'verified' ? 'bg-sage/30 text-ok' : title.status === 'rejected' ? 'bg-red-100 text-red-900' : 'bg-amber-100 text-amber-900'}`}>{title.status}</span></li>)}</ul> : <p className="text-sm text-muted">{slot.latestTitleText || 'No project yet'}</p>}
               </section>)}
             </div>

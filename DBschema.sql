@@ -104,6 +104,8 @@ CREATE TABLE "project_slots" (
 	"deadline" timestamp with time zone,
 	"require_deployment_url" boolean DEFAULT false NOT NULL,
 	"require_tech_stack" boolean DEFAULT true NOT NULL,
+	"default_tech_stack" text[] DEFAULT '{}'::text[] NOT NULL,
+	"excluded_student_ids" uuid[] DEFAULT '{}'::uuid[] NOT NULL,
 	"require_target_users" boolean DEFAULT false NOT NULL,
 	"locked" boolean DEFAULT false NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,

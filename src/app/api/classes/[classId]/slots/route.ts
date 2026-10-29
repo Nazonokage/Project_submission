@@ -4,6 +4,8 @@ import { documentationFieldTemplates, projectSlots } from '@/lib/schema';
 import { eq, asc } from 'drizzle-orm';
 import { getProfSession } from '@/lib/auth';
 import { assertClassOwnedByProf, jsonError } from '@/lib/helpers';
+import { normalizeTechStack } from '@/lib/tech-stack';
+import { validateSlotExclusions } from '@/lib/slot-participation-server';
 
 export async function GET(_req: NextRequest, { params }: { params: { classId: string } }) {
   const prof = await getProfSession();
@@ -31,6 +33,11 @@ export async function POST(req: NextRequest, { params }: { params: { classId: st
   const body = await req.json().catch(() => null);
   const label = (body?.label as string | undefined)?.trim();
   if (!label) return jsonError('label is required', 422);
+  const participationError = await validateSlotExclusions(params.classId, body.excludedStudentIds ?? []);
+  if (participationError) return jsonError(participationError, 422);
+  if (body.defaultTechStack !== undefined && (!Array.isArray(body.defaultTechStack) || body.defaultTechStack.some((tag: unknown) => typeof tag !== 'string'))) {
+    return jsonError('Default tech stack must be a list of technology names', 422);
+  }
 
   const [row] = await db
     .insert(projectSlots)
@@ -45,6 +52,8 @@ export async function POST(req: NextRequest, { params }: { params: { classId: st
       deadline: body?.deadline ? new Date(body.deadline) : null,
       requireDeploymentUrl: !!body?.requireDeploymentUrl,
       requireTechStack: body?.requireTechStack ?? true,
+      defaultTechStack: normalizeTechStack(body.defaultTechStack),
+      excludedStudentIds: [...new Set<string>(body.excludedStudentIds ?? [])],
       requireTargetUsers: !!body?.requireTargetUsers,
       locked: !!body?.locked,
     })

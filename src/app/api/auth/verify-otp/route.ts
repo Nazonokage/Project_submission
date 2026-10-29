@@ -4,11 +4,12 @@ import { professorOtps, professors } from '@/lib/schema';
 import { and, desc, eq, gt } from 'drizzle-orm';
 import { cleanupProfessorOtps, jsonError } from '@/lib/helpers';
 import { signProfToken, setProfCookie } from '@/lib/auth';
+import { rememberProf, forgetProf } from '@/lib/prof-remember';
 
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
-  const email = (body?.email as string | undefined)?.trim().toLowerCase();
-  const otp = (body?.otp as string | undefined)?.trim();
+  const email = typeof body?.email === 'string' ? body.email.trim().toLowerCase() : '';
+  const otp = typeof body?.otp === 'string' ? body.otp.trim() : '';
 
   if (!email || !otp) {
     return jsonError('Email and code are required', 422);
@@ -51,6 +52,8 @@ export async function POST(req: NextRequest) {
 
   const token = await signProfToken({ profId: prof.id, email: prof.email }, body?.rememberMe === true);
   await setProfCookie(token, body?.rememberMe === true);
+  if (body?.rememberMe === true) await rememberProf({ profId: prof.id, email: prof.email });
+  else await forgetProf();
 
   return NextResponse.json({ ok: true, prof: { id: prof.id, email: prof.email, name: prof.name } });
 }

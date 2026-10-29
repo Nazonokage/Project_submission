@@ -4,6 +4,7 @@ import { projectSlots } from '@/lib/schema';
 import { eq, asc } from 'drizzle-orm';
 import { getStudentSession } from '@/lib/auth';
 import { jsonError } from '@/lib/helpers';
+import { isSlotParticipant } from '@/lib/slot-participation';
 
 export async function GET() {
   const session = await getStudentSession();
@@ -15,5 +16,5 @@ export async function GET() {
     .where(eq(projectSlots.classId, session.classId))
     .orderBy(asc(projectSlots.createdAt));
 
-  return NextResponse.json({ slots: rows });
+  return NextResponse.json({ slots: rows.filter(slot => isSlotParticipant(slot, session.studentId)).map(({ excludedStudentIds: _excluded, ...slot }) => slot) });
 }

@@ -3,7 +3,8 @@ import { db } from '@/lib/db';
 import { titles, students, studentGroupSlots } from '@/lib/schema';
 import { eq, or, ilike, sql } from 'drizzle-orm';
 import { getStudentSession } from '@/lib/auth';
-import { jsonError } from '@/lib/helpers';
+import { assertSlotInClass, jsonError } from '@/lib/helpers';
+import { isSlotParticipant } from '@/lib/slot-participation';
 import { selectTitles, titleConditions } from '@/lib/titles-query';
 
 // GET verified titles for a slot within the student's own class, with optional search
@@ -14,6 +15,9 @@ export async function GET(req: NextRequest) {
   const slotId = req.nextUrl.searchParams.get('slotId');
   const q = req.nextUrl.searchParams.get('q')?.trim();
   if (!slotId) return jsonError('slotId is required', 422);
+  const slot = await assertSlotInClass(slotId, session.classId);
+  if (!slot) return jsonError('Slot not found', 404);
+  if (!isSlotParticipant(slot, session.studentId)) return jsonError('You are not enrolled in this project slot', 403);
 
   const conditions = [
     eq(titles.classId, session.classId),

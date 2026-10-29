@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { groups, projectSlots, studentGroupSlots } from '@/lib/schema';
-import { eq } from 'drizzle-orm';
+import { groupInvites, groups, projectSlots, studentGroupSlots } from '@/lib/schema';
+import { and, eq, inArray } from 'drizzle-orm';
+import { validateSlotExclusions } from '@/lib/slot-participation-server';
 import { getProfSession } from '@/lib/auth';
 import { assertClassOwnedByProf, assertSlotInClass, jsonError } from '@/lib/helpers';
+import { normalizeTechStack } from '@/lib/tech-stack';
 
 type Params = { params: { classId: string; slotId: string } };
 
@@ -21,6 +23,17 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   if (!body) return jsonError('Invalid body', 422);
 
   const patch: Record<string, unknown> = {};
+  if ('excludedStudentIds' in body) {
+    const error = await validateSlotExclusions(params.classId, body.excludedStudentIds, params.slotId);
+    if (error) return jsonError(error, 422);
+    patch.excludedStudentIds = [...new Set<string>(body.excludedStudentIds)];
+  }
+  if ('defaultTechStack' in body) {
+    if (!Array.isArray(body.defaultTechStack) || body.defaultTechStack.some((tag: unknown) => typeof tag !== 'string')) {
+      return jsonError('Default tech stack must be a list of technology names', 422);
+    }
+    patch.defaultTechStack = normalizeTechStack(body.defaultTechStack);
+  }
   for (const key of [
     'label',
     'groupSize',
@@ -73,6 +86,10 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     .set(patch)
     .where(eq(projectSlots.id, params.slotId))
     .returning();
+
+  if (row.excludedStudentIds?.length && 'excludedStudentIds' in patch) {
+    await db.update(groupInvites).set({ status: 'declined' }).where(and(eq(groupInvites.slotId, row.id), eq(groupInvites.status, 'pending'), inArray(groupInvites.invitedStudentId, row.excludedStudentIds)));
+  }
 
   // Groups retain their own max size/status, so reconcile them whenever the
   // professor changes the slot size. This re-opens former solo groups when a

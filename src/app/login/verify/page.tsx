@@ -59,7 +59,7 @@ function VerifyForm() {
             <input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} />
             Remember me for 7 days
           </label>
-          <p className="text-xs text-muted">Otherwise, your session expires after 24 hours.</p>
+          <p className="text-xs text-muted">Skip login codes on this browser for 7 days, even after logging out. Otherwise, your session expires after 24 hours.</p>
       {error && <p className="text-sm text-danger">{error}</p>}
       <button type="submit" className="btn-primary w-full" disabled={loading || otp.length !== 6}>
         {loading ? 'Verifying…' : 'Verify & continue'}

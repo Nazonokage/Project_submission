@@ -4,6 +4,9 @@ import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { Check, Eye, Pencil, X } from 'lucide-react';
 import { MarkdownView } from '@/components/ui/markdown-view';
+import { TechStackInput } from '@/components/student/tech-stack-input';
+import { normalizeTechStack } from '@/lib/tech-stack';
+import { SlotParticipants, type SlotParticipant } from '@/components/dashboard/slot-participants';
 
 export type SlotRules = {
   groupSize: number;
@@ -11,6 +14,8 @@ export type SlotRules = {
   titlesAllowedMax: number;
   duplicateCheck: 'strict' | 'warn';
   requireTechStack: boolean;
+  defaultTechStack: string[];
+  excludedStudentIds?: string[];
   requireTargetUsers: boolean;
   requireDeploymentUrl: boolean;
   deadline: string | null;
@@ -24,6 +29,8 @@ export const DEFAULT_SLOT_RULES: SlotRules = {
   titlesAllowedMax: 50,
   duplicateCheck: 'warn',
   requireTechStack: true,
+  defaultTechStack: [],
+  excludedStudentIds: [],
   requireTargetUsers: false,
   requireDeploymentUrl: false,
   deadline: null,
@@ -38,14 +45,16 @@ export function loadClassDefaults(classId: string): SlotRules {
   try {
     const raw = localStorage.getItem(defaultsKey(classId));
     if (!raw) return DEFAULT_SLOT_RULES;
-    return { ...DEFAULT_SLOT_RULES, ...JSON.parse(raw) };
+    const stored = JSON.parse(raw);
+    return { ...DEFAULT_SLOT_RULES, ...stored, defaultTechStack: normalizeTechStack(stored.defaultTechStack), excludedStudentIds: [] };
   } catch {
     return DEFAULT_SLOT_RULES;
   }
 }
 
 export function saveClassDefaults(classId: string, rules: SlotRules) {
-  localStorage.setItem(defaultsKey(classId), JSON.stringify(rules));
+  const { excludedStudentIds: _excluded, ...defaults } = rules;
+  localStorage.setItem(defaultsKey(classId), JSON.stringify(defaults));
 }
 
 function datetimeLocal(value: string | null) {
@@ -214,11 +223,13 @@ export function SlotRulesFields({
   onChange,
   includeLock,
   onSaveInstructions,
+  students,
 }: {
   rules: SlotRules;
   onChange: (next: SlotRules) => void;
   includeLock?: boolean;
   onSaveInstructions?: (val: string | null) => Promise<void> | void;
+  students?: SlotParticipant[];
 }) {
   function set<K extends keyof SlotRules>(key: K, value: SlotRules[K]) {
     onChange({ ...rules, [key]: value });
@@ -226,6 +237,7 @@ export function SlotRulesFields({
 
   return (
     <div className="space-y-3">
+      {students && <SlotParticipants students={students} excludedIds={rules.excludedStudentIds || []} onChange={ids => set('excludedStudentIds', ids)} />}
       <SlotInstructionsField
         instructions={rules.instructions}
         onChange={(val) => set('instructions', val)}
@@ -252,6 +264,7 @@ export function SlotRulesFields({
             <option value="warn">Warn only</option>
             <option value="strict">Block on match</option>
           </select>
+          <p className="text-xs text-muted mt-1">Checks titles in the same class and project slot. Warn only requires confirmation; Block on match prevents submission when similar wording is found.</p>
         </div>
         <div>
           <label className="label">Titles min</label>
@@ -283,6 +296,11 @@ export function SlotRulesFields({
           onChange={(e) => set('deadline', e.target.value ? new Date(e.target.value).toISOString() : null)}
         />
       </div>
+      <section aria-label="Default tech stack" className="space-y-2">
+        <p className="label">Default tech stack</p>
+        <TechStackInput value={rules.defaultTechStack || []} onChange={tags => set('defaultTechStack', tags)} />
+        <p className="text-xs text-muted">Added automatically when students start a new project in this slot. Students can remove or replace these tags. Existing projects keep their saved tags.</p>
+      </section>
       <div className="grid gap-2 text-sm">
         <label className="flex items-center gap-2">
           <input
@@ -323,11 +341,13 @@ export function SlotSettingsPanel({
   slotId,
   initial,
   onSaved,
+  students,
 }: {
   classId: string;
   slotId: string;
   initial: SlotRules;
   onSaved: () => void;
+  students?: SlotParticipant[];
 }) {
   const [rules, setRules] = useState<SlotRules>(initial);
   const [saving, setSaving] = useState(false);
@@ -371,6 +391,7 @@ export function SlotSettingsPanel({
           onChange={setRules}
           includeLock
           onSaveInstructions={saveInstructionsDirect}
+          students={students}
         />
         <div className="flex flex-wrap gap-2 mt-3">
           <button type="button" className="btn-primary" disabled={saving} onClick={save}>

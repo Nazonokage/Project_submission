@@ -3,7 +3,8 @@ import { db } from '@/lib/db';
 import { groupInvites, groups, students } from '@/lib/schema';
 import { and, eq } from 'drizzle-orm';
 import { getStudentSession } from '@/lib/auth';
-import { jsonError } from '@/lib/helpers';
+import { assertSlotInClass, jsonError } from '@/lib/helpers';
+import { isSlotParticipant } from '@/lib/slot-participation';
 
 export async function GET(req: NextRequest) {
   const session = await getStudentSession();
@@ -11,6 +12,9 @@ export async function GET(req: NextRequest) {
 
   const slotId = req.nextUrl.searchParams.get('slotId');
   if (!slotId) return jsonError('slotId is required', 422);
+  const slot = await assertSlotInClass(slotId, session.classId);
+  if (!slot) return jsonError('Slot not found', 404);
+  if (!isSlotParticipant(slot, session.studentId)) return NextResponse.json({ invites: [] });
 
   const rows = await db
     .select({

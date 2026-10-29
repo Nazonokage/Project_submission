@@ -8,7 +8,7 @@ import {
   titles,
   groupLeaveRequests,
 } from '@/lib/schema';
-import { and, eq, inArray, isNull } from 'drizzle-orm';
+import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { getProfSession } from '@/lib/auth';
 import { assertClassOwnedByProf, assertStudentInClass, jsonError } from '@/lib/helpers';
 import { isSchemaDrift } from '@/lib/pg-errors';
@@ -22,7 +22,7 @@ async function requireOwnedStudent(params: Params['params']) {
   if (!cls) return { ok: false as const, error: jsonError('Class not found', 404) };
   const student = await assertStudentInClass(params.studentId, params.classId);
   if (!student) return { ok: false as const, error: jsonError('Student not found', 404) };
-  return { ok: true as const, student };
+  return { ok: true as const, student, cls };
 }
 
 export async function GET(_req: NextRequest, { params }: Params) {
@@ -36,6 +36,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
       groupStatus: groups.status,
       slotId: projectSlots.id,
       slotLabel: projectSlots.label,
+      maxSize: projectSlots.groupSize,
     })
     .from(studentGroupSlots)
     .innerJoin(groups, eq(groups.id, studentGroupSlots.groupId))
@@ -43,7 +44,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
     .where(eq(studentGroupSlots.studentId, params.studentId));
 
   const groupIds = membershipRows.map((m) => m.groupId);
-  const membersByGroup = new Map<string, { id: string; name: string }[]>();
+  const membersByGroup = new Map<string, { id: string; name: string; idNumber: string }[]>();
 
   if (groupIds.length > 0) {
     const memberRows = await db
@@ -51,6 +52,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
         groupId: studentGroupSlots.groupId,
         id: students.id,
         name: students.name,
+        idNumber: students.idNumber,
       })
       .from(studentGroupSlots)
       .innerJoin(students, eq(students.id, studentGroupSlots.studentId))
@@ -58,7 +60,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
 
     for (const row of memberRows) {
       const list = membersByGroup.get(row.groupId) || [];
-      list.push({ id: row.id, name: row.name });
+      list.push({ id: row.id, name: row.name, idNumber: row.idNumber });
       membersByGroup.set(row.groupId, list);
     }
   }
@@ -68,8 +70,12 @@ export async function GET(_req: NextRequest, { params }: Params) {
     status: m.groupStatus,
     slotId: m.slotId,
     slotLabel: m.slotLabel,
+    maxSize: m.maxSize,
     members: membersByGroup.get(m.groupId) || [],
   }));
+
+  const slots = await db.select({ id: projectSlots.id, excludedStudentIds: projectSlots.excludedStudentIds }).from(projectSlots).where(eq(projectSlots.classId, params.classId));
+  const unassignedSlotIds = slots.filter(slot => !slot.excludedStudentIds?.includes(params.studentId) && !memberships.some(m => m.slotId === slot.id)).map(slot => slot.id);
 
   const titleRows =
     groupIds.length === 0
@@ -96,8 +102,11 @@ export async function GET(_req: NextRequest, { params }: Params) {
   }
 
   return NextResponse.json({
+    class: { name: auth.cls.name, term: auth.cls.term },
     student,
     memberships,
+    unassignedSlotIds,
+    hasEligibleSlots: slots.some(slot => !slot.excludedStudentIds?.includes(params.studentId)),
     titles: titleRows,
     leaveRequests,
   });
@@ -139,5 +148,6 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
   if (!auth.ok) return auth.error;
 
   await db.delete(students).where(eq(students.id, params.studentId));
+  await db.update(projectSlots).set({ excludedStudentIds: sql`array_remove(${projectSlots.excludedStudentIds}, ${params.studentId}::uuid)` }).where(eq(projectSlots.classId, params.classId));
   return NextResponse.json({ ok: true });
 }

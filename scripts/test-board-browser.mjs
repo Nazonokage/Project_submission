@@ -104,7 +104,7 @@ try {
   const { ctx, page } = await context('student');
   await page.goto(`${base}/c/class-test/slot-test`);
   await visible(page.getByText(slot.instructions));
-  assert.equal(await page.getByRole('tab', { name: 'My group', exact: false }).getAttribute('aria-selected'), 'true');
+  assert.equal(await page.getByRole('tab', { name: 'Submissions', exact: true }).getAttribute('aria-selected'), 'true');
   titles[0].repoUrl = null;
   await page.reload();
   await page.getByRole('tab', { name: 'Board', exact: true }).click();
@@ -317,7 +317,7 @@ try {
   await prof.page.getByRole('dialog').waitFor({ state: 'detached' });
   await prof.page.waitForTimeout(250);
   await prof.page.screenshot({ path: join(tmpdir(), 'approval-queue-check.png'), fullPage: true });
-  console.log('PASS bulk approval, horizontal queue, and My group default');
+  console.log('PASS bulk approval, horizontal queue, and Submissions default for existing groups');
   console.log('PASS Phase 18: submitter/groupmates, search/status/slot filters, full review, failed approval retry, approve/reject, tablet layout');
   await prof.page.getByRole('button', { name: 'Settings / Rules', exact: true }).click();
   await prof.page.getByRole('button', { name: 'Archive class', exact: true }).click();
