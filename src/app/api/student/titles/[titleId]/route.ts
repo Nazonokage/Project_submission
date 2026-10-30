@@ -1,4 +1,4 @@
-import { projectRequirementsError, isGithubRepoUrl } from '@/lib/project-readiness';
+import { projectRequirementsError, githubRepoUrlError } from '@/lib/project-readiness';
 import { normalizeTechStack } from '@/lib/tech-stack';
 import { duplicateGuard } from '@/lib/title-duplicates';
 import { assertSlotInClass } from '@/lib/helpers';
@@ -79,11 +79,12 @@ export async function PATCH(req: NextRequest, { params }: { params: { titleId: s
     patch.text = trimmedText;
   }
   if (body && 'description' in body) {
-    if (typeof body.description !== 'string' || !body.description.trim()) return jsonError('Abstract is required', 422);
+    if (typeof body.description !== 'string' || !body.description.trim()) return jsonError('Description is required', 422);
     patch.description = body.description.trim();
   }
   if (body && 'repoUrl' in body) {
-    if (!isGithubRepoUrl(body.repoUrl)) return jsonError('Enter a valid GitHub repository URL (https://github.com/owner/repository)', 422);
+    const repoError = githubRepoUrlError(body.repoUrl);
+    if (repoError) return jsonError(repoError, 422);
     patch.repoUrl = body.repoUrl.trim();
   }
   if (Array.isArray(body?.techStack)) patch.techStack = normalizeTechStack(body.techStack);

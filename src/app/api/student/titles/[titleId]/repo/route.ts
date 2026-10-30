@@ -1,4 +1,4 @@
-import { isGithubRepoUrl } from '@/lib/project-readiness';
+import { githubRepoUrlError } from '@/lib/project-readiness';
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { projectSlots, studentGroupSlots, titles } from '@/lib/schema';
@@ -36,7 +36,8 @@ export async function PATCH(
   const repoUrl = (body?.repoUrl as string | undefined)?.trim();
   const deploymentUrl = (body?.deploymentUrl as string | undefined)?.trim();
 
-  if (!isGithubRepoUrl(repoUrl)) return jsonError('A valid GitHub repository URL is required', 422);
+  const repoError = githubRepoUrlError(repoUrl);
+  if (repoError) return jsonError(repoError, 422);
   if (title.status === 'verified' && slot?.requireDeploymentUrl && !deploymentUrl) {
     return jsonError('deploymentUrl is required for this project slot', 422);
   }

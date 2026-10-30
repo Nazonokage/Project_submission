@@ -54,8 +54,8 @@ try {
   await form.getByRole('button', { name: 'Remove React', exact: true }).waitFor();
   await form.getByRole('button', { name: 'Remove React', exact: true }).click();
   await form.getByLabel('Title', { exact: true }).fill('Student selected stack');
-  await form.getByLabel('Abstract', { exact: true }).fill('Original student abstract');
-  await form.getByLabel('GitHub repository', { exact: true }).fill('https://github.com/example/project');
+  await form.getByLabel('Description (required)', { exact: true }).fill('Original student abstract');
+  await form.getByLabel('GitHub repository (required)', { exact: true }).fill('https://github.com/example/project');
   await form.getByRole('button', { name: 'Submit title', exact: true }).click();
   await page.locator('#title-title').waitFor();
   assert.deepEqual(titles[0].techStack, ['Node.js']);
@@ -65,7 +65,7 @@ try {
   const dialog = page.getByRole('dialog');
   assert.equal(await dialog.getByRole('button', { name: 'Remove React', exact: true }).count(), 0);
   await dialog.getByRole('button', { name: 'Remove Node.js', exact: true }).click();
-  await dialog.getByLabel('Abstract', { exact: true }).fill('Updated student abstract');
+  await dialog.getByLabel('Description (required)', { exact: true }).fill('Updated student abstract');
   await dialog.getByRole('button', { name: 'Save', exact: true }).click();
   await dialog.waitFor({ state: 'hidden' });
   assert.deepEqual(titles[0].techStack, []);

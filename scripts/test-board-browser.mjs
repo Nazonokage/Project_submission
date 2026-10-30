@@ -114,7 +114,7 @@ try {
   await incomplete.getByRole('button', { name: 'Complete required information', exact: true }).click();
   const completion = page.getByRole('dialog');
   assert.equal(await completion.getByRole('button', { name: 'Save', exact: true }).isDisabled(), true);
-  await completion.getByLabel('GitHub repository', { exact: true }).fill('https://github.com/example/project');
+  await completion.getByLabel('GitHub repository (required)', { exact: true }).fill('https://github.com/example/project');
   await completion.getByRole('button', { name: 'Save', exact: true }).click();
   await completion.waitFor({ state: 'detached' });
   await incomplete.locator('select:not([disabled])').waitFor({ state: 'visible' });
@@ -129,8 +129,8 @@ try {
   await page.getByRole('button', { name: '+ Submit another title', exact: true }).click();
   const proposal = page.getByRole('dialog');
   await proposal.getByLabel('Title', { exact: true }).fill('New proposal');
-  await proposal.getByLabel('Abstract', { exact: true }).fill('A test proposal description');
-  await proposal.getByLabel('GitHub repository', { exact: true }).fill('https://github.com/example/project');
+  await proposal.getByLabel('Description (required)', { exact: true }).fill('A test proposal description');
+  await proposal.getByLabel('GitHub repository (required)', { exact: true }).fill('https://github.com/example/project');
   const tagInput = proposal.getByRole('combobox', { name: 'Search tech stack' });
   await tagInput.fill('rea');
   await visible(proposal.getByRole('option', { name: /^React(?: Used in slot)?$/ }));

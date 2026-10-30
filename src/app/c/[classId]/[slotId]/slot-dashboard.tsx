@@ -1,5 +1,6 @@
 'use client';
 import { projectRequirementsError } from '@/lib/project-readiness';
+import { GithubRepoField } from '@/components/student/github-repo-field';
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useBoardQuery, useBoardRequest } from '@/lib/board-query';
@@ -325,7 +326,7 @@ export function SlotDashboard({ classId, slotId }: { classId: string; slotId: st
               </TabsContent>
 
               <TabsContent value="board">
-                {titles.some(t => projectRequirementsError(t)) && <div className="card mb-4 space-y-2"><p className="font-medium">Complete your project information</p><p className="text-sm text-muted">Add an abstract and GitHub repository in Submissions to unlock project tools, regardless of approval status.</p><Button variant="outline" onClick={() => setTab('submissions')}>Complete required information</Button></div>}
+                {titles.some(t => projectRequirementsError(t)) && <div className="card mb-4 space-y-2"><p className="font-medium">Complete your project information</p><p className="text-sm text-muted">Add a description and GitHub repository in Submissions to unlock project tools, regardless of approval status.</p><Button variant="outline" onClick={() => setTab('submissions')}>Complete required information</Button></div>}
                 {group && slot ? (
                   <BoardTab
                     titles={titles.filter((t) => t.status === 'verified' && !projectRequirementsError(t))}
@@ -528,14 +529,11 @@ function TitleSubmitForm({ slotId, slot, onSuccess }: { slotId: string; slot: Sl
         )}
       </div>
       <div className="space-y-1.5">
-        <Label htmlFor="title-desc">Abstract</Label>
-        <Textarea id="title-desc" required className="min-h-24" value={description} onChange={(e) => setDescription(e.target.value)} />
+        <Label htmlFor="title-desc">Description (required)</Label>
+        <Textarea id="title-desc" required className="min-h-24" value={description} onChange={(e) => setDescription(e.target.value)} aria-describedby="title-desc-guide" />
+        <p id="title-desc-guide" className="text-xs text-muted">Describe what your project does, the problem it solves, and who will use it.</p>
       </div>
-      <div className="space-y-1.5">
-        <Label htmlFor="title-repo">GitHub repository</Label>
-        <Input id="title-repo" type="url" required placeholder="https://github.com/owner/repository" value={repoUrl} onChange={e => setRepoUrl(e.target.value)} />
-        <p className="text-xs text-muted">Abstract and repository are required before using project tools.</p>
-      </div>
+      <GithubRepoField id="title-repo" value={repoUrl} onChange={setRepoUrl} />
       <div className="space-y-1.5">
         <Label>Tech stack{slot.requireTechStack ? ' (required)' : ''}</Label>
         <TechStackInput value={techStack} onChange={setTechStack} suggestionsUrl={`/api/student/slots/${slotId}/tech-tags`} />

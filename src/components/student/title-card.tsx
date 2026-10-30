@@ -1,5 +1,6 @@
 'use client';
-import { projectRequirementsError } from '@/lib/project-readiness';
+import { projectRequirementsError, githubRepoUrlError } from '@/lib/project-readiness';
+import { GithubRepoField } from './github-repo-field';
 
 import { titleRequest } from '@/lib/title-request';
 
@@ -294,19 +295,14 @@ export function TitleCard({
                 </p>
               )}
               <div className="space-y-2">
-                <Label>Repository URL</Label>
-                <Input
-                  placeholder="https://github.com/..."
-                  value={repoUrl}
-                  onChange={(e) => setRepoUrl(e.target.value)}
-                />
+                <GithubRepoField id={`repo-links-${title.id}`} value={repoUrl} onChange={setRepoUrl} />
                 <Label>Deployment URL{requireDeploymentUrl ? ' (required)' : ''}</Label>
                 <Input
                   placeholder="https://..."
                   value={deploymentUrl}
                   onChange={(e) => setDeploymentUrl(e.target.value)}
                 />
-                <Button type="button" size="sm" onClick={saveRepo} disabled={saving}>
+                <Button type="button" size="sm" onClick={saveRepo} disabled={saving || !!githubRepoUrlError(repoUrl)}>
                   {title.repoUrl ? 'Update URLs' : 'Save repo URL'}
                 </Button>
               </div>
@@ -511,13 +507,11 @@ export function TitleCard({
               )}
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor={`abstract-${title.id}`}>Abstract</Label>
-              <Textarea id={`abstract-${title.id}`} required value={description} onChange={(e) => setDescription(e.target.value)} />
+              <Label htmlFor={`description-${title.id}`}>Description (required)</Label>
+              <Textarea id={`description-${title.id}`} required value={description} onChange={(e) => setDescription(e.target.value)} aria-describedby={`description-${title.id}-guide`} />
+              <p id={`description-${title.id}-guide`} className="text-xs text-muted">Describe what your project does, the problem it solves, and who will use it.</p>
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor={`repo-${title.id}`}>GitHub repository</Label>
-              <Input id={`repo-${title.id}`} type="url" required placeholder="https://github.com/owner/repository" value={repoUrl} onChange={e => setRepoUrl(e.target.value)} />
-            </div>
+            <GithubRepoField id={`repo-${title.id}`} value={repoUrl} onChange={setRepoUrl} />
             <div className="space-y-1.5">
               <Label>Tech stack</Label>
               <TechStackInput value={techStack} onChange={setTechStack} suggestionsUrl={effectiveSlotId ? `/api/student/slots/${effectiveSlotId}/tech-tags` : undefined} />
