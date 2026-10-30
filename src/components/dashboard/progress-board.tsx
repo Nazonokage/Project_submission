@@ -46,7 +46,7 @@ export function ProgressBoard({
     <>
     <div className="-mx-1 flex snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain pb-2 md:mx-0 md:grid md:grid-cols-4 md:overflow-visible md:snap-none items-start">
       {PROGRESS_STATUSES.map((status) => {
-        const col = titles.filter((t) => projectProgressStatus(t) === status);
+        const col = titles.filter((t) => t.status === 'verified' && projectProgressStatus(t) === status);
         return (
           <section key={status} className="doodle-border bg-secondary/50 p-2 space-y-2 min-h-[12rem] min-w-[min(16.5rem,calc(100vw-2.5rem))] snap-start md:min-w-0">
             <h2 className="text-xs font-medium uppercase tracking-wide text-muted px-1">

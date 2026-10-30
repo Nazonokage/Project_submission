@@ -4,92 +4,92 @@
     {
       "file": "security-review-offline.mjs",
       "passed": true,
-      "durationMs": 7770
+      "durationMs": 3637
     },
     {
       "file": "test-default-tech-stack.mjs",
       "passed": true,
-      "durationMs": 1130
+      "durationMs": 1224
     },
     {
       "file": "test-feedback-reads.mjs",
       "passed": true,
-      "durationMs": 930
+      "durationMs": 982
     },
     {
       "file": "test-migration-runner.mjs",
       "passed": true,
-      "durationMs": 1626
+      "durationMs": 1319
     },
     {
       "file": "test-password-migration.mjs",
       "passed": true,
-      "durationMs": 4098
+      "durationMs": 4022
     },
     {
       "file": "test-phase14-16.mjs",
       "passed": true,
-      "durationMs": 910
+      "durationMs": 922
     },
     {
       "file": "test-phase17-18.mjs",
       "passed": true,
-      "durationMs": 1005
+      "durationMs": 986
     },
     {
       "file": "test-phase22.mjs",
       "passed": true,
-      "durationMs": 2250
+      "durationMs": 1175
     },
     {
       "file": "test-professor-groups.mjs",
       "passed": true,
-      "durationMs": 1048
+      "durationMs": 994
     },
     {
       "file": "test-professor-member-removal.mjs",
       "passed": true,
-      "durationMs": 1079
+      "durationMs": 1037
     },
     {
       "file": "test-professor-remember.mjs",
       "passed": true,
-      "durationMs": 1265
+      "durationMs": 1131
     },
     {
       "file": "test-project-readiness.mjs",
       "passed": true,
-      "durationMs": 1136
+      "durationMs": 1125
     },
     {
       "file": "test-release-migrations.mjs",
       "passed": true,
-      "durationMs": 1663
+      "durationMs": 1272
     },
     {
       "file": "test-release-schema.mjs",
       "passed": true,
-      "durationMs": 8657
+      "durationMs": 8116
     },
     {
       "file": "test-security-database.mjs",
       "passed": true,
-      "durationMs": 2269
+      "durationMs": 2156
     },
     {
       "file": "test-shared-description.mjs",
       "passed": true,
-      "durationMs": 266
+      "durationMs": 249
     },
     {
       "file": "test-slot-participation.mjs",
       "passed": true,
-      "durationMs": 1048
+      "durationMs": 1020
     },
     {
       "file": "test-student-board-approval.mjs",
       "passed": true,
-      "durationMs": 1188
+      "durationMs": 1135
     }
   ]
 }
