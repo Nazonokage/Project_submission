@@ -1,9 +1,9 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { StudentPassword } from './student-password';
 import Link from 'next/link';
-import { ChevronRight } from 'lucide-react';
+import { AlertTriangle, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   Dialog,
@@ -65,6 +65,22 @@ export function RosterTab({
     setEditing(null);
     setError(null);
   }
+
+  // Count duplicate student names in this class (case-insensitive & trimmed)
+  const duplicateNameCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const s of students) {
+      const key = s.name.trim().toLowerCase();
+      counts.set(key, (counts.get(key) || 0) + 1);
+    }
+    return counts;
+  }, [students]);
+
+  const hasDuplicate = (s: RosterStudent) => (duplicateNameCounts.get(s.name.trim().toLowerCase()) || 0) > 1;
+  const totalDuplicatesCount = useMemo(() => {
+    return students.filter(s => (duplicateNameCounts.get(s.name.trim().toLowerCase()) || 0) > 1).length;
+  }, [students, duplicateNameCounts]);
+
   const filteredStudents = students.filter((s) => {
     const matches = `${s.name} ${s.idNumber}`.toLowerCase().includes(search.trim().toLowerCase());
     const progress = progressFor(s).filter(p => p.enrolled !== false);
@@ -72,7 +88,8 @@ export function RosterTab({
       (filter === 'no-group' && enrolled(s) && (selectedSlotId ? !s.memberships?.some(m => m.slotId === selectedSlotId) : !s.memberships?.length)) ||
       (filter === 'never' && !s.lastLoginAt) ||
       (filter === 'pending' && progress.some((p) => p.pendingCount > 0)) ||
-      (filter === 'verified' && progress.some((p) => p.verifiedCount > 0)));
+      (filter === 'verified' && progress.some((p) => p.verifiedCount > 0)) ||
+      (filter === 'duplicates' && hasDuplicate(s)));
   });
   const [importText, setImportText] = useState('');
   const [showImport, setShowImport] = useState(false);
@@ -85,8 +102,40 @@ export function RosterTab({
   const [savingEdit, setSavingEdit] = useState(false);
   const [exporting, setExporting] = useState(false);
 
+  // Check import duplicates against current roster and within the pasted text itself
+  const importDuplicates = useMemo(() => {
+    const rawNames = importText.split('\n').map(n => n.trim()).filter(Boolean);
+    const existingMatches = new Set<string>();
+    const seenInImport = new Set<string>();
+    const withinImportDupes = new Set<string>();
+    const rosterNames = new Set(students.map(s => s.name.trim().toLowerCase()));
+
+    for (const n of rawNames) {
+      const lower = n.toLowerCase();
+      if (rosterNames.has(lower)) existingMatches.add(n);
+      if (seenInImport.has(lower)) withinImportDupes.add(n);
+      seenInImport.add(lower);
+    }
+
+    return {
+      existing: Array.from(existingMatches),
+      withinImport: Array.from(withinImportDupes),
+    };
+  }, [importText, students]);
+
   async function doImport(e: React.FormEvent) {
     e.preventDefault();
+    if (importDuplicates.existing.length > 0 || importDuplicates.withinImport.length > 0) {
+      const msgs = [];
+      if (importDuplicates.existing.length > 0) {
+        msgs.push(`${importDuplicates.existing.length} name(s) already exist in this class:\n• ${importDuplicates.existing.slice(0, 5).join('\n• ')}${importDuplicates.existing.length > 5 ? `\n...and ${importDuplicates.existing.length - 5} more` : ''}`);
+      }
+      if (importDuplicates.withinImport.length > 0) {
+        msgs.push(`${importDuplicates.withinImport.length} name(s) appear multiple times in the import list:\n• ${importDuplicates.withinImport.slice(0, 5).join('\n• ')}${importDuplicates.withinImport.length > 5 ? `\n...and ${importDuplicates.withinImport.length - 5} more` : ''}`);
+      }
+      const confirmed = window.confirm(`Warning: duplicate names detected!\n\n${msgs.join('\n\n')}\n\nDo you want to proceed anyway?`);
+      if (!confirmed) return;
+    }
     setError(null);
     const res = await fetch(`/api/classes/${classId}/students/import`, {
       method: 'POST',
@@ -107,11 +156,19 @@ export function RosterTab({
 
   async function addOne(e: React.FormEvent) {
     e.preventDefault();
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    const lower = trimmed.toLowerCase();
+    const existing = students.find(s => s.name.trim().toLowerCase() === lower);
+    if (existing) {
+      const confirmed = window.confirm(`A student named "${existing.name}" (ID: ${existing.idNumber}) is already in this class.\n\nAre you sure you want to add another student with the same name?`);
+      if (!confirmed) return;
+    }
     setError(null);
     const res = await fetch(`/api/classes/${classId}/students`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name }),
+      body: JSON.stringify({ name: trimmed }),
     });
     const data = await res.json();
     if (!res.ok) {
@@ -220,20 +277,42 @@ export function RosterTab({
             value={importText}
             onChange={(e) => setImportText(e.target.value)}
           />
+          {(importDuplicates.existing.length > 0 || importDuplicates.withinImport.length > 0) && (
+            <div className="rounded-xl border border-amber-300 bg-amber-50 dark:bg-amber-950/40 dark:border-amber-700/60 p-3 text-xs text-amber-900 dark:text-amber-200 space-y-1">
+              <div className="flex items-center gap-1.5 font-semibold">
+                <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                <span>Duplicate names detected</span>
+              </div>
+              {importDuplicates.existing.length > 0 && (
+                <p>Already in class: <strong>{importDuplicates.existing.join(', ')}</strong></p>
+              )}
+              {importDuplicates.withinImport.length > 0 && (
+                <p>Duplicate in paste: <strong>{importDuplicates.withinImport.join(', ')}</strong></p>
+              )}
+            </div>
+          )}
           <p className="text-sm text-muted">IDs continue from the current roster. Password = class default.</p>
           <button type="submit" className="btn-primary">
             Import students
           </button>
         </form>
       )}
-      <form onSubmit={addOne} className="card flex flex-wrap items-end gap-3">
-        <div className="flex-1 min-w-[12rem]">
-          <label className="label">Name</label>
-          <input className="input" required value={name} onChange={(e) => setName(e.target.value)} />
+      <form onSubmit={addOne} className="card space-y-3">
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="flex-1 min-w-[12rem]">
+            <label className="label">Name</label>
+            <input className="input" required value={name} onChange={(e) => setName(e.target.value)} />
+          </div>
+          <button type="submit" className="btn-primary">
+            Add student
+          </button>
         </div>
-        <button type="submit" className="btn-primary">
-          Add student
-        </button>
+        {name.trim() && students.some(s => s.name.trim().toLowerCase() === name.trim().toLowerCase()) && (
+          <div className="flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-400">
+            <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+            <span>A student with this name already exists in this class.</span>
+          </div>
+        )}
         <p className="w-full text-sm text-muted">ID is auto-generated. Password uses the class default.</p>
       </form>
         </div>
@@ -244,6 +323,16 @@ export function RosterTab({
         {([['all', 'All'], ['no-group', 'No group'], ['never', 'Never logged in'], ['pending', 'Has pending'], ['verified', 'Has verified']] as const).map(([value, label]) => (
           <button type="button" key={value} aria-pressed={filter === value} className={filter === value ? 'btn-primary' : 'btn-secondary'} onClick={() => setFilter(value)}>{label}</button>
         ))}
+        {totalDuplicatesCount > 0 && (
+          <button
+            type="button"
+            aria-pressed={filter === 'duplicates'}
+            className={filter === 'duplicates' ? 'btn-primary bg-amber-600 border-amber-600 hover:bg-amber-700' : 'btn-secondary text-amber-700 dark:text-amber-400 border-amber-300 dark:border-amber-700/60'}
+            onClick={() => setFilter(filter === 'duplicates' ? 'all' : 'duplicates')}
+          >
+            Duplicates ({totalDuplicatesCount})
+          </button>
+        )}
 
       </div>
       {selectedSlotId && <div className="space-y-2 text-sm">
@@ -275,7 +364,23 @@ export function RosterTab({
                   }}
                   className="interactive-row cursor-pointer touch-manipulation border-t border-line/60 align-top hover:bg-secondary/50 active:bg-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent focus-visible:-outline-offset-2">
                   <th scope="row" className="px-5 py-4 font-medium min-w-[10rem]">
-                    <span className="inline-flex items-center gap-2"><span className="underline decoration-dotted underline-offset-4">{student.name}</span><ChevronRight aria-hidden="true" className="row-chevron h-4 w-4 shrink-0" /></span>{student.isActive === false && <span className="block text-xs font-normal text-muted">Inactive</span>}
+                    <div className="flex flex-col items-start gap-1">
+                      <span className="inline-flex items-center gap-2">
+                        <span className="underline decoration-dotted underline-offset-4">{student.name}</span>
+                        <ChevronRight aria-hidden="true" className="row-chevron h-4 w-4 shrink-0" />
+                      </span>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {hasDuplicate(student) && (
+                          <span className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-medium bg-amber-100 text-amber-800 dark:bg-amber-950/70 dark:text-amber-300 border border-amber-300 dark:border-amber-700/60">
+                            <AlertTriangle className="h-3 w-3 shrink-0" />
+                            Duplicate name
+                          </span>
+                        )}
+                        {student.isActive === false && (
+                          <span className="text-xs font-normal text-muted">Inactive</span>
+                        )}
+                      </div>
+                    </div>
                   </th>
                   <td className="px-5 py-4 font-mono tabular-nums whitespace-nowrap">{student.idNumber}</td>
                   <td className="px-5 py-4 min-w-[13rem]">
@@ -336,7 +441,15 @@ export function RosterTab({
             </DialogFooter>
           </form> : selected && <>
             <DialogHeader className="pr-6">
-              <DialogTitle className="text-2xl tracking-tight leading-tight">{selected.name}</DialogTitle>
+              <div className="flex flex-wrap items-center gap-2">
+                <DialogTitle className="text-2xl tracking-tight leading-tight">{selected.name}</DialogTitle>
+                {hasDuplicate(selected) && (
+                  <span className="inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-950/70 dark:text-amber-300 border border-amber-300 dark:border-amber-700/60">
+                    <AlertTriangle className="h-3 w-3 shrink-0" />
+                    Duplicate name in class
+                  </span>
+                )}
+              </div>
               <DialogDescription>Student details · <span className="font-mono">{selected.idNumber}</span></DialogDescription>
             </DialogHeader>
             <div className="rounded-2xl bg-secondary/40 p-4 space-y-2 text-sm">
