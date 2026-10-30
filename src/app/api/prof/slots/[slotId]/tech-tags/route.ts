@@ -6,7 +6,8 @@ import { db } from '@/lib/db';
 import { projectSlots } from '@/lib/schema';
 import { eq } from 'drizzle-orm';
 
-export async function GET(_req: Request, { params }: { params: { slotId: string } }) {
+export async function GET(_req: Request, { params: promisedParams }: { params: Promise<{ slotId: string }> }) {
+  const params = await promisedParams;
   const session = await getProfSession();
   if (!session) return jsonError('Not authenticated', 401);
   const [slot] = await db.select().from(projectSlots).where(eq(projectSlots.id, params.slotId)).limit(1);

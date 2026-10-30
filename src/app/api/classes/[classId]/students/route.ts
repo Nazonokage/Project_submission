@@ -3,6 +3,9 @@ import { db } from '@/lib/db';
 import { students, studentGroupSlots, projectSlots, titles } from '@/lib/schema';
 import { eq, asc, and, isNull, desc } from 'drizzle-orm';
 import { getProfSession } from '@/lib/auth';
+import { hashPassword, issuedPasswordError, publicStudent } from '@/lib/password';
+import { encryptStudentPassword } from '@/lib/password-vault.mjs';
+import { randomUUID } from 'node:crypto';
 import {
   assertClassOwnedByProf,
   classDefaultPassword,
@@ -10,7 +13,8 @@ import {
   nextStudentIdNumber,
 } from '@/lib/helpers';
 
-export async function GET(_req: NextRequest, { params }: { params: { classId: string } }) {
+export async function GET(_req: NextRequest, { params: promisedParams }: { params: Promise<{ classId: string }> }) {
+  const params = await promisedParams;
   const prof = await getProfSession();
   if (!prof) return jsonError('Not authenticated', 401);
 
@@ -65,7 +69,7 @@ export async function GET(_req: NextRequest, { params }: { params: { classId: st
     slots,
     students: rows.map((s) => {
       const memberships = byStudent.get(s.id) || [];
-      return { ...s, memberships, slotProgress: slots.map((slot) => {
+      return { ...publicStudent(s), memberships, slotProgress: slots.map((slot) => {
         const membership = memberships.find((m) => m.slotId === slot.id);
         const work = membership ? byGroupSlot.get(`${membership.groupId}:${slot.id}`) || [] : [];
         return {
@@ -83,7 +87,8 @@ export async function GET(_req: NextRequest, { params }: { params: { classId: st
   });
 }
 
-export async function POST(req: NextRequest, { params }: { params: { classId: string } }) {
+export async function POST(req: NextRequest, { params: promisedParams }: { params: Promise<{ classId: string }> }) {
+  const params = await promisedParams;
   const prof = await getProfSession();
   if (!prof) return jsonError('Not authenticated', 401);
 
@@ -98,13 +103,18 @@ export async function POST(req: NextRequest, { params }: { params: { classId: st
     (body?.password as string | undefined)?.trim() || classDefaultPassword(cls);
 
   if (!name) return jsonError('name is required', 422);
+  const invalid = issuedPasswordError(password);
+  if (invalid) return jsonError(invalid, 422);
 
   try {
+    const id = randomUUID();
+    const hash = await hashPassword(password);
     const [row] = await db
       .insert(students)
-      .values({ classId: params.classId, name, idNumber, password })
+      .values({ id, classId: params.classId, name, idNumber, password: hash,
+        passwordEncrypted: encryptStudentPassword(password, { studentId: id, classId: params.classId, passwordHash: hash }) })
       .returning();
-    return NextResponse.json({ student: row }, { status: 201 });
+    return NextResponse.json({ student: publicStudent(row), initialPassword: password }, { status: 201, headers: { 'Cache-Control': 'no-store' } });
   } catch (err: any) {
     if (String(err?.message || '').includes('unique')) {
       return jsonError('A student with that ID number already exists in this class', 409);

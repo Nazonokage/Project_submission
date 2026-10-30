@@ -1,4 +1,5 @@
 'use client';
+import { safeExternalUrl } from '@/lib/safe-url';
 import { projectRequirementsError } from '@/lib/project-readiness';
 import { GithubRepoField } from '@/components/student/github-repo-field';
 
@@ -326,7 +327,7 @@ export function SlotDashboard({ classId, slotId }: { classId: string; slotId: st
               </TabsContent>
 
               <TabsContent value="board">
-                {titles.some(t => projectRequirementsError(t)) && <div className="card mb-4 space-y-2"><p className="font-medium">Complete your project information</p><p className="text-sm text-muted">Add a description and GitHub repository in Submissions to unlock project tools, regardless of approval status.</p><Button variant="outline" onClick={() => setTab('submissions')}>Complete required information</Button></div>}
+                {titles.some(t => projectRequirementsError(t)) && <div className="card mb-4 space-y-2"><p className="font-medium">Complete your project information</p><p className="text-sm text-muted">Add a description / abstract and GitHub repository in Submissions and get your title approved to unlock project tools.</p><Button variant="outline" onClick={() => setTab('submissions')}>Complete required information</Button></div>}
                 {group && slot ? (
                   <BoardTab
                     titles={titles.filter((t) => t.status === 'verified' && !projectRequirementsError(t))}
@@ -428,7 +429,7 @@ function SubmissionsTab({ slotId, slot, titles, hasVerifiedTitle, onReload }: {
           <>
             <Button variant="outline" onClick={() => setSubmitOpen(true)}>+ Submit another title</Button>
             <Dialog open={submitOpen} onOpenChange={setSubmitOpen}>
-              <DialogContent className="max-w-lg">
+              <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>Submit a project title</DialogTitle>
                   <DialogDescription>Add another title proposal for your group.</DialogDescription>
@@ -529,7 +530,7 @@ function TitleSubmitForm({ slotId, slot, onSuccess }: { slotId: string; slot: Sl
         )}
       </div>
       <div className="space-y-1.5">
-        <Label htmlFor="title-desc">Description (required)</Label>
+        <Label htmlFor="title-desc">Description / Abstract (required)</Label>
         <Textarea id="title-desc" required className="min-h-24" value={description} onChange={(e) => setDescription(e.target.value)} aria-describedby="title-desc-guide" />
         <p id="title-desc-guide" className="text-xs text-muted">Describe what your project does, the problem it solves, and who will use it.</p>
       </div>
@@ -1204,7 +1205,7 @@ function GroupTab({ group, members, without, pendingInviteeIds, creating, leaveR
               <AlertDescription>
                 <p className="font-medium text-amber-950">Leave request pending confirmation</p>
                 <p className="mt-1">Your professor has been notified. You remain in this group until they decide.</p>
-                {leaveRequest.reason && <p className="mt-2 text-amber-900/80 italic">"{leaveRequest.reason}"</p>}
+                {leaveRequest.reason && <p className="mt-2 text-amber-900/80 italic">&quot;{leaveRequest.reason}&quot;</p>}
               </AlertDescription>
             </Alert>
           )}

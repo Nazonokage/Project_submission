@@ -1,4 +1,5 @@
 'use client';
+import { StudentPassword } from '@/components/dashboard/student-password';
 
 import { ProfileTitleFeedback } from '@/components/dashboard/profile-title-feedback';
 import { DashboardBreadcrumbs } from '@/components/dashboard/breadcrumbs';
@@ -35,7 +36,7 @@ type Student = {
   id: string;
   name: string;
   idNumber: string;
-  password: string;
+  password?: never;
   isActive: boolean;
   lastLoginAt: string | null;
 };
@@ -123,7 +124,7 @@ export default function ProfessorStudentProfilePage() {
     setLeaveRequests(data.leaveRequests || []);
     setEditName(data.student.name);
     setEditIdNumber(data.student.idNumber);
-    setEditPassword(data.student.password);
+    setEditPassword('');
     setLoading(false);
   }
 
@@ -153,7 +154,7 @@ export default function ProfessorStudentProfilePage() {
     const res = await fetch(`/api/classes/${classId}/students/${studentId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: editName, idNumber: editIdNumber, password: editPassword }),
+      body: JSON.stringify({ name: editName, idNumber: editIdNumber, ...(editPassword ? { password: editPassword } : {}) }),
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
@@ -218,13 +219,7 @@ export default function ProfessorStudentProfilePage() {
                 Copy
               </button>
             </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-sm text-muted">Password</span>
-              <span className="font-mono">{student.password}</span>
-              <button type="button" className="btn-secondary" onClick={() => copy(student.password, 'Password')}>
-                Copy
-              </button>
-            </div>
+            <StudentPassword key={studentId} classId={classId} studentId={studentId} />
           </section>
 
           {groupSetup && <ProfileGroupSetup key={groupSetup.slotId || 'new'} classId={classId} studentId={studentId} initialSlotId={groupSetup.slotId} onClose={() => setGroupSetup(null)} onSaved={(slotId) => { toast.success('Group saved. You can now add or edit its project title.'); titleSaved(slotId); }} />}
@@ -351,7 +346,7 @@ export default function ProfessorStudentProfilePage() {
             </div>
             <div>
               <label className="label">Password</label>
-              <input className="input" required value={editPassword} onChange={(e) => setEditPassword(e.target.value)} />
+              <input className="input" type="password" minLength={12} placeholder="Leave blank to keep current password" value={editPassword} onChange={(e) => setEditPassword(e.target.value)} />
             </div>
             <DialogFooter>
               <button type="button" className="btn-secondary" onClick={() => setEditing(false)}>

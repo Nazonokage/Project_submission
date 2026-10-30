@@ -1,6 +1,6 @@
 # Project-Submissions
 
-Next.js 14 + Neon PostgreSQL app for professors to manage student project title
+Next.js 15 + Neon PostgreSQL app for professors to manage student project title
 submissions, verification, grouping, and repo tracking — no student accounts required.
 
 Implementation through Phase 18 (v1.7.3), tracked in `todo.md`. See
@@ -13,6 +13,10 @@ The Gmail app password and JWT secret from your old `.env` were shared in a
 screenshot/chat earlier. **Rotate both** before deploying this:
 - Gmail → regenerate an App Password (Google Account → Security → App Passwords)
 - JWT_SECRET → regenerate with the command below
+
+## Security update deployment
+
+Before running this update against an existing database, follow [the security deployment guide](docs/security-fixes-2026-10-30.md). It includes a password migration and `security_hardening.sql`. Existing passwords are preserved by default; existing sessions will be signed out. New credentials are shown once and saved passwords are never displayed or exported.
 
 ## 1. Install
 
@@ -52,11 +56,11 @@ npm run dev
 
 - **Prof auth**: email → 6-digit OTP (10 min expiry, single use) → JWT cookie (`prof_token`, 7 days)
 - **Professor Remember me**: After verifying an OTP with Remember me checked, the same browser can sign back in using that email for 7 days without another code, including after logout. Browser trust uses a separate signed, HTTP-only cookie. New/expired browsers and other emails still require OTP. “Forget this browser” removes both browser trust and the active professor session.
-- **Student auth**: ID number + password → JWT cookie (`student_token`, 1 day)
+- **Student auth**: searchable name/ID picker + individual password → JWT cookie (`student_token`, 1 day)
 - **Classes & project slots**: create/edit/delete, per-slot group size, title caps,
   duplicate-check mode (`strict`/`warn`), required-fields toggles, locking
 - **Student roster**: `.txt` bulk import (auto-generates ID numbers + passwords),
-  manual add, clickable detail/edit modal, CSV export
+  manual add with unique passwords shown once, password reset, clickable detail/edit modal, CSV export without passwords
 - **Groups**: solo auto-assign on first visit to a solo slot; multi-member create +
   invite + accept/decline (accepting auto-declines other pending invites); auto-locks
   when full; "students without a group" list; leave request flow with prof approval

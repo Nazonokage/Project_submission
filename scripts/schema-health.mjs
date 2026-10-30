@@ -101,6 +101,11 @@ const hasTrgmIdx = idxRes.some(row => /using gin/i.test(row.indexdef) && /text g
 console.log(`${hasTrgmIdx ? 'ok' : 'MISSING'}  index: titles_text_trgm_idx`);
 if (!hasTrgmIdx) ok = false;
 
+const securityFunctions = await sql`SELECT proname FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND proname IN ('accept_project_invite', 'enforce_group_membership_security', 'enforce_invitation_capacity', 'lock_project_slot_change')`;
+if (securityFunctions.length !== 4) { console.error('MISSING security functions: apply security_hardening.sql'); ok = false; }
+const securityTriggers = await sql`SELECT tgname FROM pg_trigger WHERE NOT tgisinternal AND tgenabled <> 'D' AND tgname IN ('security_group_slot_lock', 'security_project_slot_lock', 'security_invite_slot_lock', 'security_title_slot_lock', 'security_membership_guard', 'security_invitation_capacity')`;
+if (securityTriggers.length !== 6) { console.error('MISSING security triggers: apply security_hardening.sql'); ok = false; }
+
 if (!ok) {
   console.error('\nSchema validation failed: missing tables, columns, extensions, or indexes.');
   process.exit(1);

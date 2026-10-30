@@ -1,215 +1,88 @@
 'use client';
-
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { AlertCircle, ChevronDown, Loader2, Search } from 'lucide-react';
-import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Alert, AlertDescription } from '@/components/ui/alert';
 
-type DirectoryStudent = { name: string; idNumber: string };
+type StudentMatch = { name: string; idNumber: string };
 
-const recentKey = (classId: string) => `ps-recent-students:${classId}`;
-
-export function LoginForm({
-  classId,
-  className,
-  term,
-}: {
-  classId: string;
-  className?: string;
-  term?: string;
-}) {
+export function LoginForm({ classId, className, term }: { classId: string; className?: string; term?: string }) {
   const router = useRouter();
-  const passwordRef = useRef<HTMLInputElement>(null);
   const [idNumber, setIdNumber] = useState('');
   const [password, setPassword] = useState('');
-  const [query, setQuery] = useState('');
-  const [open, setOpen] = useState(false);
-  const [students, setStudents] = useState<DirectoryStudent[]>([]);
-  const [recent, setRecent] = useState<DirectoryStudent[]>([]);
-  const [error, setError] = useState<string | null>(null);
   const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
-
+  const [error, setError] = useState<string | null>(null);
+  const [query, setQuery] = useState('');
+  const [matches, setMatches] = useState<StudentMatch[]>([]);
+  const [open, setOpen] = useState(false);
+  const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(-1);
+  const passwordRef = useRef<HTMLInputElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
   useEffect(() => {
-    fetch(`/api/classes/${classId}/directory`, { cache: 'no-store' })
-      .then((res) => (res.ok ? res.json() : { students: [] }))
-      .then((data) => setStudents(data.students || []))
-      .catch(() => setStudents([]));
-    try {
-      const raw = localStorage.getItem(recentKey(classId));
-      if (raw) setRecent(JSON.parse(raw));
-    } catch {
-      /* ignore */
-    }
-  }, [classId]);
-
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return students.slice(0, 40);
-    return students
-      .filter((s) => s.name.toLowerCase().includes(q) || s.idNumber.toLowerCase().includes(q))
-      .slice(0, 40);
-  }, [students, query]);
-
-  function pick(student: DirectoryStudent) {
-    setIdNumber(student.idNumber);
-    setQuery(`${student.name} · ${student.idNumber}`);
-    setOpen(false);
-    setTimeout(() => passwordRef.current?.focus(), 0);
+    const controller = new AbortController();
+    setMatches([]); setActiveIndex(-1); setSearchError(false);
+    if (!open || query.trim().length < 2) { setSearching(false); return () => controller.abort(); }
+    setSearching(true);
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/classes/${encodeURIComponent(classId)}/directory?q=${encodeURIComponent(query.trim())}`, { cache: 'no-store', signal: controller.signal });
+        if (!res.ok) throw new Error('Search unavailable');
+        const data = await res.json();
+        if (!controller.signal.aborted) setMatches(data.students || []);
+      } catch {
+        if (!controller.signal.aborted) setSearchError(true);
+      } finally { if (!controller.signal.aborted) setSearching(false); }
+    }, 250);
+    return () => { clearTimeout(timer); controller.abort(); };
+  }, [classId, query, open]);
+  function pick(student: StudentMatch) {
+    setIdNumber(student.idNumber); setQuery(`${student.name} · ${student.idNumber}`);
+    setOpen(false); setActiveIndex(-1); passwordRef.current?.focus();
   }
-
-  function remember(student: DirectoryStudent) {
-    const next = [student, ...recent.filter((s) => s.idNumber !== student.idNumber)].slice(0, 4);
-    setRecent(next);
-    try {
-      localStorage.setItem(recentKey(classId), JSON.stringify(next));
-    } catch {
-      /* ignore */
-    }
-  }
-
   async function submit(e: React.FormEvent) {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
+    e.preventDefault(); setLoading(true); setError(null);
     try {
-      const res = await fetch('/api/student/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ classId, idNumber, password, rememberMe }),
-      });
+      const res = await fetch('/api/student/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ classId, idNumber, password, rememberMe }) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Login failed');
-      const match = students.find((s) => s.idNumber === idNumber);
-      if (match) remember(match);
-      toast.success('Welcome in');
       router.push(`/c/${classId}`);
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Login failed');
-    } finally {
-      setLoading(false);
-    }
+    } catch (err) { setError(err instanceof Error ? err.message : 'Login failed'); }
+    finally { setLoading(false); }
   }
-
-  return (
-    <Card className="w-full max-w-md shadow-md">
-      <CardHeader>
-        <CardTitle className="text-2xl">Student Login</CardTitle>
-        <CardDescription>
-          {className ? (
-            <>
-              <span className="font-medium text-foreground">{className}</span>
-              {term ? <span> · {term}</span> : null}
-            </>
-          ) : (
-            'Use the ID number and password your professor gave you.'
-          )}
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form onSubmit={submit} className="space-y-4">
-          <div className="space-y-1.5">
-            <Label htmlFor="studentSearch">Name or ID number</Label>
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-muted" />
-              <Input
-                id="studentSearch"
-                autoComplete="off"
-                className="pl-9 pr-9"
-                placeholder="Search by name or ID"
-                value={query}
-                onChange={(e) => {
-                  setQuery(e.target.value);
-                  setIdNumber(e.target.value.trim());
-                  setOpen(true);
-                }}
-                onFocus={() => setOpen(true)}
-                onBlur={() => setTimeout(() => setOpen(false), 150)}
-              />
-              <ChevronDown className="pointer-events-none absolute right-3 top-2.5 h-4 w-4 text-muted" />
-              {open && (filtered.length > 0 || recent.length > 0) && (
-                <ul className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-lg border border-line bg-card py-1 shadow-md">
-                  {query.trim() === '' && recent.length > 0 && (
-                    <>
-                      <li className="px-3 py-1 text-[11px] uppercase tracking-wide text-muted">Recently used</li>
-                      {recent.map((s) => (
-                        <li key={`r-${s.idNumber}`}>
-                          <button
-                            type="button"
-                            className="flex w-full flex-col items-start px-3 py-1.5 text-left text-sm hover:bg-secondary"
-                            onMouseDown={(e) => e.preventDefault()}
-                            onClick={() => pick(s)}
-                          >
-                            <span className="font-medium">{s.name}</span>
-                            <span className="text-xs text-muted">{s.idNumber}</span>
-                          </button>
-                        </li>
-                      ))}
-                      <li className="my-1 border-t border-line" />
-                    </>
-                  )}
-                  {filtered.map((s) => (
-                    <li key={s.idNumber}>
-                      <button
-                        type="button"
-                        className="flex w-full flex-col items-start px-3 py-1.5 text-left text-sm hover:bg-secondary"
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => pick(s)}
-                      >
-                        <span className="font-medium">{s.name}</span>
-                        <span className="text-xs text-muted">{s.idNumber}</span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-            {idNumber && (
-              <p className="text-xs text-muted">
-                Signing in as ID <span className="font-medium text-foreground">{idNumber}</span>
-              </p>
-            )}
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="password">Password</Label>
-            <Input
-              id="password"
-              ref={passwordRef}
-              type="password"
-              autoComplete="current-password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-          </div>
-          <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} />
-            Remember me for 7 days
-          </label>
-          <p className="text-xs text-muted">Otherwise, your session expires after 24 hours.</p>
-          {error && (
-            <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
-          <Button type="submit" className="w-full" disabled={loading || !idNumber}>
-            {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-            {loading ? 'Logging in…' : 'Log in'}
-          </Button>
-          <p className="text-center text-sm">
-            <Link href="/" className="text-muted hover:text-foreground hover:underline">
-              ← Back to home
-            </Link>
-          </p>
-        </form>
-      </CardContent>
-    </Card>
-  );
+  return <Card className="w-full max-w-md shadow-md">
+    <CardHeader><CardTitle className="text-2xl">Student Login</CardTitle><CardDescription>{className || 'Sign in to your class'}{term ? ` / ${term}` : ''}</CardDescription></CardHeader>
+    <CardContent><form onSubmit={submit} className="space-y-4">
+      <div className="space-y-1.5">
+        <Label htmlFor="studentSearch">Name or ID number</Label>
+        <div className="relative" onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setOpen(false); }}>
+          <Input id="studentSearch" ref={searchRef} role="combobox" aria-autocomplete="list" aria-expanded={open} aria-controls="student-matches" aria-activedescendant={open && activeIndex >= 0 ? `student-match-${activeIndex}` : undefined} autoComplete="off" required maxLength={100} placeholder="Search by name or ID" value={query}
+            onChange={e => { setQuery(e.target.value); setIdNumber(e.target.value.trim()); setActiveIndex(-1); setOpen(true); }} onFocus={() => setOpen(true)}
+            onKeyDown={event => {
+              if (event.key === 'Escape') { setOpen(false); return; }
+              if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+                event.preventDefault(); setOpen(true);
+                if (matches.length) setActiveIndex(index => index < 0 ? (event.key === 'ArrowDown' ? 0 : matches.length - 1) : (index + (event.key === 'ArrowDown' ? 1 : -1) + matches.length) % matches.length);
+              }
+              if (event.key === 'Enter' && open && matches.length) { event.preventDefault(); pick(matches[activeIndex >= 0 ? activeIndex : 0]); }
+            }} />
+          {open && <ul id="student-matches" role="listbox" aria-label="Matching students" className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-lg border border-line bg-card p-1 shadow-md">
+            {matches.map((student, index) => <li key={student.idNumber} role="presentation"><button id={`student-match-${index}`} role="option" aria-selected={activeIndex === index} type="button" className={`w-full rounded px-3 py-2 text-left text-sm hover:bg-secondary ${activeIndex === index ? 'bg-secondary' : ''}`} onMouseDown={event => event.preventDefault()} onClick={() => pick(student)}><span className="block font-medium">{student.name}</span><span className="text-xs text-muted">{student.idNumber}</span></button></li>)}
+            {!matches.length && <li role="presentation" className="px-3 py-2 text-sm text-muted">{searching ? 'Searching…' : searchError ? 'Search unavailable. You can still enter your ID.' : query.trim().length < 2 ? 'Type at least two characters to search.' : 'No matches. You can still enter your ID.'}</li>}
+          </ul>}
+        </div>
+        <p className="text-xs text-muted">Search for your name, or enter your ID directly.</p>
+      </div>
+      <div className="space-y-1.5"><Label htmlFor="password">Password</Label><Input id="password" ref={passwordRef} type="password" autoComplete="current-password" required value={password} onChange={e => setPassword(e.target.value)} /></div>
+      <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={rememberMe} onChange={e => setRememberMe(e.target.checked)} />Remember me for 7 days</label>
+      {error && <p role="alert" className="text-sm text-danger">{error}</p>}
+      <Button type="submit" className="w-full" disabled={loading}>{loading ? 'Logging in...' : 'Log in'}</Button>
+      <p className="text-center text-sm"><Link href="/">Back to home</Link></p>
+    </form></CardContent>
+  </Card>;
 }

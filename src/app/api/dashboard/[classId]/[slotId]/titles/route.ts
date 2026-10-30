@@ -9,8 +9,9 @@ import { selectTitles, titleConditions } from '@/lib/titles-query';
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { classId: string; slotId: string } }
+  { params: promisedParams }: { params: Promise<{ classId: string; slotId: string }> }
 ) {
+  const params = await promisedParams;
   const prof = await getProfSession();
   if (!prof) return jsonError('Not authenticated', 401);
 

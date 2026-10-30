@@ -1,12 +1,11 @@
 import { NextResponse } from 'next/server';
+import { randomInt, randomBytes } from 'node:crypto';
 import { db } from './db';
 import { classes, projectSlots, groups, students, professorOtps } from './schema';
 import { and, eq, lt, or } from 'drizzle-orm';
 
-export const FALLBACK_STUDENT_PASSWORD = '2026';
-
 export function generateOtp() {
-  return Math.floor(100000 + Math.random() * 900000).toString();
+  return randomInt(100000, 1000000).toString();
 }
 
 export async function cleanupProfessorOtps() {
@@ -15,13 +14,8 @@ export async function cleanupProfessorOtps() {
     .where(or(eq(professorOtps.used, true), lt(professorOtps.expiresAt, new Date())));
 }
 
-export function generatePassword(length = 8) {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
-  let out = '';
-  for (let i = 0; i < length; i++) {
-    out += chars[Math.floor(Math.random() * chars.length)];
-  }
-  return out;
+export function generatePassword() {
+  return randomBytes(18).toString('base64url');
 }
 
 export function jsonError(message: string, status = 400) {
@@ -81,9 +75,8 @@ export async function nextStudentIdNumber(classId: string): Promise<string> {
   return String(max + 1).padStart(4, '0');
 }
 
-export function classDefaultPassword(cls: { defaultStudentPassword?: string | null } | null | undefined) {
-  const value = cls?.defaultStudentPassword?.trim();
-  return value || FALLBACK_STUDENT_PASSWORD;
+export function classDefaultPassword(_cls?: unknown) {
+  return '2026';
 }
 
 // Confirms this student belongs to this class.

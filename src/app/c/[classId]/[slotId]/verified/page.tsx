@@ -1,4 +1,5 @@
 'use client';
+import { safeExternalUrl } from '@/lib/safe-url';
 
 import { useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
@@ -148,7 +149,7 @@ export default function VerifiedTitlesPage() {
                   <div className="flex flex-col gap-1 text-sm">
                     {t.repoUrl && (
                       <a
-                        href={t.repoUrl}
+                        href={safeExternalUrl(t.repoUrl)}
                         className="text-primary hover:underline inline-flex items-center gap-1 truncate"
                         target="_blank"
                         rel="noreferrer"
@@ -159,7 +160,7 @@ export default function VerifiedTitlesPage() {
                     )}
                     {t.deploymentUrl && (
                       <a
-                        href={t.deploymentUrl}
+                        href={safeExternalUrl(t.deploymentUrl)}
                         className="text-primary hover:underline inline-flex items-center gap-1 truncate"
                         target="_blank"
                         rel="noreferrer"

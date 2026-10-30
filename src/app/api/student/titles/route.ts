@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
   const text = (typeof body?.text === 'string' ? body.text.trim() : '');
   const description = typeof body?.description === 'string' ? body.description.trim() : '';
   const repoUrl = typeof body?.repoUrl === 'string' ? body.repoUrl.trim() : '';
-  if (!description) return jsonError('Description is required', 422);
+  if (!description) return jsonError('Description / Abstract is required', 422);
   const repoError = githubRepoUrlError(repoUrl);
   if (repoError) return jsonError(repoError, 422);
   const targetUsers = (body?.targetUsers as string | undefined)?.trim() || null;

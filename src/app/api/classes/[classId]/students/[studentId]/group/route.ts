@@ -9,9 +9,10 @@ import { getProfSession } from '@/lib/auth';
 import { assertClassOwnedByProf, assertSlotInClass, assertStudentInClass, jsonError } from '@/lib/helpers';
 import { pgErrorCode } from '@/lib/pg-errors';
 
-type Context = { params: { classId: string; studentId: string } };
+type Context = { params: Promise<{ classId: string; studentId: string }> };
 
-export async function DELETE(req: NextRequest, { params }: Context) {
+export async function DELETE(req: NextRequest, { params: promisedParams }: Context) {
+  const params = await promisedParams;
   const prof = await getProfSession();
   if (!prof) return jsonError('Not authenticated', 401);
   if (!await assertClassOwnedByProf(params.classId, prof.profId)) return jsonError('Class not found', 404);
@@ -38,7 +39,8 @@ export async function DELETE(req: NextRequest, { params }: Context) {
   return NextResponse.json({ ok: true, ...result });
 }
 
-export async function POST(req: NextRequest, { params }: Context) {
+export async function POST(req: NextRequest, { params: promisedParams }: Context) {
+  const params = await promisedParams;
   const prof = await getProfSession();
   if (!prof) return jsonError('Not authenticated', 401);
   if (!await assertClassOwnedByProf(params.classId, prof.profId)) return jsonError('Class not found', 404);

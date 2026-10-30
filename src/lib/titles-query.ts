@@ -1,3 +1,5 @@
+import { projectProgressStatus } from './progress';
+import { projectDescription } from './project-description';
 import { and, isNull, type SQL } from 'drizzle-orm';
 import { db } from './db';
 import { titles } from './schema';
@@ -43,23 +45,24 @@ function withNotDeleted(conditions: SQL | undefined) {
 
 export async function selectTitles(conditions: SQL | undefined) {
   try {
-    return await db.select().from(titles).where(withNotDeleted(conditions));
+    const rows = await db.select().from(titles).where(withNotDeleted(conditions));
+    return rows.map(row => ({ ...row, description: projectDescription(row), progressStatus: projectProgressStatus(row) }));
   } catch (err) {
     if (!isUndefinedColumn(err)) throw err;
     console.warn('titles PM columns missing; using core columns only. Run add_pm_schema.sql on Neon.');
     const rows = await db.select(TITLE_CORE_COLUMNS).from(titles).where(conditions);
-    return rows.map((row) => withProgressDefaults(row));
+    return rows.map((row) => withProgressDefaults({ ...row, description: projectDescription(row), progressStatus: projectProgressStatus(row) }));
   }
 }
 
 export async function selectTitleBy(conditions: SQL) {
   try {
     const [row] = await db.select().from(titles).where(withNotDeleted(conditions)).limit(1);
-    return row ?? null;
+    return row ? { ...row, description: projectDescription(row), progressStatus: projectProgressStatus(row) } : null;
   } catch (err) {
     if (!isUndefinedColumn(err)) throw err;
     const [row] = await db.select(TITLE_CORE_COLUMNS).from(titles).where(conditions).limit(1);
-    return row ? withProgressDefaults(row) : null;
+    return row ? withProgressDefaults({ ...row, description: projectDescription(row), progressStatus: projectProgressStatus(row) }) : null;
   }
 }
 

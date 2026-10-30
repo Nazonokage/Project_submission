@@ -8,7 +8,7 @@ const base = process.env.TEST_BASE_URL || 'http://localhost:3101';
 const browser = await chromium.launch({ headless: true, channel: 'msedge' });
 try {
   const context = await browser.newContext();
-  const token = await new SignJWT({ profId: 'prof' }).setProtectedHeader({ alg: 'HS256' }).setExpirationTime('1h').sign(new TextEncoder().encode('phase14-16-local-test-only'));
+  const token = await new SignJWT({ profId: 'prof' , email: 'synthetic@example.invalid'}).setAudience('professor-session').setProtectedHeader({ alg: 'HS256' }).setExpirationTime('1h').sign(new TextEncoder().encode('phase14-16-local-test-only'));
   await context.addCookies([{ name: 'prof_token', value: token, url: base }]);
   const classes = { one: { name: 'Software Engineering Class A', term: '2026' }, two: { name: 'Database Systems Class B', term: '2026' } };
   const slot = { id: 'slot', label: 'Capstone Project', groupSize: 2, titlesRequiredMin: 1, titlesAllowedMax: 3, duplicateCheck: 'warn', locked: false };

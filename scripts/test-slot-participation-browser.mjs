@@ -10,7 +10,7 @@ try {
   const context = await browser.newContext();
   const regular = '11111111-1111-4111-8111-111111111111';
   const irregular = '22222222-2222-4222-8222-222222222222';
-  const token = await new SignJWT({ profId: 'prof', studentId: irregular, classId: 'class' }).setProtectedHeader({ alg: 'HS256' }).setExpirationTime('1h').sign(new TextEncoder().encode('phase14-16-local-test-only'));
+  const token = await new SignJWT({ credentialVersion: 'synthetic-browser-version',  profId: 'prof', studentId: irregular, classId: 'class' , email: 'synthetic@example.invalid'}).setAudience(['professor-session', 'student-session']).setProtectedHeader({ alg: 'HS256' }).setExpirationTime('1h').sign(new TextEncoder().encode('phase14-16-local-test-only'));
   await context.addCookies(['prof_token', 'student_token'].map(name => ({ name, value: token, url: base })));
   const students = [{ id: regular, name: 'Regular Student', idNumber: '001', password: 'test', memberships: [] }, { id: irregular, name: 'Irregular Student', idNumber: '002', password: 'test', memberships: [] }];
   const slots = [{ id: 'base', label: 'Other Subject', groupSize: 1, titlesRequiredMin: 1, titlesAllowedMax: 5, duplicateCheck: 'warn', requireTechStack: false, defaultTechStack: [], excludedStudentIds: [], locked: false }];

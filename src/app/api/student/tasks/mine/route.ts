@@ -18,6 +18,7 @@ export async function GET(req: NextRequest) {
     eq(tasks.classId, session.classId),
     isNull(tasks.deletedAt),
     isNull(titles.deletedAt),
+    eq(titles.status, 'verified'),
   ];
   if (groupId) {
     conditions.push(eq(tasks.groupId, groupId));

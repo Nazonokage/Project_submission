@@ -9,8 +9,9 @@ import { jsonError } from '@/lib/helpers';
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { titleId: string } }
+  { params: promisedParams }: { params: Promise<{ titleId: string }> }
 ) {
+  const params = await promisedParams;
   const prof = await getProfSession();
   if (!prof) return jsonError('Not authenticated', 401);
 
@@ -40,6 +41,7 @@ export async function PATCH(
     .update(titles)
     .set({
       status: decision,
+      ...(decision !== 'verified' || title.status !== 'verified' ? { progressStatus: 'planning' } : {}),
       verifiedAt: decision === 'verified' ? new Date() : null,
       rejectionReason: decision === 'rejected' ? comment || null : null,
       updatedAt: new Date(),

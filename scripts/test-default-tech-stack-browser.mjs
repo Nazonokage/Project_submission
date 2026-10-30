@@ -8,7 +8,7 @@ const base = process.env.TEST_BASE_URL || 'http://localhost:3101';
 const browser = await chromium.launch({ headless: true, channel: 'msedge' });
 try {
   const context = await browser.newContext();
-  const token = await new SignJWT({ profId: 'prof', studentId: 'student', classId: 'class' }).setProtectedHeader({ alg: 'HS256' }).setExpirationTime('1h').sign(new TextEncoder().encode('phase14-16-local-test-only'));
+  const token = await new SignJWT({ credentialVersion: 'synthetic-browser-version',  profId: 'prof', studentId: 'student', classId: 'class' , email: 'synthetic@example.invalid'}).setAudience(['professor-session', 'student-session']).setProtectedHeader({ alg: 'HS256' }).setExpirationTime('1h').sign(new TextEncoder().encode('phase14-16-local-test-only'));
   await context.addCookies(['prof_token', 'student_token'].map(name => ({ name, value: token, url: base })));
   const slot = { id: 'slot', label: 'Project One', groupSize: 2, titlesRequiredMin: 1, titlesAllowedMax: 5, duplicateCheck: 'warn', requireTechStack: false, defaultTechStack: [], locked: false };
   const titles = [];
@@ -54,7 +54,7 @@ try {
   await form.getByRole('button', { name: 'Remove React', exact: true }).waitFor();
   await form.getByRole('button', { name: 'Remove React', exact: true }).click();
   await form.getByLabel('Title', { exact: true }).fill('Student selected stack');
-  await form.getByLabel('Description (required)', { exact: true }).fill('Original student abstract');
+  await form.getByLabel('Description / Abstract (required)', { exact: true }).fill('Original student abstract');
   await form.getByLabel('GitHub repository (required)', { exact: true }).fill('https://github.com/example/project');
   await form.getByRole('button', { name: 'Submit title', exact: true }).click();
   await page.locator('#title-title').waitFor();
@@ -65,7 +65,7 @@ try {
   const dialog = page.getByRole('dialog');
   assert.equal(await dialog.getByRole('button', { name: 'Remove React', exact: true }).count(), 0);
   await dialog.getByRole('button', { name: 'Remove Node.js', exact: true }).click();
-  await dialog.getByLabel('Description (required)', { exact: true }).fill('Updated student abstract');
+  await dialog.getByLabel('Description / Abstract (required)', { exact: true }).fill('Updated student abstract');
   await dialog.getByRole('button', { name: 'Save', exact: true }).click();
   await dialog.waitFor({ state: 'hidden' });
   assert.deepEqual(titles[0].techStack, []);

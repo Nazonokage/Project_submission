@@ -5,9 +5,10 @@ import { classes, documentationFieldTemplates, projectSlots } from '@/lib/schema
 import { getProfSession } from '@/lib/auth';
 import { jsonError } from '@/lib/helpers';
 
-type Ctx = { params: { slotId: string; fieldId: string } };
+type Ctx = { params: Promise<{ slotId: string; fieldId: string }> };
 
-export async function PATCH(req: NextRequest, { params }: Ctx) {
+export async function PATCH(req: NextRequest, { params: promisedParams }: Ctx) {
+  const params = await promisedParams;
   const session = await getProfSession();
   if (!session) return jsonError('Not authenticated', 401);
 
@@ -64,7 +65,8 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
   return NextResponse.json({ field: updated });
 }
 
-export async function DELETE(_req: NextRequest, { params }: Ctx) {
+export async function DELETE(_req: NextRequest, { params: promisedParams }: Ctx) {
+  const params = await promisedParams;
   const session = await getProfSession();
   if (!session) return jsonError('Not authenticated', 401);
 

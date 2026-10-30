@@ -11,7 +11,7 @@ const base = process.env.TEST_BASE_URL || 'http://localhost:3101';
 const browser = await chromium.launch({ headless: true, channel: 'msedge' });
 const now = new Date().toISOString();
 const titles = ['Alpha project', 'Beta project'].map((text, i) => ({ id: `title-${i}`, classId: 'class-test', slotId: 'slot-test', groupId: 'group-test', text, repoUrl: 'https://github.com/example/project', description: 'Project description', status: 'verified', progressStatus: 'planning', members: [{ id: 'student-test', name: 'Test Student', idNumber: '001' }], techStack: [], documentation: {} }));
-titles.push(...['Gamma proposal', 'Delta proposal'].map((text, i) => ({ ...titles[0], id: `title-${i + 2}`, text, status: 'pending', addedBy: 'student', submittedBy: { id: 'former-student', name: 'Original Submitter', role: 'student' }, members: [{ id: 'member-a', name: 'Alice Groupmate', idNumber: '002' }, { id: 'member-b', name: 'Bob Groupmate', idNumber: '003' }] })));
+titles.push(...['Gamma proposal', 'Delta proposal'].map((text, i) => ({ ...titles[0], id: `title-${i + 2}`, text, status: 'pending', progressStatus: 'in_progress', addedBy: 'student', submittedBy: { id: 'former-student', name: 'Original Submitter', role: 'student' }, members: [{ id: 'member-a', name: 'Alice Groupmate', idNumber: '002' }, { id: 'member-b', name: 'Bob Groupmate', idNumber: '003' }] })));
 let notificationReadAt = null;
 let failRead = false;
 let lastTitleBody;
@@ -27,7 +27,7 @@ const errors = [];
 const requests = [];
 async function context(role, options = {}) {
   const ctx = await browser.newContext(options);
-  const token = await new SignJWT({ studentId: 'student-test', classId: 'class-test', profId: 'prof-test' }).setProtectedHeader({ alg: 'HS256' }).setExpirationTime('1h').sign(new TextEncoder().encode('phase14-16-local-test-only'));
+  const token = await new SignJWT({ credentialVersion: 'synthetic-browser-version',  studentId: 'student-test', classId: 'class-test', profId: 'prof-test' , email: 'synthetic@example.invalid'}).setAudience(['professor-session', 'student-session']).setProtectedHeader({ alg: 'HS256' }).setExpirationTime('1h').sign(new TextEncoder().encode('phase14-16-local-test-only'));
   await ctx.addCookies([{ name: role === 'student' ? 'student_token' : 'prof_token', value: token, url: base }]);
   await ctx.route('**/api/**', async route => {
     const req = route.request();
@@ -123,13 +123,15 @@ try {
   await visible(page.getByText('Please add your test results.', { exact: true }));
   await page.getByRole('link', { name: 'Open project', exact: true }).click();
   await visible(page.locator('#title-title-0'));
-  assert.equal(await page.locator('#title-title-2 option[value="done"]').isDisabled(), true);
-  console.log('PASS feedback notification content/project link and disabled Done for pending title');
+  assert.equal(await page.locator('#title-title-2 select').isDisabled(), true);
+  assert.equal(await page.locator('#title-title-2 select').inputValue(), 'planning');
+  assert.equal(await page.locator('#title-title-0 select').isDisabled(), false);
+  console.log('PASS feedback notification content/project link and all progress locked in Planning for pending titles');
   // Phase 17: submission and editing share a keyboard-accessible, free-entry picker.
   await page.getByRole('button', { name: '+ Submit another title', exact: true }).click();
   const proposal = page.getByRole('dialog');
   await proposal.getByLabel('Title', { exact: true }).fill('New proposal');
-  await proposal.getByLabel('Description (required)', { exact: true }).fill('A test proposal description');
+  await proposal.getByLabel('Description / Abstract (required)', { exact: true }).fill('A test proposal description');
   await proposal.getByLabel('GitHub repository (required)', { exact: true }).fill('https://github.com/example/project');
   const tagInput = proposal.getByRole('combobox', { name: 'Search tech stack' });
   await tagInput.fill('rea');
@@ -240,6 +242,7 @@ try {
   await prof.page.goto(`${base}/dashboard/class-test`);
   await visible(prof.page.getByText('Alpha project', { exact: true }));
   await prof.page.getByRole('button', { name: /Roster \/ Students/ }).click();
+  await visible(prof.page.locator('thead th').first());
   assert.equal(await prof.page.locator('thead th').count(), 4);
   assert.equal(await prof.page.locator('tbody button').count(), 0);
   await visible(prof.page.getByText('No project yet', { exact: true }));
@@ -251,8 +254,8 @@ try {
   const detail = prof.page.getByRole('dialog');
   await visible(detail.getByRole('heading', { name: 'Pending Student', exact: true }));
   assert.match(await detail.textContent(), /Jamie Teammate/);
-  await detail.getByRole('button', { name: 'Show password' }).click();
-  await visible(detail.getByText('default', { exact: true }));
+  await visible(detail.getByRole('button', { name: 'Show password', exact: true }));
+  await visible(detail.getByRole('button', { name: 'Issue new password', exact: true }));
   assert.equal(await detail.getByRole('link', { name: 'View profile' }).getAttribute('href'), '/dashboard/class-test/students/pending');
   await detail.getByRole('button', { name: 'Edit student', exact: true }).click();
   await detail.getByLabel('Name', { exact: true }).fill('Unsaved change');
@@ -305,7 +308,7 @@ try {
   await prof.page.getByRole('combobox', { name: 'Project slot', exact: true }).selectOption('slot-test');
   await visible(queue.getByText('All caught up.', { exact: false }));
   titles[2].status = 'pending'; titles[3].status = 'pending';
-  await prof.page.reload();
+  await prof.page.goto(`${base}/dashboard/class-test?tab=board&slot=slot-test`);
   await visible(queue.getByRole('article', { name: 'Gamma proposal' }));
   await queue.getByRole('button', { name: 'Approve all (2)', exact: true }).click();
   await visible(prof.page.getByRole('dialog').getByText('Gamma proposal', { exact: true }));

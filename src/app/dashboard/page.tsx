@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { defaultAcademicTerm, termPresets } from '@/lib/term';
@@ -19,7 +19,7 @@ export default function DashboardPage() {
   const [includeArchived, setIncludeArchived] = useState(false);
   const presets = termPresets();
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     const res = await fetch(`/api/classes${includeArchived ? '?includeArchived=1' : ''}`);
     if (res.ok) {
@@ -27,11 +27,11 @@ export default function DashboardPage() {
       setClasses(data.classes);
     }
     setLoading(false);
-  }
+  }, [includeArchived]);
 
   useEffect(() => {
     load();
-  }, [includeArchived]);
+  }, [load]);
 
   function openForm() {
     setShowForm((s) => {

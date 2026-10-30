@@ -2,11 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { students, studentGroupSlots, groups, projectSlots } from '@/lib/schema';
 import { eq } from 'drizzle-orm';
-import { getStudentSession } from '@/lib/auth';
+import { getStudentSession, clearStudentCookie } from '@/lib/auth';
 import { jsonError } from '@/lib/helpers';
-import { verifyStoredPassword } from '@/lib/password';
+import { verifyStoredPassword, hashPassword, passwordError } from '@/lib/password';
+import { assertActionRateLimit } from '@/lib/rate-limit';
+import { encryptStudentPassword } from '@/lib/password-vault.mjs';
 
-const MIN_PASSWORD_LENGTH = 4;
 
 export async function GET() {
   const session = await getStudentSession();
@@ -67,19 +68,24 @@ export async function PATCH(req: NextRequest) {
     return jsonError('Name and ID number cannot be changed here', 403);
   }
 
-  const currentPassword = (body?.currentPassword as string | undefined)?.trim();
-  const newPassword = (body?.newPassword as string | undefined)?.trim();
+  const currentPassword = typeof body?.currentPassword === 'string' ? body.currentPassword : '';
+  const newPassword = typeof body?.newPassword === 'string' ? body.newPassword : '';
 
   if (!currentPassword || !newPassword) {
     return jsonError('currentPassword and newPassword are required', 422);
   }
-  if (newPassword.length < MIN_PASSWORD_LENGTH) {
-    return jsonError(`New password must be at least ${MIN_PASSWORD_LENGTH} characters`, 422);
-  }
+  const invalid = passwordError(newPassword);
+  if (invalid) return jsonError(invalid, 422);
+  const limited = await assertActionRateLimit({ key: session.studentId, action: 'password_change', max: 5, message: 'Too many password change attempts. Try again later.' });
+  if (limited) return limited;
 
   const ok = await verifyStoredPassword(currentPassword, student.password || '');
   if (!ok) return jsonError('Current password is incorrect', 401);
 
-  await db.update(students).set({ password: newPassword }).where(eq(students.id, session.studentId));
+  const hash = await hashPassword(newPassword);
+  await db.update(students).set({ password: hash,
+    passwordEncrypted: encryptStudentPassword(newPassword, { studentId: student.id, classId: student.classId, passwordHash: hash }),
+  }).where(eq(students.id, session.studentId));
+  await clearStudentCookie();
   return NextResponse.json({ ok: true });
 }

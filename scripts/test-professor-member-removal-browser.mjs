@@ -9,7 +9,7 @@ const base = process.env.TEST_BASE_URL || 'http://localhost:3101';
 const browser = await chromium.launch({ headless: true, channel: 'msedge' });
 try {
   const context = await browser.newContext();
-  const token = await new SignJWT({ profId: 'prof-test' }).setProtectedHeader({ alg: 'HS256' }).setExpirationTime('1h').sign(new TextEncoder().encode('phase14-16-local-test-only'));
+  const token = await new SignJWT({ credentialVersion: 'synthetic-browser-version',  profId: 'prof-test' , email: 'synthetic@example.invalid'}).setAudience(['professor-session', 'student-session']).setProtectedHeader({ alg: 'HS256' }).setExpirationTime('1h').sign(new TextEncoder().encode('phase14-16-local-test-only'));
   await context.addCookies([{ name: 'prof_token', value: token, url: base }]);
   const group = { groupId: '55555555-5555-4555-8555-555555555555', slotId: 'slot', slotLabel: 'Project One', status: 'locked', maxSize: 2, members: [{ id: 'student', name: 'Alice', idNumber: '001' }, { id: 'peer', name: 'Bob', idNumber: '002' }] };
   let memberships = [group];

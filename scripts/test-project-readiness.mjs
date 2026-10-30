@@ -10,17 +10,18 @@ for (const status of ['pending', 'rejected', 'verified']) {
  const db = database([{ id: 'member' }]);
  const mocks = { ...common, '@/lib/db': db, '@/lib/titles-query': { selectTitleBy: async () => title } };
  const route = load('src/app/api/student/titles/[titleId]/route.ts', mocks);
- assert.equal((await route.PATCH(request({ progressStatus: 'planning' }), { params: { titleId: 'title' } })).status, 428);
+ const blockedStatus = status === 'verified' ? 428 : 403;
+ assert.equal((await route.PATCH(request({ progressStatus: 'planning' }), { params: { titleId: 'title' } })).status, blockedStatus);
  assert.equal((await route.PATCH(request({ description: 'An abstract', repoUrl: 'https://github.com/owner/project' }), { params: { titleId: 'title' } })).status, 200);
  assert.equal(db.queries.find(q => q.operation === 'update').set.repoUrl, 'https://github.com/owner/project');
  assert.equal((await route.PATCH(request({ repoUrl: 'https://example.com/a/b' }), { params: { titleId: 'title' } })).status, 422);
  const gate = load('src/lib/student-project-access.ts', mocks);
- assert.equal((await gate.requireStudentProjectReady('title','class')).status, 428);
+ assert.equal((await gate.requireStudentProjectReady('title','class')).status, blockedStatus);
  for (const file of ['src/app/api/student/tasks/route.ts', 'src/app/api/student/updates/route.ts', 'src/app/api/student/titles/[titleId]/reports/route.ts']) {
   const incomplete = database([title]);
   const tools = load(file, { ...mocks, '@/lib/db': incomplete });
   const response = await tools.POST(request({ titleId: 'title', name: 'Task', body: 'Update', kind: 'progress', headline: 'Progress' }), { params: { titleId: 'title' } });
-  assert.equal(response.status, 428, file);
+  assert.equal(response.status, file.includes('/reports/') ? 428 : blockedStatus, file);
   assert.equal(incomplete.queries.some(q => q.operation === 'insert'), false);
  }
 }

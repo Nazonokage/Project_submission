@@ -516,7 +516,7 @@ export function DocFieldsManager({ slotId }: { slotId: string }) {
   async function seedStandardFields() {
     setSeeding(true);
     const standard = [
-      { label: 'Abstract', fieldKey: 'abstract', fieldType: 'textarea', required: true, sortOrder: 0 },
+      { label: 'Description / Abstract', fieldKey: 'abstract', fieldType: 'textarea', required: true, sortOrder: 0 },
       { label: 'Statement of the Problem', fieldKey: 'statement_of_problem', fieldType: 'textarea', required: true, sortOrder: 1 },
       { label: 'Scope & Limitations', fieldKey: 'scope_and_limitations', fieldType: 'textarea', required: false, sortOrder: 2 },
       { label: 'Key Objectives', fieldKey: 'key_objectives', fieldType: 'textarea', required: true, sortOrder: 3 },
@@ -547,7 +547,7 @@ export function DocFieldsManager({ slotId }: { slotId: string }) {
         <div>
           <h3 className="text-sm font-semibold">Custom Documentation Fields</h3>
           <p className="text-xs text-muted">
-            Define structured fields (Abstract, Objectives, etc.) required when students submit milestone reports.
+            Description / Abstract uses the same overview as Submissions. Add other documentation fields such as Objectives or Methodology.
           </p>
         </div>
         <button
@@ -575,7 +575,7 @@ export function DocFieldsManager({ slotId }: { slotId: string }) {
               className="flex items-center justify-between gap-3 p-2.5 rounded-lg border border-line bg-secondary/30 text-xs"
             >
               <div className="min-w-0">
-                <p className="font-medium text-ink">{f.label}</p>
+                <p className="font-medium text-ink">{f.fieldKey === 'abstract' ? 'Description / Abstract' : f.label}</p>
                 <p className="text-muted font-mono text-[10px]">
                   key: {f.fieldKey} · type: {f.fieldType}
                 </p>

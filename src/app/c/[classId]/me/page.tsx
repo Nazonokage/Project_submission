@@ -80,7 +80,8 @@ export default function StudentAccountPage() {
     setCurrentPassword('');
     setNewPassword('');
     setConfirmPassword('');
-    toast.success('Password updated. Use it the next time you log in.');
+    toast.success('Password updated. Sign in again with your new password.');
+    router.push(`/c/${classId}/login`);
   }
 
   return (
@@ -152,7 +153,7 @@ export default function StudentAccountPage() {
                     id="newPassword"
                     type="password"
                     required
-                    minLength={4}
+                    minLength={12}
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
                   />

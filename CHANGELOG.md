@@ -1,3 +1,25 @@
+## [1.8.0] - 2026-10-30
+
+### Security and authentication
+- Upgrade to Next.js 15, React 19, and patched database/email dependencies; update routes for asynchronous parameters.
+- Hash student passwords on every write and preserve existing passwords during storage migration. Password resets invalidate existing student sessions; inactive accounts cannot sign in.
+- Use distinct professor/student session audiences, cryptographic OTPs, digested OTP storage, atomic consumption, and attempt/send limits that fail closed.
+- Issue class-default credentials (2026) when students are created/imported. Saved passwords and hashes are excluded from roster responses and exports.
+- Add professor-only password recovery on roster details and student profiles: show a former class-issued password only if it still matches, or reset the password to 2026. Resets clear account login lockout and revoke older student sessions.
+- Retain searchable student login by name or ID, limited to 20 active matches in the linked class after two characters. Direct ID entry remains available.
+- Validate task assignees and private project access, neutralize spreadsheet formulas, validate external links, and prevent malformed Markdown from freezing rendering.
+
+### Project workflow and database
+- Consolidate Description / Abstract while preserving differing legacy abstracts as history.
+- Keep unapproved projects in Planning and enforce approval before board changes.
+- Make invitation acceptance and draft-group migration atomic; add database guards for group capacity and enrollment.
+- Use transaction batches compatible with Neon HTTP, including report creation and migration execution. The migration runner preserves SQL function bodies and rolls back failed batches.
+
+### Release validation
+- Add reproducible offline/browser release runners, full-schema PostgreSQL integration tests, and password-migration regressions.
+- Configure non-interactive linting and fix reported lint errors and unstable effect dependencies.
+- Required database rollout: preserve/migrate passwords first, then apply `consolidate_project_description.sql`, `enforce_approval_planning.sql`, and `security_hardening.sql`. See the release test report before deployment.
+
 ## [1.7.6] - 2026-10-28
 
 ### Interface polish

@@ -7,7 +7,8 @@ import { assertClassOwnedByProf, jsonError } from '@/lib/helpers';
 import { normalizeTechStack } from '@/lib/tech-stack';
 import { validateSlotExclusions } from '@/lib/slot-participation-server';
 
-export async function GET(_req: NextRequest, { params }: { params: { classId: string } }) {
+export async function GET(_req: NextRequest, { params: promisedParams }: { params: Promise<{ classId: string }> }) {
+  const params = await promisedParams;
   const prof = await getProfSession();
   if (!prof) return jsonError('Not authenticated', 401);
 
@@ -23,7 +24,8 @@ export async function GET(_req: NextRequest, { params }: { params: { classId: st
   return NextResponse.json({ slots: rows });
 }
 
-export async function POST(req: NextRequest, { params }: { params: { classId: string } }) {
+export async function POST(req: NextRequest, { params: promisedParams }: { params: Promise<{ classId: string }> }) {
+  const params = await promisedParams;
   const prof = await getProfSession();
   if (!prof) return jsonError('Not authenticated', 401);
 
@@ -62,7 +64,7 @@ export async function POST(req: NextRequest, { params }: { params: { classId: st
   // Auto-seed standard academic documentation field templates
   try {
     const standardFields = [
-      { label: 'Abstract', fieldKey: 'abstract', fieldType: 'textarea', required: true, sortOrder: 0 },
+      { label: 'Description / Abstract', fieldKey: 'abstract', fieldType: 'textarea', required: true, sortOrder: 0 },
       { label: 'Statement of the Problem', fieldKey: 'statement_of_problem', fieldType: 'textarea', required: true, sortOrder: 1 },
       { label: 'Scope & Limitations', fieldKey: 'scope_and_limitations', fieldType: 'textarea', required: false, sortOrder: 2 },
       { label: 'Key Objectives', fieldKey: 'key_objectives', fieldType: 'textarea', required: true, sortOrder: 3 },

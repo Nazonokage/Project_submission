@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { professorOtps, professors } from '@/lib/schema';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
+import { otpDigest, validEmail } from '@/lib/otp';
 import { getProfSession, setProfCookie, signProfToken } from '@/lib/auth';
 import { getRememberedProf } from '@/lib/prof-remember';
 import { cleanupProfessorOtps, generateOtp, jsonError } from '@/lib/helpers';
@@ -12,7 +13,7 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
   const email = typeof body?.email === 'string' ? body.email.trim().toLowerCase() : '';
 
-  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+  if (!validEmail(email)) {
     return jsonError('A valid email is required', 422);
   }
 
@@ -32,7 +33,11 @@ export async function POST(req: NextRequest) {
 
   const otp = generateOtp();
 
-  await db.insert(professorOtps).values({ email, otp });
+  await db.batch([
+    db.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${'otp:' + email}))`),
+    db.update(professorOtps).set({ used: true }).where(eq(professorOtps.email, email)),
+    db.insert(professorOtps).values({ email, otp: otpDigest(email, otp) }),
+  ]);
   try {
     await cleanupProfessorOtps();
   } catch (err) {

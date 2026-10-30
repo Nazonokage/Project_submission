@@ -82,6 +82,7 @@ for (const checked of [true, false]) {
     ...common, '@/lib/db': mock,
     '@/lib/helpers': { ...helpers, cleanupProfessorOtps: async () => {} },
     '@/lib/auth': { signProfToken: async () => 'session', setProfCookie: async () => actions.push('session') },
+    '@/lib/rate-limit': { assertActionRateLimit: async () => null },
     '@/lib/prof-remember': { rememberProf: async () => actions.push('remember'), forgetProf: async () => actions.push('forget') },
   });
   assert.equal((await verify.POST(request({ email: identity.email, otp: '123456', rememberMe: checked }))).status, 200);

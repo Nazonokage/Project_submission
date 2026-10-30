@@ -22,5 +22,9 @@ export function githubRepoUrlError(value: unknown): string | null {
 
 export function projectRequirementsError(title: { description?: unknown; repoUrl?: unknown }): string | null {
   return typeof title.description === 'string' && title.description.trim() && isGithubRepoUrl(title.repoUrl)
-    ? null : 'Complete your project description and a valid GitHub repository URL in Submissions before using project tools.';
+    ? null : 'Complete your project description / abstract and a valid GitHub repository URL in Submissions before using project tools.';
+}
+
+export function projectApprovalError(title: { status?: unknown }): string | null {
+  return title.status === 'verified' ? null : 'Your project stays in Planning until your professor approves it. Board changes unlock after approval.';
 }

@@ -1,4 +1,6 @@
 'use client';
+import { safeExternalUrl } from '@/lib/safe-url';
+import { projectDescription } from '@/lib/project-description';
 import { useQueryClient } from '@tanstack/react-query';
 import { useBoardQuery } from '@/lib/board-query';
 import { boardKeys } from '@/lib/query-keys';
@@ -216,7 +218,7 @@ export function TitleReviewDialog({
   const client = useQueryClient();
   const role = asProfessor ? 'prof' : 'student';
   const key = boardKeys.title(role, titleId);
-  const titleQuery = useBoardQuery<{ title: { documentation: Record<string, unknown> | null }; docFields: DocFieldTemplate[] }>([...key, 'documentation'], `/api/${asProfessor ? 'dashboard' : 'student'}/titles/${titleId}`, open);
+  const titleQuery = useBoardQuery<{ title: { description: string; documentation: Record<string, unknown> | null }; docFields: DocFieldTemplate[] }>([...key, 'documentation'], `/api/${asProfessor ? 'dashboard' : 'student'}/titles/${titleId}`, open);
   const reportsQuery = useBoardQuery<{ reports: ReportRow[] }>([...key, 'reports'], `/api/${asProfessor ? 'dashboard' : 'student'}/titles/${titleId}/reports`, open);
   const tasksQuery = useBoardQuery<{ tasks: TaskItemRow[] }>(boardKeys.tasks(role, titleId), `/api/${role}/tasks?titleId=${titleId}`, open, key);
   const updatesQuery = useBoardQuery<{ updates: UpdateItem[] }>(boardKeys.updates(role, titleId), `/api/${role}/updates?titleId=${titleId}`, open, key);
@@ -266,12 +268,12 @@ export function TitleReviewDialog({
               <div className="rounded-lg border border-line p-3 space-y-3 bg-secondary/15 text-sm">
                 {docFields.length > 0 ? (
                   docFields.map((field) => {
-                    const rawVal = titleDoc ? titleDoc[field.fieldKey] : null;
+                    const rawVal = field.fieldKey === 'abstract' ? projectDescription(titleQuery.data?.title || {}) : titleDoc?.[field.fieldKey];
                     const hasVal = rawVal !== null && rawVal !== undefined && String(rawVal).trim().length > 0;
                     return (
                       <div key={field.id} className="space-y-1">
                         <p className="text-xs font-medium text-ink">
-                          {field.label}{' '}
+                          {field.fieldKey === 'abstract' ? 'Description / Abstract' : field.label}{' '}
                           {field.required ? (
                             <span className="text-warn text-[11px] font-normal">(required)</span>
                           ) : (
@@ -287,7 +289,7 @@ export function TitleReviewDialog({
                     );
                   })
                 ) : titleDoc && Object.keys(titleDoc).length > 0 ? (
-                  Object.entries(titleDoc).map(([k, v]) => {
+                  Object.entries(titleDoc).filter(([key]) => key !== 'abstract' && key !== '_legacyAbstracts').map(([k, v]) => {
                     const hasVal = v !== null && v !== undefined && String(v).trim().length > 0;
                     return (
                       <div key={k} className="space-y-1">
@@ -333,7 +335,7 @@ export function TitleReviewDialog({
                       <div className="flex items-center gap-3 pt-1 text-xs">
                         {r.repoUrl && (
                           <a
-                            href={r.repoUrl}
+                            href={safeExternalUrl(r.repoUrl)}
                             target="_blank"
                             rel="noreferrer"
                             className="text-primary hover:underline"
@@ -343,7 +345,7 @@ export function TitleReviewDialog({
                         )}
                         {r.deploymentUrl && (
                           <a
-                            href={r.deploymentUrl}
+                            href={safeExternalUrl(r.deploymentUrl)}
                             target="_blank"
                             rel="noreferrer"
                             className="text-primary hover:underline"
@@ -427,7 +429,7 @@ export function TitleReviewDialog({
                         {u.commitSha && (
                           u.commitUrl ? (
                             <a
-                              href={u.commitUrl}
+                              href={safeExternalUrl(u.commitUrl)}
                               target="_blank"
                               rel="noreferrer"
                               className="font-mono text-xs text-primary hover:underline bg-primary/10 px-1 rounded"

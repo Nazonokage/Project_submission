@@ -1,0 +1,125 @@
+// Security regression checks with synthetic data; no real database or email.
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
+import vm from 'node:vm';
+import ts from 'typescript';
+import { PgDialect } from 'drizzle-orm/pg-core';
+import { load, database, common, schema, helpers } from './test-phase14-16.mjs';
+const require = createRequire(import.meta.url);
+const request = body => new Request('http://audit.invalid/api/test', { method: 'POST', body: JSON.stringify(body) });
+const password = load('src/lib/password.ts');
+const oldHash = await password.hashPassword('old-test-password');
+assert.notEqual(oldHash,'old-test-password');
+assert.equal(await password.verifyStoredPassword('2026','2026'),false);
+assert.ok(password.passwordError('short'));
+assert.ok(password.passwordError('x'.repeat(73)));
+assert.equal(password.passwordError('long-test-password'),null);
+assert.deepEqual(Object.keys(password.publicStudent({ id: 'student', password: oldHash })),['id']);
+const passwordDb = database([{ id:'student', password:oldHash }]);
+let cleared = false;
+const profile = load('src/app/api/student/me/route.ts',{ ...common, '@/lib/db':passwordDb, '@/lib/auth':{ getStudentSession:common['@/lib/auth'].getStudentSession, clearStudentCookie:async()=>{cleared=true;} } });
+assert.equal((await profile.PATCH(request({ currentPassword:'old-test-password',newPassword:'new-test-password' }))).status,200);
+const saved = passwordDb.queries.find(q=>q.operation==='update').set.password;
+assert.notEqual(saved,'new-test-password');
+assert.ok(await password.verifyStoredPassword('new-test-password',saved));
+assert.ok(cleared);
+console.log('PASS all password writes hash; plaintext authentication rejected; policy enforced; password change clears session; serialization excludes secrets');
+
+for(const inactive of [true,false]) {
+ const mock = database([{id:'student',name:'Synthetic Student',password:oldHash,isActive:!inactive}]);
+ let minted=0, attempts=0;
+ const login=load('src/app/api/student/login/route.ts',{ ...common,'@/lib/db':mock,'@/lib/auth':{ signStudentToken:async payload=>{assert.ok(payload.credentialVersion);minted++;return 'synthetic';},setStudentCookie:async()=>{},studentCredentialVersion:()=> 'version'},'@/lib/rate-limit':{assertActionRateLimit:async()=>++attempts>4?helpers.jsonError('limited',429):null} });
+ assert.equal((await login.POST(request({classId:'class',idNumber:'0001',password:'old-test-password'}))).status,inactive?401:200);
+ assert.equal(minted,inactive?0:1);
+ await login.POST(request({classId:'class',idNumber:'0001',password:'wrong'}));
+ assert.equal((await login.POST(request({classId:'class',idNumber:'0001',password:'wrong'}))).status,429);
+}
+console.log('PASS inactive students denied and login rate-limit decisions enforced before password checks');
+const directoryDb=database([{name:'Synthetic Student',idNumber:'0001'}]);
+const directory=load('src/app/api/classes/[classId]/directory/route.ts',{...common,'@/lib/db':directoryDb,'@/lib/helpers':{...helpers,isUuid:()=>true}});
+const directoryRequest=q=>({nextUrl:new URL('http://audit.invalid/directory?q='+encodeURIComponent(q))});
+const directoryParams={params:Promise.resolve({classId:'class'})};
+assert.deepEqual((await (await directory.GET(directoryRequest(''),directoryParams)).json()).students,[]);
+assert.equal(directoryDb.queries.length,0,'Empty search does not expose a full roster');
+const matches=await directory.GET(directoryRequest('Syn'),directoryParams);
+assert.equal(matches.status,200);
+assert.deepEqual(Object.keys((await matches.json()).students[0]).sort(),['idNumber','name']);
+assert.equal(directoryDb.queries.at(-1).limit,20);
+const directorySql=new PgDialect().sqlToQuery(directoryDb.queries.at(-1).where);
+assert.match(directorySql.sql,/"is_active"/);
+assert.match(directorySql.sql,/strpos/);
+assert.ok(directorySql.params.includes('class'));
+assert.ok(directorySql.params.includes('Syn'));
+assert.equal((await directory.GET(directoryRequest('x'.repeat(101)),directoryParams)).status,422);
+assert.match(matches.headers.get('cache-control'),/no-store/);
+const realHelpers=load('src/lib/helpers.ts',{...common,'@/lib/db':database([])});
+const taskAccess=load('src/lib/task-access.ts',{...common,'@/lib/helpers':{...helpers,isUuid:realHelpers.isUuid},'@/lib/db':database([])});
+assert.equal((await taskAccess.assertTaskAssignee('10000000-0000-4000-8000-000000000001','group','slot','class')).status,422);
+assert.equal(await taskAccess.assertTaskAssignee(null,'group','slot','class'),null);
+const titleAccess=load('src/lib/student-title-access.ts',{...common,'@/lib/db':database([])});
+assert.equal((await titleAccess.requireStudentTitleAccess({groupId:'foreign',slotId:'slot',classId:'class'},{studentId:'student',classId:'class'})).status,403);
+console.log('PASS bounded class-scoped public login search; foreign assignees and private project detail access denied');
+const creationDb=database([{id:'created',name:'Synthetic Student',idNumber:'0001',password:'must-not-leak'}]);
+const creationHelpers={...helpers,classDefaultPassword:realHelpers.classDefaultPassword,nextStudentIdNumber:async()=> '0001'};
+const createStudent=load('src/app/api/classes/[classId]/students/route.ts',{...common,'@/lib/db':creationDb,'@/lib/helpers':creationHelpers});
+const created=[];
+for(let i=0;i<2;i++) {
+ const response=await createStudent.POST(request({name:'Synthetic Student'}),{params:Promise.resolve({classId:'class'})});
+ assert.equal(response.status,201);const body=await response.json();assert.equal('password' in body.student,false);created.push(body.initialPassword);
+ const stored=creationDb.queries.filter(q=>q.operation==='insert').at(-1).values.password;
+ assert.ok(await password.verifyStoredPassword(body.initialPassword,stored));
+}
+assert.equal(created[0],'2026');
+assert.equal(created[1],'2026');
+console.log('PASS created students receive default credential; hashes stored and omitted from responses');
+
+
+const jar=new Map(); let accountHash=oldHash;
+const sessionDb={ select:()=>database(accountHash?[{password:accountHash}]:[]).db.select() };
+const auth={};
+const authCode=ts.transpileModule(readFileSync('src/lib/auth.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText;
+vm.runInNewContext(`(function(require,exports){${authCode}\n})`,{TextEncoder,process:{env:{JWT_SECRET:'synthetic-audit-secret-only',NODE_ENV:'production'}}})(name=>{
+ if(name==='./db') return {db:sessionDb};
+ if(name==='./schema') return schema;
+ if(name==='next/headers') return {cookies:async()=>({get:key=>jar.has(key)?{value:jar.get(key)}:undefined})};
+ return require(name);
+},auth);
+const version=auth.studentCredentialVersion(oldHash);
+const studentToken=await auth.signStudentToken({studentId:'student',classId:'class',credentialVersion:version});
+assert.equal(await auth.verifyProfToken(studentToken),null);
+const professorToken=await auth.signProfToken({profId:'prof',email:'synthetic@example.invalid'});
+assert.equal(await auth.verifyStudentToken(professorToken),null);
+jar.set('student_token',studentToken);
+assert.ok(await auth.getStudentSession());
+accountHash=await password.hashPassword('changed-test-password');
+assert.equal(await auth.getStudentSession(),null);
+accountHash=null;assert.equal(await auth.getStudentSession(),null);
+console.log('PASS role confusion rejected; changed credentials and missing/inactive account invalidate existing cookies');
+
+const otpDb=database([]);
+const invalidOtp=load('src/app/api/auth/verify-otp/route.ts',{...common,'@/lib/db':otpDb,'@/lib/prof-remember':{}});
+assert.equal((await invalidOtp.POST(request({email:'test@example.invalid',otp:'<bad>'}))).status,422);
+assert.equal((await invalidOtp.POST(request({email:'test@example.invalid',otp:'123456'}))).status,401);
+assert.ok(otpDb.queries.some(q=>q.operation==='update'));
+assert.ok(!otpDb.queries.some(q=>q.operation==='select'));
+const consumedSql=new PgDialect().sqlToQuery(otpDb.queries.find(q=>q.operation==='update').where);
+assert.match(consumedSql.sql,/"used" =/);
+assert.ok(!consumedSql.params.includes('123456'));
+const limitedOtp=load('src/app/api/auth/verify-otp/route.ts',{...common,'@/lib/db':database([]),'@/lib/prof-remember':{},'@/lib/rate-limit':{assertActionRateLimit:async()=>helpers.jsonError('limited',429)}});
+assert.equal((await limitedOtp.POST(request({email:'test@example.invalid',otp:'123456'}))).status,429);
+console.log('PASS OTP input validation, digest comparison, conditional consumption and verifier throttling');
+
+const {csvCell}=load('src/lib/csv.ts');
+for(const value of ['=1+1+1','+cmd','-cmd','@cmd','\t=cmd','  =cmd']) assert.match(csvCell(value),/^"'/);
+assert.equal(csvCell('a,"b"\nc'),'"a,""b""\nc"');
+const {safeExternalUrl}=load('src/lib/safe-url.ts');
+assert.equal(safeExternalUrl('javascript:alert(1)'),undefined);
+assert.equal(safeExternalUrl('data:text/html,test'),undefined);
+assert.ok(safeExternalUrl('https://github.com/example/project'));
+const markdown=readFileSync('src/components/ui/markdown-view.tsx','utf8');
+const parserSource=markdown.slice(markdown.indexOf('function parseBlocks('),markdown.indexOf('export interface MarkdownViewProps'));
+const parserCode=ts.transpileModule(parserSource,{compilerOptions:{target:ts.ScriptTarget.ES2020}}).outputText;
+for(const input of ['ordinary text','|ordinary text|','|a|\n|not a separator|','|a|\n|---|\n|b|']) assert.ok(vm.runInNewContext(`${parserCode};parseBlocks(${JSON.stringify(input)}).length`,{},{timeout:500})>0);
+console.log('PASS CSV formula neutralization and escaping; dangerous URL schemes rejected; malformed Markdown terminates');
+console.log('Security regression checks passed without external services.');

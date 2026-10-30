@@ -1,3 +1,5 @@
+import { externalUrlError } from '@/lib/safe-url';
+import { consolidateDescription } from '@/lib/project-description';
 import { normalizeTechStack } from '@/lib/tech-stack';
 import { duplicateGuard } from '@/lib/title-duplicates';
 import { assertSlotInClass } from '@/lib/helpers';
@@ -24,7 +26,8 @@ function optionalTrimmed(value: unknown): string | undefined {
   return value.trim();
 }
 
-export async function GET(_req: NextRequest, { params }: { params: { titleId: string } }) {
+export async function GET(_req: NextRequest, { params: promisedParams }: { params: Promise<{ titleId: string }> }) {
+  const params = await promisedParams;
   const prof = await getProfSession();
   if (!prof) return jsonError('Not authenticated', 401);
 
@@ -43,7 +46,8 @@ export async function GET(_req: NextRequest, { params }: { params: { titleId: st
   return NextResponse.json({ title, docFields: templates });
 }
 
-export async function PATCH(req: NextRequest, { params }: { params: { titleId: string } }) {
+export async function PATCH(req: NextRequest, { params: promisedParams }: { params: Promise<{ titleId: string }> }) {
+  const params = await promisedParams;
   const prof = await getProfSession();
   if (!prof) return jsonError('Not authenticated', 401);
 
@@ -54,6 +58,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { titleId: s
   if (!cls) return jsonError('Not authorized', 403);
 
   const body = await req.json().catch(() => null);
+  for (const field of ["repoUrl", "deploymentUrl"]) {
+    const invalid = externalUrlError(body?.[field]);
+    if (invalid) return jsonError(invalid, 422);
+  }
   if (!body || typeof body !== 'object') return jsonError('Invalid JSON body', 422);
 
   const patch: Record<string, unknown> = { updatedAt: new Date() };
@@ -71,7 +79,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { titleId: s
   }
   if (description !== undefined) {
     if (!description) return jsonError('description cannot be empty', 422);
-    patch.description = description;
+    Object.assign(patch, consolidateDescription(title, description));
   }
   if (Array.isArray(body.techStack)) {
     patch.techStack = normalizeTechStack(body.techStack);
@@ -108,6 +116,11 @@ export async function PATCH(req: NextRequest, { params }: { params: { titleId: s
     }
     patch.progressStatus = body.progressStatus;
     nextProgress = body.progressStatus;
+  }
+
+  if ((nextStatus ?? title.status) !== 'verified' || (nextStatus === 'verified' && title.status !== 'verified')) {
+    patch.progressStatus = 'planning';
+    nextProgress = 'planning';
   }
 
   if (nextStatus === 'verified' && (text ?? title.text).trim().length < 5) return jsonError('Title text must be at least 5 characters long', 422);
@@ -160,7 +173,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { titleId: s
   }
 }
 
-export async function DELETE(_req: NextRequest, { params }: { params: { titleId: string } }) {
+export async function DELETE(_req: NextRequest, { params: promisedParams }: { params: Promise<{ titleId: string }> }) {
+  const params = await promisedParams;
   const prof = await getProfSession();
   if (!prof) return jsonError('Not authenticated', 401);
 

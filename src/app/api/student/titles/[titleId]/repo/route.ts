@@ -1,3 +1,4 @@
+import { externalUrlError } from '@/lib/safe-url';
 import { githubRepoUrlError } from '@/lib/project-readiness';
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
@@ -8,8 +9,9 @@ import { jsonError } from '@/lib/helpers';
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { titleId: string } }
+  { params: promisedParams }: { params: Promise<{ titleId: string }> }
 ) {
+  const params = await promisedParams;
   const session = await getStudentSession();
   if (!session) return jsonError('Not authenticated', 401);
 
@@ -33,6 +35,10 @@ export async function PATCH(
   const [slot] = await db.select().from(projectSlots).where(eq(projectSlots.id, title.slotId)).limit(1);
 
   const body = await req.json().catch(() => null);
+  for (const field of ["deploymentUrl"]) {
+    const invalid = externalUrlError(body?.[field]);
+    if (invalid) return jsonError(invalid, 422);
+  }
   const repoUrl = (body?.repoUrl as string | undefined)?.trim();
   const deploymentUrl = (body?.deploymentUrl as string | undefined)?.trim();
 

@@ -8,7 +8,7 @@ const base = process.env.TEST_BASE_URL || 'http://localhost:3101';
 const browser = await chromium.launch({ headless: true, channel: 'msedge' });
 try {
   const context = await browser.newContext();
-  const token = await new SignJWT({ profId: 'prof', email: 'prof@example.com' }).setProtectedHeader({ alg: 'HS256' }).setExpirationTime('1h').sign(new TextEncoder().encode('phase14-16-local-test-only'));
+  const token = await new SignJWT({ credentialVersion: 'synthetic-browser-version',  profId: 'prof', email: 'prof@example.com' }).setAudience(['professor-session', 'student-session']).setProtectedHeader({ alg: 'HS256' }).setExpirationTime('1h').sign(new TextEncoder().encode('phase14-16-local-test-only'));
   let remembered = null;
   let emailedCodes = 0;
   let verified = 0;

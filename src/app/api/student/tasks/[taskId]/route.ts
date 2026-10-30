@@ -1,15 +1,17 @@
+import { assertTaskAssignee } from '@/lib/task-access';
 import { requireStudentProjectReady } from '@/lib/student-project-access';
 import { NextRequest, NextResponse } from 'next/server';
 import { and, eq, isNull } from 'drizzle-orm';
 import { db } from '@/lib/db';
-import { activityLog, studentGroupSlots, tasks, titles } from '@/lib/schema';
+import { activityLog, studentGroupSlots, tasks } from '@/lib/schema';
 import { getStudentSession } from '@/lib/auth';
 import { jsonError } from '@/lib/helpers';
 import { isProgressStatus, type ProgressStatus } from '@/lib/progress';
 
-type Ctx = { params: { taskId: string } };
+type Ctx = { params: Promise<{ taskId: string }> };
 
-export async function PATCH(req: NextRequest, { params }: Ctx) {
+export async function PATCH(req: NextRequest, { params: promisedParams }: Ctx) {
+  const params = await promisedParams;
   const session = await getStudentSession();
   if (!session) return jsonError('Not authenticated', 401);
 
@@ -32,7 +34,7 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
     .limit(1);
   if (!membership) return jsonError('Only group members can edit this task', 403);
 
-  const requiredInfo = await requireStudentProjectReady(existing.titleId, session.classId);
+  const requiredInfo = await requireStudentProjectReady(existing.titleId, session.classId, session.studentId);
   if (requiredInfo) return requiredInfo;
 
   const body = await req.json().catch(() => null);
@@ -47,6 +49,8 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
     patch.description = typeof body.description === 'string' ? body.description.trim() || null : null;
   }
   if (body?.assigneeStudentId !== undefined) {
+    const invalid = await assertTaskAssignee(body.assigneeStudentId, existing.groupId, existing.slotId, existing.classId);
+    if (invalid) return invalid;
     patch.assigneeStudentId = body.assigneeStudentId || null;
   }
   if (body?.dueDate !== undefined) {
@@ -65,12 +69,6 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
   if (body?.status !== undefined) {
     if (!isProgressStatus(body.status)) {
       return jsonError('Invalid status', 422);
-    }
-    if (body.status === 'done') {
-      const [title] = await db.select().from(titles).where(and(
-        eq(titles.id, existing.titleId), eq(titles.classId, session.classId), isNull(titles.deletedAt)
-      )).limit(1);
-      if (!title || title.status !== 'verified') return jsonError('Your project title must be approved before moving to Done.', 403);
     }
     if (body.status !== existing.status) {
       patch.status = body.status;
@@ -99,7 +97,8 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
   return NextResponse.json({ task: updated });
 }
 
-export async function DELETE(_req: NextRequest, { params }: Ctx) {
+export async function DELETE(_req: NextRequest, { params: promisedParams }: Ctx) {
+  const params = await promisedParams;
   const session = await getStudentSession();
   if (!session) return jsonError('Not authenticated', 401);
 
@@ -122,7 +121,7 @@ export async function DELETE(_req: NextRequest, { params }: Ctx) {
     .limit(1);
   if (!membership) return jsonError('Only group members can delete this task', 403);
 
-  const requiredInfo = await requireStudentProjectReady(existing.titleId, session.classId);
+  const requiredInfo = await requireStudentProjectReady(existing.titleId, session.classId, session.studentId);
   if (requiredInfo) return requiredInfo;
   const [deleted] = await db
     .update(tasks)

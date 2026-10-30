@@ -46,7 +46,7 @@ export async function GET(req: NextRequest) {
         .from(studentGroupSlots)
         .innerJoin(students, eq(students.id, studentGroupSlots.studentId))
         .where(eq(studentGroupSlots.groupId, t.groupId));
-      return { ...t, members: members.map((m) => m.name) };
+      return { id: t.id, text: t.text, description: t.description, techStack: t.techStack, targetUsers: t.targetUsers, repoUrl: t.repoUrl, deploymentUrl: t.deploymentUrl, status: t.status, members: members.map((m) => m.name) };
     })
   );
 

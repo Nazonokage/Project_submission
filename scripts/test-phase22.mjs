@@ -21,11 +21,11 @@ for (const status of ['pending', 'rejected', 'verified']) {
   assert.equal((await route.PATCH(request({ progressStatus: 'done' }), { params: { titleId: 'title' } })).status, status === 'verified' ? 200 : 403);
   assert.equal(db.queries.some(q => q.operation === 'update'), status === 'verified');
   const tasks = sequence([{ ...title, titleId: 'title', status: 'planning' }], [{ id: 'member' }], [{ ...title, status }]);
-  const taskRoute = load('src/app/api/student/tasks/[taskId]/route.ts', { ...common, '@/lib/student-project-access': { requireStudentProjectReady: async () => null }, '@/lib/db': tasks });
+  const taskRoute = load('src/app/api/student/tasks/[taskId]/route.ts', { ...common, '@/lib/titles-query': { selectTitleBy: async () => ({ ...title, status }) }, '@/lib/db': tasks });
   assert.equal((await taskRoute.PATCH(request({ status: 'done' }), { params: { taskId: 'task' } })).status, status === 'verified' ? 200 : 403);
   assert.equal(tasks.queries.some(q => q.operation === 'update'), status === 'verified');
 }
-const creation = sequence([{ ...title, status: 'pending' }], [{ id: 'member' }]);
+const creation = sequence([{ ...title, status: 'verified' }], [{ id: 'member' }]);
 const create = load('src/app/api/student/tasks/route.ts', { ...common, '@/lib/db': creation });
 assert.equal((await create.POST(request({ titleId: 'title', name: 'Task', status: 'done' }))).status, 201);
 assert.equal(creation.queries.find(q => q.operation === 'insert').values.status, 'planning');

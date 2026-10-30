@@ -1,3 +1,4 @@
+import { pgErrorCode } from '@/lib/pg-errors';
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { groupInvites, groupLeaveRequests, groups, studentGroupSlots, titles } from '@/lib/schema';
@@ -8,8 +9,9 @@ import { isSlotParticipant } from '@/lib/slot-participation';
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { groupId: string } }
+  { params: promisedParams }: { params: Promise<{ groupId: string }> }
 ) {
+  const params = await promisedParams;
   const session = await getStudentSession();
   if (!session) return jsonError('Not authenticated', 401);
 
@@ -94,6 +96,7 @@ export async function POST(
     return jsonError('All remaining group seats already have pending invitations', 409);
   }
 
+  try {
   const [invite] = await db
     .insert(groupInvites)
     .values({
@@ -106,4 +109,8 @@ export async function POST(
     .returning();
 
   return NextResponse.json({ invite }, { status: 201 });
+  } catch (error) {
+    if (['23514', '23505', '40P01'].includes(pgErrorCode(error) || '')) return jsonError('The group has no unreserved seats. Refresh and try again.', 409);
+    throw error;
+  }
 }

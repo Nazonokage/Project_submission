@@ -1,5 +1,7 @@
 'use client';
-import { projectRequirementsError, githubRepoUrlError } from '@/lib/project-readiness';
+import { safeExternalUrl } from '@/lib/safe-url';
+import { projectDescription, preservedAbstracts, missingDocumentationCount } from '@/lib/project-description';
+import { projectRequirementsError, githubRepoUrlError, projectApprovalError } from '@/lib/project-readiness';
 import { GithubRepoField } from './github-repo-field';
 
 import { titleRequest } from '@/lib/title-request';
@@ -69,11 +71,20 @@ export function TitleCard({
   const [saving, setSaving] = useState(false);
   const [progressBusy, setProgressBusy] = useState(false);
   const [text, setText] = useState(title.text);
-  const [description, setDescription] = useState(title.description);
+  const [description, setDescription] = useState(projectDescription(title));
   const [techStack, setTechStack] = useState(title.techStack || []);
   const [targetUsers, setTargetUsers] = useState(title.targetUsers || '');
   const [repoUrl, setRepoUrl] = useState(title.repoUrl || '');
   const [deploymentUrl, setDeploymentUrl] = useState(title.deploymentUrl || '');
+
+  const currentDescription = projectDescription(title);
+  const requirementsError = projectRequirementsError(title);
+  const [documentationDescription, setDocumentationDescription] = useState(currentDescription);
+  useEffect(() => {
+    setDescription(currentDescription);
+    setDocumentationDescription(currentDescription);
+  }, [currentDescription]);
+  const previousAbstracts = preservedAbstracts(title);
 
   // Persistent Project Documentation state
   const [docTemplates, setDocTemplates] = useState<DocField[]>([]);
@@ -81,6 +92,7 @@ export function TitleCard({
     const initial: Record<string, string> = {};
     if (title.documentation && typeof title.documentation === 'object') {
       for (const [k, v] of Object.entries(title.documentation)) {
+        if (k === 'abstract' || k === '_legacyAbstracts') continue;
         initial[k] = v !== null && v !== undefined ? String(v) : '';
       }
     }
@@ -92,6 +104,7 @@ export function TitleCard({
     if (title.documentation && typeof title.documentation === 'object') {
       const updated: Record<string, string> = {};
       for (const [k, v] of Object.entries(title.documentation)) {
+        if (k === 'abstract' || k === '_legacyAbstracts') continue;
         updated[k] = v !== null && v !== undefined ? String(v) : '';
       }
       setDocValues(updated);
@@ -121,16 +134,12 @@ export function TitleCard({
     loadDocTemplates();
   }, [loadDocTemplates]);
 
-  const missingRequiredCount = useMemo(() => {
-    return docTemplates.filter((t) => {
-      if (!t.required) return false;
-      const val = docValues[t.fieldKey];
-      return !val || !val.trim();
-    }).length;
-  }, [docTemplates, docValues]);
+  const missingRequiredCount = useMemo(() => missingDocumentationCount(docTemplates, {
+    description: documentationDescription, documentation: docValues,
+  }), [docTemplates, docValues, documentationDescription]);
 
   const loadReports = useCallback(async () => {
-    if (title.status !== 'verified' || projectRequirementsError(title)) return;
+    if (title.status !== 'verified' || requirementsError) return;
     setReportsLoading(true);
     try {
       const res = await fetch(`/api/student/titles/${title.id}/reports`);
@@ -143,7 +152,7 @@ export function TitleCard({
     } finally {
       setReportsLoading(false);
     }
-  }, [title.id, title.status, title.description, title.repoUrl]);
+  }, [title.id, title.status, requirementsError]);
 
   useEffect(() => {
     if (title.status === 'verified') {
@@ -211,7 +220,7 @@ export function TitleCard({
       const res = await fetch(`/api/student/titles/${title.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ documentation: docValues }),
+        body: JSON.stringify({ description: documentationDescription, documentation: docValues }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Could not save documentation');
@@ -235,9 +244,9 @@ export function TitleCard({
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <ProgressSelect
-            value={title.progressStatus}
+            value={title.status === 'verified' ? title.progressStatus : 'planning'}
             canComplete={title.status === 'verified'}
-            disabled={progressBusy || !!projectRequirementsError(title)}
+            disabled={!editable || progressBusy || !!projectApprovalError(title) || !!projectRequirementsError(title)}
             onChange={saveProgress}
           />
           <StatusBadge kind="title" status={title.status} />
@@ -250,6 +259,7 @@ export function TitleCard({
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
+        {projectApprovalError(title) && <p className="text-xs text-muted">{projectApprovalError(title)}</p>}
         {editable && projectRequirementsError(title) && <Alert><AlertDescription><p>{projectRequirementsError(title)}</p><Button className="mt-2" variant="outline" onClick={() => setEditOpen(true)}>Complete required information</Button></AlertDescription></Alert>}
         <p className="text-sm text-muted">{title.description}</p>
         {title.techStack && title.techStack.length > 0 && (
@@ -276,7 +286,7 @@ export function TitleCard({
               {title.repoUrl && (
                 <p className="text-sm flex items-center gap-1.5">
                   <ExternalLink className="h-3.5 w-3.5" />
-                  <a href={title.repoUrl} className="text-primary hover:underline truncate" target="_blank" rel="noreferrer">
+                  <a href={safeExternalUrl(title.repoUrl)} className="text-primary hover:underline truncate" target="_blank" rel="noreferrer">
                     {title.repoUrl}
                   </a>
                 </p>
@@ -285,7 +295,7 @@ export function TitleCard({
                 <p className="text-sm flex items-center gap-1.5">
                   <ExternalLink className="h-3.5 w-3.5" />
                   <a
-                    href={title.deploymentUrl}
+                    href={safeExternalUrl(title.deploymentUrl)}
                     className="text-primary hover:underline truncate"
                     target="_blank"
                     rel="noreferrer"
@@ -329,30 +339,41 @@ export function TitleCard({
                     type="button"
                     size="sm"
                     onClick={saveProjectDocumentation}
-                    disabled={savingDoc}
+                    disabled={savingDoc || !documentationDescription.trim()}
                   >
                     {savingDoc && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />}
                     Save Documentation
                   </Button>
                 </div>
 
+                {previousAbstracts.length > 0 && <details className="rounded-lg border p-3 text-xs">
+                  <summary className="cursor-pointer font-medium">Previous abstract preserved for review</summary>
+                  <p className="mt-2 text-muted">This older text differed from your submission overview. Copy any details you want to keep into Description / Abstract.</p>
+                  {previousAbstracts.map((value, i) => <p key={i} className="mt-2 whitespace-pre-wrap">{value}</p>)}
+                </details>}
+
                 <div className="space-y-3 bg-secondary/15 rounded-lg p-3 border border-border/60">
                   {docTemplates.map((field) => (
                     <div key={field.id} className="space-y-1.5">
                       <div className="flex items-center justify-between">
                         <Label htmlFor={`doc-field-${field.fieldKey}`} className="text-xs font-medium">
-                          {field.label}{' '}
+                          {field.fieldKey === 'abstract' ? 'Description / Abstract' : field.label}{' '}
                           {field.required ? (
                             <span className="text-warn font-normal">(required)</span>
                           ) : (
                             <span className="text-muted font-normal">(optional)</span>
                           )}
                         </Label>
-                        {!docValues[field.fieldKey]?.trim() && field.required && (
+                        {!(field.fieldKey === 'abstract' ? documentationDescription : docValues[field.fieldKey])?.trim() && field.required && (
                           <span className="text-[11px] text-warn">Missing</span>
                         )}
                       </div>
-                      {field.fieldType === 'textarea' ? (
+                      {field.fieldKey === 'abstract' ? (
+                        <>
+                          <Textarea id={`doc-field-${field.fieldKey}`} className="min-h-24 text-sm" value={documentationDescription} onChange={e => setDocumentationDescription(e.target.value)} aria-describedby={`shared-description-${title.id}`} />
+                          <p id={`shared-description-${title.id}`} className="text-xs text-muted">Shared with your submission. Saving here also updates its Description / Abstract.</p>
+                        </>
+                      ) : field.fieldType === 'textarea' ? (
                         <Textarea
                           id={`doc-field-${field.fieldKey}`}
                           className="min-h-16 text-sm"
@@ -443,7 +464,7 @@ export function TitleCard({
                         <div className="flex items-center gap-3 pt-1 text-xs">
                           {r.repoUrl && (
                             <a
-                              href={r.repoUrl}
+                              href={safeExternalUrl(r.repoUrl)}
                               target="_blank"
                               rel="noreferrer"
                               className="text-primary hover:underline inline-flex items-center gap-1"
@@ -453,7 +474,7 @@ export function TitleCard({
                           )}
                           {r.deploymentUrl && (
                             <a
-                              href={r.deploymentUrl}
+                              href={safeExternalUrl(r.deploymentUrl)}
                               target="_blank"
                               rel="noreferrer"
                               className="text-primary hover:underline inline-flex items-center gap-1"
@@ -494,7 +515,7 @@ export function TitleCard({
 
       {/* Edit Title Dialog */}
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
-        <DialogContent>
+        <DialogContent className="max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit title</DialogTitle>
           </DialogHeader>
@@ -507,7 +528,7 @@ export function TitleCard({
               )}
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor={`description-${title.id}`}>Description (required)</Label>
+              <Label htmlFor={`description-${title.id}`}>Description / Abstract (required)</Label>
               <Textarea id={`description-${title.id}`} required value={description} onChange={(e) => setDescription(e.target.value)} aria-describedby={`description-${title.id}-guide`} />
               <p id={`description-${title.id}-guide`} className="text-xs text-muted">Describe what your project does, the problem it solves, and who will use it.</p>
             </div>

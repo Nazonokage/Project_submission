@@ -7,7 +7,7 @@ import { titleRequest } from '@/lib/title-request';
 import { ClassLifecycle } from '@/components/dashboard/class-lifecycle';
 import { DashboardBreadcrumbs } from '@/components/dashboard/breadcrumbs';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { LeaveRequestsPanel, type LeaveRequestRow } from '@/components/dashboard/leave-requests-panel';
@@ -106,7 +106,7 @@ export default function ClassPage() {
 
   const client = useQueryClient();
   const titlesQuery = useBoardQuery<{ titles: Title[] }>(boardKeys.slot(classId, slotId || ''), `/api/dashboard/${classId}/${slotId}/titles`, !!slotId && (tab === 'board' || tab === 'verified'));
-  const titles = titlesQuery.data?.titles || [];
+  const titles = useMemo(() => titlesQuery.data?.titles || [], [titlesQuery.data?.titles]);
   const titlesLoading = titlesQuery.isPending && !titlesQuery.data;
   async function loadTitles(id: string) {
     await client.invalidateQueries({ queryKey: boardKeys.slot(classId, id) });
@@ -371,7 +371,7 @@ export default function ClassPage() {
           selectedSlotLabel={selectedSlot?.label}
           classId={classId}
           students={students}
-          defaultStudentPassword={cls?.defaultStudentPassword || '2026'}
+          defaultStudentPassword={''}
           onChange={loadAll}
           onOpenStudent={openStudentOnBoard}
         />

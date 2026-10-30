@@ -5,10 +5,11 @@ import { classes, documentationFieldTemplates, projectSlots } from '@/lib/schema
 import { getProfSession } from '@/lib/auth';
 import { jsonError } from '@/lib/helpers';
 
-type Ctx = { params: { slotId: string } };
+type Ctx = { params: Promise<{ slotId: string }> };
 
 // GET all doc field templates for a slot
-export async function GET(_req: NextRequest, { params }: Ctx) {
+export async function GET(_req: NextRequest, { params: promisedParams }: Ctx) {
+  const params = await promisedParams;
   const session = await getProfSession();
   if (!session) return jsonError('Not authenticated', 401);
 
@@ -34,7 +35,8 @@ export async function GET(_req: NextRequest, { params }: Ctx) {
 }
 
 // POST create a new doc field template
-export async function POST(req: NextRequest, { params }: Ctx) {
+export async function POST(req: NextRequest, { params: promisedParams }: Ctx) {
+  const params = await promisedParams;
   const session = await getProfSession();
   if (!session) return jsonError('Not authenticated', 401);
 

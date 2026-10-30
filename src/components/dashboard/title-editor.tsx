@@ -117,7 +117,7 @@ export function TitleEditor({
             {text.trim().length < 5 && <p className="text-xs text-danger">Title must be at least 5 characters long.</p>}
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="prof-title-description">Description</Label>
+            <Label htmlFor="prof-title-description">Description / Abstract</Label>
             <Textarea id="prof-title-description" value={description} onChange={(e) => setDescription(e.target.value)} rows={4} />
           </div>
           <div className="space-y-1.5">
@@ -141,7 +141,8 @@ export function TitleEditor({
               <Label>Progress</Label>
               <select
                 className="input"
-                value={progressStatus}
+                value={status === 'verified' && title.status === 'verified' ? progressStatus : 'planning'}
+                disabled={status !== 'verified' || title.status !== 'verified'}
                 onChange={(e) => setProgressStatus(e.target.value as ProgressStatus)}
               >
                 {PROGRESS_STATUSES.map((s) => (
@@ -150,6 +151,7 @@ export function TitleEditor({
                   </option>
                 ))}
               </select>
+              {(status !== 'verified' || title.status !== 'verified') && <p className="text-xs text-muted">Projects start in Planning when approved. Save approval before changing progress.</p>}
             </div>
           </div>
           {status === 'rejected' && (

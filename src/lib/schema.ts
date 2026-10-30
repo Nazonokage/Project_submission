@@ -8,6 +8,7 @@ import {
   unique,
   jsonb,
   index,
+  check,
 } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 
@@ -111,6 +112,7 @@ export const students = pgTable(
     name: text('name').notNull(),
     idNumber: text('id_number').notNull(),
     password: text('password').notNull(),
+    passwordEncrypted: text('password_encrypted'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     isActive: boolean('is_active').notNull().default(true),
     lastLoginAt: timestamp('last_login_at', { withTimezone: true }),
@@ -251,7 +253,10 @@ export const titles = pgTable('titles', {
     onDelete: 'set null',
   }),
   deletedAt: timestamp('deleted_at', { withTimezone: true }),
-}, (table) => ({ textTrgm: index('titles_text_trgm_idx').using('gin', sql`${table.text} gin_trgm_ops`) }));
+}, (table) => ({
+  textTrgm: index('titles_text_trgm_idx').using('gin', sql`${table.text} gin_trgm_ops`),
+  approvalProgress: check('titles_approval_progress_check', sql`${table.status} = 'verified' OR ${table.progressStatus} = 'planning'`),
+}));
 
 // ============================================================
 // TASKS

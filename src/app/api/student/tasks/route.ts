@@ -1,4 +1,7 @@
-import { projectRequirementsError } from '@/lib/project-readiness';
+import { assertActionRateLimit } from '@/lib/rate-limit';
+import { requireStudentTitleAccess } from '@/lib/student-title-access';
+import { assertTaskAssignee } from '@/lib/task-access';
+import { projectRequirementsError, projectApprovalError } from '@/lib/project-readiness';
 import { NextRequest, NextResponse } from 'next/server';
 import { and, desc, eq, isNull, asc } from 'drizzle-orm';
 import { db } from '@/lib/db';
@@ -21,6 +24,10 @@ export async function GET(req: NextRequest) {
     .where(and(eq(titles.id, titleId), eq(titles.classId, session.classId), isNull(titles.deletedAt)))
     .limit(1);
   if (!title) return jsonError('Title not found', 404);
+  const accessError = await requireStudentTitleAccess(title, session);
+  if (accessError) return accessError;
+  const approvalError = projectApprovalError(title);
+  if (approvalError) return jsonError(approvalError, 403);
   const requiredInfo = projectRequirementsError(title);
   if (requiredInfo) return jsonError(requiredInfo, 428);
 
@@ -44,7 +51,7 @@ export async function GET(req: NextRequest) {
       deletedAt: tasks.deletedAt,
     })
     .from(tasks)
-    .leftJoin(students, eq(students.id, tasks.assigneeStudentId))
+    .leftJoin(students, and(eq(students.id, tasks.assigneeStudentId), eq(students.classId, tasks.classId)))
     .where(and(eq(tasks.titleId, titleId), isNull(tasks.deletedAt)))
     .orderBy(asc(tasks.sortOrder), desc(tasks.createdAt));
 
@@ -56,6 +63,9 @@ export async function POST(req: NextRequest) {
   if (!session) return jsonError('Not authenticated', 401);
 
   const body = await req.json().catch(() => null);
+  const limited = await assertActionRateLimit({ key: session.studentId, action: 'project_write', max: 60, message: 'Too many updates. Try again later.' });
+  if (limited) return limited;
+  if ((typeof body?.name === 'string' && body.name.length > 20000) || (typeof body?.description === 'string' && body.description.length > 20000)) return jsonError('Text is too long (maximum 20,000 characters)', 422);
   const titleId = body?.titleId as string | undefined;
   const name = (body?.name as string | undefined)?.trim();
   const description = (body?.description as string | undefined)?.trim() || null;
@@ -74,6 +84,10 @@ export async function POST(req: NextRequest) {
     .where(and(eq(titles.id, titleId), eq(titles.classId, session.classId), isNull(titles.deletedAt)))
     .limit(1);
   if (!title) return jsonError('Title not found', 404);
+  const accessError = await requireStudentTitleAccess(title, session);
+  if (accessError) return accessError;
+  const approvalError = projectApprovalError(title);
+  if (approvalError) return jsonError(approvalError, 403);
   const requiredInfo = projectRequirementsError(title);
   if (requiredInfo) return jsonError(requiredInfo, 428);
 
@@ -88,6 +102,9 @@ export async function POST(req: NextRequest) {
     )
     .limit(1);
   if (!membership) return jsonError('Only group members can add tasks to this project', 403);
+
+  const assigneeError = await assertTaskAssignee(assigneeStudentId, title.groupId, title.slotId, title.classId);
+  if (assigneeError) return assigneeError;
 
   let dueDate: Date | null = null;
   if (dueDateStr) {

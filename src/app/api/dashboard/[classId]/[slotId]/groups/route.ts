@@ -7,8 +7,9 @@ import { assertClassOwnedByProf, assertSlotInClass, jsonError } from '@/lib/help
 
 export async function GET(
   _req: NextRequest,
-  { params }: { params: { classId: string; slotId: string } }
+  { params: promisedParams }: { params: Promise<{ classId: string; slotId: string }> }
 ) {
+  const params = await promisedParams;
   const prof = await getProfSession();
   if (!prof) return jsonError('Not authenticated', 401);
 

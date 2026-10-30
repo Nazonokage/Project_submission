@@ -1,4 +1,7 @@
-import { projectRequirementsError } from '@/lib/project-readiness';
+import { assertActionRateLimit } from '@/lib/rate-limit';
+import { externalUrlError } from '@/lib/safe-url';
+import { requireStudentTitleAccess } from '@/lib/student-title-access';
+import { projectRequirementsError, projectApprovalError } from '@/lib/project-readiness';
 import { NextRequest, NextResponse } from 'next/server';
 import { and, desc, eq, isNull } from 'drizzle-orm';
 import { db } from '@/lib/db';
@@ -20,6 +23,10 @@ export async function GET(req: NextRequest) {
     .where(and(eq(titles.id, titleId), eq(titles.classId, session.classId), isNull(titles.deletedAt)))
     .limit(1);
   if (!title) return jsonError('Title not found', 404);
+  const accessError = await requireStudentTitleAccess(title, session);
+  if (accessError) return accessError;
+  const approvalError = projectApprovalError(title);
+  if (approvalError) return jsonError(approvalError, 403);
   const requiredInfo = projectRequirementsError(title);
   if (requiredInfo) return jsonError(requiredInfo, 428);
 
@@ -53,6 +60,13 @@ export async function POST(req: NextRequest) {
   if (!session) return jsonError('Not authenticated', 401);
 
   const body = await req.json().catch(() => null);
+  const limited = await assertActionRateLimit({ key: session.studentId, action: 'project_write', max: 60, message: 'Too many updates. Try again later.' });
+  if (limited) return limited;
+  if ((typeof body?.headline === 'string' && body.headline.length > 20000) || (typeof body?.body === 'string' && body.body.length > 20000) || (typeof body?.changelog === 'string' && body.changelog.length > 20000)) return jsonError('Text is too long (maximum 20,000 characters)', 422);
+  for (const field of ["commitUrl"]) {
+    const invalid = externalUrlError(body?.[field]);
+    if (invalid) return jsonError(invalid, 422);
+  }
   const titleId = body?.titleId as string | undefined;
   const headline = (body?.headline as string | undefined)?.trim();
   const updateBody = (body?.body as string | undefined)?.trim();
@@ -74,9 +88,12 @@ export async function POST(req: NextRequest) {
     .where(and(eq(titles.id, titleId), eq(titles.classId, session.classId), isNull(titles.deletedAt)))
     .limit(1);
   if (!title) return jsonError('Title not found', 404);
+  const accessError = await requireStudentTitleAccess(title, session);
+  if (accessError) return accessError;
+  const approvalError = projectApprovalError(title);
+  if (approvalError) return jsonError(approvalError, 403);
   const requiredInfo = projectRequirementsError(title);
   if (requiredInfo) return jsonError(requiredInfo, 428);
-  if (title.status !== 'verified') return jsonError('Updates can only be posted for verified titles', 409);
 
   const [membership] = await db
     .select()

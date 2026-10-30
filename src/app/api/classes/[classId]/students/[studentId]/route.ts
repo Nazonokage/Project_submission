@@ -12,10 +12,12 @@ import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { getProfSession } from '@/lib/auth';
 import { assertClassOwnedByProf, assertStudentInClass, jsonError } from '@/lib/helpers';
 import { isSchemaDrift } from '@/lib/pg-errors';
+import { hashPassword, issuedPasswordError, publicStudent } from '@/lib/password';
+import { encryptStudentPassword } from '@/lib/password-vault.mjs';
 
-type Params = { params: { classId: string; studentId: string } };
+type Params = { params: Promise<{ classId: string; studentId: string }> };
 
-async function requireOwnedStudent(params: Params['params']) {
+async function requireOwnedStudent(params: Awaited<Params['params']>) {
   const prof = await getProfSession();
   if (!prof) return { ok: false as const, error: jsonError('Not authenticated', 401) };
   const cls = await assertClassOwnedByProf(params.classId, prof.profId);
@@ -25,7 +27,8 @@ async function requireOwnedStudent(params: Params['params']) {
   return { ok: true as const, student, cls };
 }
 
-export async function GET(_req: NextRequest, { params }: Params) {
+export async function GET(_req: NextRequest, { params: promisedParams }: Params) {
+  const params = await promisedParams;
   const auth = await requireOwnedStudent(params);
   if (!auth.ok) return auth.error;
   const { student } = auth;
@@ -103,7 +106,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
 
   return NextResponse.json({
     class: { name: auth.cls.name, term: auth.cls.term },
-    student,
+    student: publicStudent(student),
     memberships,
     unassignedSlotIds,
     hasEligibleSlots: slots.some(slot => !slot.excludedStudentIds?.includes(params.studentId)),
@@ -112,7 +115,8 @@ export async function GET(_req: NextRequest, { params }: Params) {
   });
 }
 
-export async function PATCH(req: NextRequest, { params }: Params) {
+export async function PATCH(req: NextRequest, { params: promisedParams }: Params) {
+  const params = await promisedParams;
   const auth = await requireOwnedStudent(params);
   if (!auth.ok) return auth.error;
 
@@ -120,7 +124,12 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   const patch: Record<string, unknown> = {};
   if (typeof body?.name === 'string') patch.name = body.name.trim();
   if (typeof body?.idNumber === 'string') patch.idNumber = body.idNumber.trim();
-  if (typeof body?.password === 'string') patch.password = body.password.trim();
+  if (typeof body?.password === 'string' && body.password) {
+    const invalid = issuedPasswordError(body.password);
+    if (invalid) return jsonError(invalid, 422);
+    patch.password = await hashPassword(body.password);
+    patch.passwordEncrypted = encryptStudentPassword(body.password, { studentId: params.studentId, classId: params.classId, passwordHash: patch.password });
+  }
   if (typeof body?.isActive === 'boolean') patch.isActive = body.isActive;
 
   if (Object.keys(patch).length === 0) return jsonError('Nothing to update', 422);
@@ -134,7 +143,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       .set(patch)
       .where(eq(students.id, params.studentId))
       .returning();
-    return NextResponse.json({ student: row });
+    return NextResponse.json({ student: publicStudent(row) });
   } catch (err: any) {
     if (String(err?.message || '').includes('unique')) {
       return jsonError('A student with that ID number already exists in this class', 409);
@@ -143,7 +152,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   }
 }
 
-export async function DELETE(_req: NextRequest, { params }: Params) {
+export async function DELETE(_req: NextRequest, { params: promisedParams }: Params) {
+  const params = await promisedParams;
   const auth = await requireOwnedStudent(params);
   if (!auth.ok) return auth.error;
 

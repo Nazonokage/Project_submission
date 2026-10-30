@@ -4,7 +4,8 @@ import { eq } from 'drizzle-orm';
 import { isUuid } from '@/lib/helpers';
 import { LoginForm } from './login-form';
 
-export default async function StudentLoginPage({ params }: { params: { classId: string } }) {
+export default async function StudentLoginPage({ params: promisedParams }: { params: Promise<{ classId: string }> }) {
+  const params = await promisedParams;
   let cls: { name: string; term: string } | undefined;
   if (isUuid(params.classId)) {
     const rows = await db

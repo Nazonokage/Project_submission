@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { neon } from '@neondatabase/serverless';
+import { migrationStatements } from './lib/sql-migration.mjs';
 
 const root = resolve(import.meta.dirname, '..');
 const envPath = resolve(root, '.env.local');
@@ -32,13 +33,9 @@ if (!url) {
 
 const sql = neon(url);
 const file = readFileSync(sqlPath, 'utf8');
-const statements = file
-  .split(';')
-  .map((s) => s.trim())
-  .filter((s) => s.length > 0);
-
-for (const stmt of statements) {
-  await sql(stmt);
-}
+const statements = migrationStatements(file);
+// Neon HTTP requests do not share a connection. BEGIN/query/COMMIT across
+// separate requests is not a transaction; the entire batch must be sent once.
+if (statements.length) await sql.transaction(statements.map(statement => sql(statement)));
 console.log(`Applied ${sqlPath}`);
 

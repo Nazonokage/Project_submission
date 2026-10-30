@@ -9,7 +9,8 @@ import { isProgressStatus, type ProgressStatus } from '@/lib/progress';
 import { logProgressChange } from '@/lib/project-updates';
 import { selectTitleBy } from '@/lib/titles-query';
 
-export async function PATCH(req: NextRequest, { params }: { params: { titleId: string } }) {
+export async function PATCH(req: NextRequest, { params: promisedParams }: { params: Promise<{ titleId: string }> }) {
+  const params = await promisedParams;
   const prof = await getProfSession();
   if (!prof) return jsonError('Not authenticated', 401);
 
@@ -25,6 +26,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { titleId: s
   }
 
   const nextProgress: ProgressStatus = body.progressStatus;
+  if (title.status !== 'verified' && nextProgress !== 'planning') {
+    return jsonError('Approve this project before changing its progress from Planning.', 403);
+  }
 
   try {
     const [row] = await db

@@ -1,4 +1,6 @@
-import { projectRequirementsError, githubRepoUrlError } from '@/lib/project-readiness';
+import { requireStudentTitleAccess } from '@/lib/student-title-access';
+import { consolidateDescription, missingDocumentationCount } from '@/lib/project-description';
+import { projectRequirementsError, githubRepoUrlError, projectApprovalError } from '@/lib/project-readiness';
 import { normalizeTechStack } from '@/lib/tech-stack';
 import { duplicateGuard } from '@/lib/title-duplicates';
 import { assertSlotInClass } from '@/lib/helpers';
@@ -13,12 +15,15 @@ import { isProgressStatus, type ProgressStatus } from '@/lib/progress';
 import { logProgressChange } from '@/lib/project-updates';
 import { selectTitleBy } from '@/lib/titles-query';
 
-export async function GET(_req: NextRequest, { params }: { params: { titleId: string } }) {
+export async function GET(_req: NextRequest, { params: promisedParams }: { params: Promise<{ titleId: string }> }) {
+  const params = await promisedParams;
   const session = await getStudentSession();
   if (!session) return jsonError('Not authenticated', 401);
 
   const title = await selectTitleBy(and(eq(titles.id, params.titleId), eq(titles.classId, session.classId))!);
   if (!title) return jsonError('Title not found', 404);
+  const accessError = await requireStudentTitleAccess(title, session);
+  if (accessError) return accessError;
 
   const templates = await db
     .select()
@@ -26,26 +31,20 @@ export async function GET(_req: NextRequest, { params }: { params: { titleId: st
     .where(eq(documentationFieldTemplates.slotId, title.slotId))
     .orderBy(asc(documentationFieldTemplates.sortOrder));
 
-  const doc = (title.documentation as Record<string, unknown> | null) || {};
-  let missingRequiredCount = 0;
-  for (const t of templates) {
-    if (t.required) {
-      const val = doc[t.fieldKey];
-      if (val === undefined || val === null || (typeof val === 'string' && !val.trim())) {
-        missingRequiredCount++;
-      }
-    }
-  }
+  const missingRequiredCount = missingDocumentationCount(templates, title);
 
   return NextResponse.json({ title, docFields: templates, missingRequiredCount });
 }
 
-export async function PATCH(req: NextRequest, { params }: { params: { titleId: string } }) {
+export async function PATCH(req: NextRequest, { params: promisedParams }: { params: Promise<{ titleId: string }> }) {
+  const params = await promisedParams;
   const session = await getStudentSession();
   if (!session) return jsonError('Not authenticated', 401);
 
   const title = await selectTitleBy(and(eq(titles.id, params.titleId), eq(titles.classId, session.classId))!);
   if (!title) return jsonError('Title not found', 404);
+  const accessError = await requireStudentTitleAccess(title, session);
+  if (accessError) return accessError;
 
   const [membership] = await db
     .select()
@@ -79,8 +78,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { titleId: s
     patch.text = trimmedText;
   }
   if (body && 'description' in body) {
-    if (typeof body.description !== 'string' || !body.description.trim()) return jsonError('Description is required', 422);
-    patch.description = body.description.trim();
+    if (typeof body.description !== 'string' || !body.description.trim()) return jsonError('Description / Abstract is required', 422);
+    Object.assign(patch, consolidateDescription(title, body.description));
   }
   if (body && 'repoUrl' in body) {
     const repoError = githubRepoUrlError(body.repoUrl);
@@ -92,13 +91,12 @@ export async function PATCH(req: NextRequest, { params }: { params: { titleId: s
 
   let nextProgress: ProgressStatus | null = null;
   if (body?.progressStatus !== undefined) {
+    const approvalError = projectApprovalError(title);
+    if (approvalError) return jsonError(approvalError, 403);
     const requiredInfo = projectRequirementsError({ ...title, ...patch });
     if (requiredInfo) return jsonError(requiredInfo, 428);
     if (!isProgressStatus(body.progressStatus)) {
       return jsonError('progressStatus must be planning, in_progress, review, or done', 422);
-    }
-    if (body.progressStatus === 'done' && title.status !== 'verified') {
-      return jsonError('Your project title must be approved before moving to Done.', 403);
     }
     patch.progressStatus = body.progressStatus;
     nextProgress = body.progressStatus;
@@ -113,14 +111,14 @@ export async function PATCH(req: NextRequest, { params }: { params: { titleId: s
       .where(eq(documentationFieldTemplates.slotId, title.slotId))
       .orderBy(asc(documentationFieldTemplates.sortOrder));
 
-    const normalizedDoc: Record<string, unknown> = { ...rawDoc };
-    let missingCount = 0;
+    const consolidated = consolidateDescription(title, typeof patch.description === 'string' ? patch.description : undefined, rawDoc);
+    const normalizedDoc = consolidated.documentation;
 
     for (const t of templates) {
+      if (t.fieldKey === 'abstract') continue;
       const val = rawDoc[t.fieldKey];
       if (val === undefined || val === null || (typeof val === 'string' && !val.trim())) {
         normalizedDoc[t.fieldKey] = null;
-        if (t.required) missingCount++;
       } else if (typeof val === 'string') {
         normalizedDoc[t.fieldKey] = val.trim();
       } else {
@@ -128,14 +126,17 @@ export async function PATCH(req: NextRequest, { params }: { params: { titleId: s
       }
     }
 
-    patch.documentation = normalizedDoc;
-    missingRequiredCount = missingCount;
+    Object.assign(patch, consolidated);
+    missingRequiredCount = missingDocumentationCount(templates, consolidated);
   }
 
   if (title.status === 'rejected' && editingCopy) {
     patch.status = 'pending';
+    patch.progressStatus = 'planning';
     patch.rejectionReason = null;
   }
+
+  if (title.status !== 'verified') patch.progressStatus = 'planning';
 
   try {
     const [row] = await db.update(titles).set(patch).where(eq(titles.id, title.id)).returning();

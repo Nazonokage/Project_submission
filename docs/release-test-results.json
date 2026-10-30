@@ -1,0 +1,95 @@
+{
+  "version": "1.8.0",
+  "offline": [
+    {
+      "file": "security-review-offline.mjs",
+      "passed": true,
+      "durationMs": 3447
+    },
+    {
+      "file": "test-default-tech-stack.mjs",
+      "passed": true,
+      "durationMs": 1095
+    },
+    {
+      "file": "test-feedback-reads.mjs",
+      "passed": true,
+      "durationMs": 890
+    },
+    {
+      "file": "test-migration-runner.mjs",
+      "passed": true,
+      "durationMs": 1292
+    },
+    {
+      "file": "test-password-migration.mjs",
+      "passed": true,
+      "durationMs": 3950
+    },
+    {
+      "file": "test-phase14-16.mjs",
+      "passed": true,
+      "durationMs": 858
+    },
+    {
+      "file": "test-phase17-18.mjs",
+      "passed": true,
+      "durationMs": 962
+    },
+    {
+      "file": "test-phase22.mjs",
+      "passed": true,
+      "durationMs": 1071
+    },
+    {
+      "file": "test-professor-groups.mjs",
+      "passed": true,
+      "durationMs": 973
+    },
+    {
+      "file": "test-professor-member-removal.mjs",
+      "passed": true,
+      "durationMs": 954
+    },
+    {
+      "file": "test-professor-remember.mjs",
+      "passed": true,
+      "durationMs": 1060
+    },
+    {
+      "file": "test-project-readiness.mjs",
+      "passed": true,
+      "durationMs": 1054
+    },
+    {
+      "file": "test-release-migrations.mjs",
+      "passed": true,
+      "durationMs": 1245
+    },
+    {
+      "file": "test-release-schema.mjs",
+      "passed": true,
+      "durationMs": 7950
+    },
+    {
+      "file": "test-security-database.mjs",
+      "passed": true,
+      "durationMs": 2168
+    },
+    {
+      "file": "test-shared-description.mjs",
+      "passed": true,
+      "durationMs": 250
+    },
+    {
+      "file": "test-slot-participation.mjs",
+      "passed": true,
+      "durationMs": 1038
+    },
+    {
+      "file": "test-student-board-approval.mjs",
+      "passed": true,
+      "durationMs": 1199
+    }
+  ]
+}

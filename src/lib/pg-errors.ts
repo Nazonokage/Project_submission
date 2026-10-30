@@ -3,7 +3,7 @@ export function pgErrorCode(err: unknown): string | undefined {
   for (let i = 0; i < 6 && cur; i++) {
     if (typeof cur !== 'object' || !cur) break;
     const rec = cur as Record<string, unknown>;
-    if (typeof rec.code === 'string' && /^\d{5}$/.test(rec.code)) return rec.code;
+    if (typeof rec.code === 'string' && /^[0-9A-Z]{5}$/.test(rec.code)) return rec.code;
     cur = rec.cause ?? rec.error ?? rec.originalError;
   }
 }

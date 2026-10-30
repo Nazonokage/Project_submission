@@ -1,3 +1,6 @@
+import { randomUUID } from 'node:crypto';
+import { externalUrlError } from '@/lib/safe-url';
+import { requireStudentTitleAccess } from '@/lib/student-title-access';
 import { projectRequirementsError } from '@/lib/project-readiness';
 import { NextRequest, NextResponse } from 'next/server';
 import { desc, eq } from 'drizzle-orm';
@@ -19,12 +22,15 @@ async function assertMembership(studentId: string, groupId: string) {
   return membership ?? null;
 }
 
-export async function GET(_req: NextRequest, { params }: { params: { titleId: string } }) {
+export async function GET(_req: NextRequest, { params: promisedParams }: { params: Promise<{ titleId: string }> }) {
+  const params = await promisedParams;
   const session = await getStudentSession();
   if (!session) return jsonError('Not authenticated', 401);
 
   const title = await selectTitleBy(and(eq(titles.id, params.titleId), eq(titles.classId, session.classId))!);
   if (!title) return jsonError('Title not found', 404);
+  const accessError = await requireStudentTitleAccess(title, session);
+  if (accessError) return accessError;
   const requiredInfo = projectRequirementsError(title);
   if (requiredInfo) return jsonError(requiredInfo, 428);
 
@@ -41,12 +47,15 @@ export async function GET(_req: NextRequest, { params }: { params: { titleId: st
   }
 }
 
-export async function POST(req: NextRequest, { params }: { params: { titleId: string } }) {
+export async function POST(req: NextRequest, { params: promisedParams }: { params: Promise<{ titleId: string }> }) {
+  const params = await promisedParams;
   const session = await getStudentSession();
   if (!session) return jsonError('Not authenticated', 401);
 
   const title = await selectTitleBy(and(eq(titles.id, params.titleId), eq(titles.classId, session.classId))!);
   if (!title) return jsonError('Title not found', 404);
+  const accessError = await requireStudentTitleAccess(title, session);
+  if (accessError) return accessError;
   const requiredInfo = projectRequirementsError(title);
   if (requiredInfo) return jsonError(requiredInfo, 428);
   if (title.status !== 'verified') return jsonError('Reports can only be submitted after a title is verified', 409);
@@ -63,6 +72,11 @@ export async function POST(req: NextRequest, { params }: { params: { titleId: st
   if (limited) return limited;
 
   const body = await req.json().catch(() => null);
+  for (const field of ["repoUrl", "deploymentUrl"]) {
+    const invalid = externalUrlError(body?.[field]);
+    if (invalid) return jsonError(invalid, 422);
+  }
+  if (body?.extraLinks !== undefined && (!Array.isArray(body.extraLinks) || body.extraLinks.length > 20 || body.extraLinks.some((link: unknown) => !link || externalUrlError(link)))) return jsonError('Use at most 20 valid http(s) links', 422);
   const version = (body?.version as string | undefined)?.trim();
   const changelog = (body?.changelog as string | undefined)?.trim();
   const progressSummary = (body?.progressSummary as string | undefined)?.trim();
@@ -77,40 +91,23 @@ export async function POST(req: NextRequest, { params }: { params: { titleId: st
   }
 
   try {
-    const row = await db.transaction(async (tx) => {
-      const [update] = await tx.insert(projectUpdates).values({
-        classId: title.classId,
-        slotId: title.slotId,
-        groupId: title.groupId,
-        titleId: title.id,
-        postedByStudentId: session.studentId,
-        kind: 'milestone',
-        headline: `Version Report · v${version}`,
-        body: progressSummary,
-        changelog,
-      }).returning();
-      const [report] = await tx.insert(titleReports).values({
-        titleId: title.id,
-        groupId: title.groupId,
-        classId: title.classId,
-        slotId: title.slotId,
-        submittedByStudentId: session.studentId,
-        repoUrl: repoUrl || null,
-        deploymentUrl: deploymentUrl || null,
-        version,
-        changelog,
-        progressSummary,
-        extraLinks,
-        projectUpdateId: update.id,
-      }).returning();
-      await tx.insert(activityLog).values({
-        classId: title.classId,
-        actorId: session.studentId,
-        action: 'report.submitted',
-        targetId: report.id,
-      });
-      return report;
-    });
+    const updateId = randomUUID();
+    const reportId = randomUUID();
+    const results = await db.batch([
+      db.insert(projectUpdates).values({
+        id: updateId, classId: title.classId, slotId: title.slotId, groupId: title.groupId,
+        titleId: title.id, postedByStudentId: session.studentId, kind: 'milestone',
+        headline: `Version Report / v${version}`, body: progressSummary, changelog,
+      }),
+      db.insert(titleReports).values({
+        id: reportId, titleId: title.id, groupId: title.groupId, classId: title.classId,
+        slotId: title.slotId, submittedByStudentId: session.studentId, repoUrl: repoUrl || null,
+        deploymentUrl: deploymentUrl || null, version, changelog, progressSummary, extraLinks,
+        projectUpdateId: updateId,
+      }).returning(),
+      db.insert(activityLog).values({ classId: title.classId, actorId: session.studentId, action: 'report.submitted', targetId: reportId }),
+    ]);
+    const row = results[1][0];
 
     const titlePatch: Record<string, unknown> = { updatedAt: new Date(), updatedByStudentId: session.studentId };
     if (repoUrl) titlePatch.repoUrl = repoUrl;

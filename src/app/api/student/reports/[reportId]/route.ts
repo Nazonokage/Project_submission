@@ -1,3 +1,4 @@
+import { externalUrlError } from '@/lib/safe-url';
 import { requireStudentProjectReady } from '@/lib/student-project-access';
 import { NextRequest, NextResponse } from 'next/server';
 import { and, eq } from 'drizzle-orm';
@@ -7,11 +8,17 @@ import { getStudentSession } from '@/lib/auth';
 import { jsonError } from '@/lib/helpers';
 import { isSchemaDrift } from '@/lib/pg-errors';
 
-export async function PATCH(req: NextRequest, { params }: { params: { reportId: string } }) {
+export async function PATCH(req: NextRequest, { params: promisedParams }: { params: Promise<{ reportId: string }> }) {
+  const params = await promisedParams;
   const session = await getStudentSession();
   if (!session) return jsonError('Not authenticated', 401);
 
   const body = await req.json().catch(() => null);
+  for (const field of ["repoUrl"]) {
+    const invalid = externalUrlError(body?.[field]);
+    if (invalid) return jsonError(invalid, 422);
+  }
+  if (body?.extraLinks !== undefined && (!Array.isArray(body.extraLinks) || body.extraLinks.length > 20 || body.extraLinks.some((link: unknown) => !link || externalUrlError(link)))) return jsonError('Use at most 20 valid http(s) links', 422);
 
   try {
     const [report] = await db.select().from(titleReports).where(eq(titleReports.id, params.reportId)).limit(1);
@@ -28,7 +35,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { reportId: 
       .limit(1);
     if (!membership) return jsonError('Only group members can edit this report', 403);
 
-    const requiredInfo = await requireStudentProjectReady(report.titleId, session.classId);
+    const requiredInfo = await requireStudentProjectReady(report.titleId, session.classId, session.studentId);
     if (requiredInfo) return requiredInfo;
     const patch: Record<string, unknown> = { updatedAt: new Date() };
     if (typeof body?.version === 'string') patch.version = body.version.trim();

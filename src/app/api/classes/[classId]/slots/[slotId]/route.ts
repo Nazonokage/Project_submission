@@ -7,9 +7,10 @@ import { getProfSession } from '@/lib/auth';
 import { assertClassOwnedByProf, assertSlotInClass, jsonError } from '@/lib/helpers';
 import { normalizeTechStack } from '@/lib/tech-stack';
 
-type Params = { params: { classId: string; slotId: string } };
+type Params = { params: Promise<{ classId: string; slotId: string }> };
 
-export async function PATCH(req: NextRequest, { params }: Params) {
+export async function PATCH(req: NextRequest, { params: promisedParams }: Params) {
+  const params = await promisedParams;
   const prof = await getProfSession();
   if (!prof) return jsonError('Not authenticated', 401);
 
@@ -117,7 +118,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   return NextResponse.json({ slot: row });
 }
 
-export async function DELETE(_req: NextRequest, { params }: Params) {
+export async function DELETE(_req: NextRequest, { params: promisedParams }: Params) {
+  const params = await promisedParams;
   const prof = await getProfSession();
   if (!prof) return jsonError('Not authenticated', 401);
 

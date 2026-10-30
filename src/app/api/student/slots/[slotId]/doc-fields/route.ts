@@ -6,9 +6,10 @@ import { getStudentSession } from '@/lib/auth';
 import { jsonError } from '@/lib/helpers';
 import { isSlotParticipant } from '@/lib/slot-participation';
 
-type Ctx = { params: { slotId: string } };
+type Ctx = { params: Promise<{ slotId: string }> };
 
-export async function GET(_req: NextRequest, { params }: Ctx) {
+export async function GET(_req: NextRequest, { params: promisedParams }: Ctx) {
+  const params = await promisedParams;
   const session = await getStudentSession();
   if (!session) return jsonError('Not authenticated', 401);
 

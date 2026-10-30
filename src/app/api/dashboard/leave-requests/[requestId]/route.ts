@@ -8,8 +8,9 @@ import { applyApprovedLeave } from '@/lib/leave';
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { requestId: string } }
+  { params: promisedParams }: { params: Promise<{ requestId: string }> }
 ) {
+  const params = await promisedParams;
   const prof = await getProfSession();
   if (!prof) return jsonError('Not authenticated', 401);
 

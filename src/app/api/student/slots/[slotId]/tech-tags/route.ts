@@ -4,7 +4,8 @@ import { getStudentSession } from '@/lib/auth';
 import { assertSlotInClass, jsonError } from '@/lib/helpers';
 import { isSlotParticipant } from '@/lib/slot-participation';
 
-export async function GET(_req: Request, { params }: { params: { slotId: string } }) {
+export async function GET(_req: Request, { params: promisedParams }: { params: Promise<{ slotId: string }> }) {
+  const params = await promisedParams;
   const session = await getStudentSession();
   if (!session) return jsonError('Not authenticated', 401);
   const slot = await assertSlotInClass(params.slotId, session.classId);

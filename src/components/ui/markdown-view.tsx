@@ -205,6 +205,10 @@ function parseBlocks(markdown: string): Block[] {
         i = tempIndex;
         continue;
       }
+      // Invalid table candidates must consume input as ordinary text.
+      blocks.push({ type: 'paragraph', content: line });
+      i++;
+      continue;
     }
 
     // 6. Lists (bullet or ordered or task)

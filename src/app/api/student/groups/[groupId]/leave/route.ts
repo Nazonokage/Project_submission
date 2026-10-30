@@ -6,7 +6,8 @@ import { getStudentSession } from '@/lib/auth';
 import { jsonError } from '@/lib/helpers';
 import { isSchemaDrift } from '@/lib/pg-errors';
 
-export async function POST(req: NextRequest, { params }: { params: { groupId: string } }) {
+export async function POST(req: NextRequest, { params: promisedParams }: { params: Promise<{ groupId: string }> }) {
+  const params = await promisedParams;
   const session = await getStudentSession();
   if (!session) return jsonError('Not authenticated', 401);
 
@@ -84,7 +85,8 @@ export async function POST(req: NextRequest, { params }: { params: { groupId: st
   }
 }
 
-export async function DELETE(_req: NextRequest, { params }: { params: { groupId: string } }) {
+export async function DELETE(_req: NextRequest, { params: promisedParams }: { params: Promise<{ groupId: string }> }) {
+  const params = await promisedParams;
   const session = await getStudentSession();
   if (!session) return jsonError('Not authenticated', 401);
 

@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
+import { StudentPassword } from './student-password';
 import Link from 'next/link';
 import { ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
@@ -27,7 +28,7 @@ export type RosterStudent = {
   id: string;
   name: string;
   idNumber: string;
-  password: string;
+  password?: never;
   isActive?: boolean;
   lastLoginAt?: string | null;
   memberships?: { groupId: string; slotId: string }[];
@@ -55,7 +56,7 @@ export function RosterTab({
   const [showExcluded, setShowExcluded] = useState(false);
   const enrolled = (student: RosterStudent) => !selectedSlotId || student.slotProgress?.find(progress => progress.slotId === selectedSlotId)?.enrolled !== false;
   const progressFor = (student: RosterStudent) => (student.slotProgress || []).filter(progress => !selectedSlotId || progress.slotId === selectedSlotId);
-  const [showPasswords, setShowPasswords] = useState(false);
+  const [credentials, setCredentials] = useState<{ name: string; idNumber: string; initialPassword: string }[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const selected = students.find((student) => student.id === selectedId) || null;
   const rowTrigger = useRef<HTMLTableRowElement | null>(null);
@@ -63,7 +64,6 @@ export function RosterTab({
     setSelectedId(null);
     setEditing(null);
     setError(null);
-    setShowPasswords(false);
   }
   const filteredStudents = students.filter((s) => {
     const matches = `${s.name} ${s.idNumber}`.toLowerCase().includes(search.trim().toLowerCase());
@@ -77,42 +77,13 @@ export function RosterTab({
   const [importText, setImportText] = useState('');
   const [showImport, setShowImport] = useState(false);
   const [name, setName] = useState('');
-  const [classPassword, setClassPassword] = useState(defaultStudentPassword);
-  const [savingPassword, setSavingPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<RosterStudent | null>(null);
   const [editName, setEditName] = useState('');
   const [editIdNumber, setEditIdNumber] = useState('');
   const [editPassword, setEditPassword] = useState('');
   const [savingEdit, setSavingEdit] = useState(false);
-
-  useEffect(() => {
-    setClassPassword(defaultStudentPassword);
-  }, [defaultStudentPassword]);
-
-  async function saveClassPassword(e: React.FormEvent) {
-    e.preventDefault();
-    const value = classPassword.trim();
-    if (!value) {
-      setError('Class default password cannot be empty');
-      return;
-    }
-    setSavingPassword(true);
-    setError(null);
-    const res = await fetch(`/api/classes/${classId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ defaultStudentPassword: value }),
-    });
-    const data = await res.json().catch(() => ({}));
-    setSavingPassword(false);
-    if (!res.ok) {
-      setError(data.error || 'Could not save default password');
-      return;
-    }
-    toast.success('Class default password saved');
-    onChange();
-  }
+  const [exporting, setExporting] = useState(false);
 
   async function doImport(e: React.FormEvent) {
     e.preventDefault();
@@ -127,6 +98,7 @@ export function RosterTab({
       setError(data.error);
       return;
     }
+    setCredentials(data.credentials || []);
     setImportText('');
     setShowImport(false);
     toast.success(`Imported ${data.count} students`);
@@ -146,6 +118,7 @@ export function RosterTab({
       setError(data.error);
       return;
     }
+    setCredentials([{ name: data.student.name, idNumber: data.student.idNumber, initialPassword: data.initialPassword }]);
     setName('');
     toast.success(`Added ${data.student?.name} as ${data.student?.idNumber}`);
     onChange();
@@ -156,7 +129,7 @@ export function RosterTab({
     setEditing(student);
     setEditName(student.name);
     setEditIdNumber(student.idNumber);
-    setEditPassword(student.password);
+    setEditPassword('');
   }
 
   async function saveEdit(e: React.FormEvent) {
@@ -170,7 +143,7 @@ export function RosterTab({
       body: JSON.stringify({
         name: editName,
         idNumber: editIdNumber,
-        password: editPassword,
+        ...(editPassword ? { password: editPassword } : {}),
       }),
     });
     const data = await res.json().catch(() => ({}));
@@ -199,46 +172,42 @@ export function RosterTab({
     onChange();
   }
 
-  function exportCsv() {
-    const header = 'Name,ID Number,Password\n';
-    const rows = students.map((s) => `"${s.name}","${s.idNumber}","${s.password}"`).join('\n');
-    const blob = new Blob([header + rows], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'roster.csv';
-    a.click();
-    URL.revokeObjectURL(url);
+  async function exportCsv() {
+    setExporting(true);
+    try {
+      const response = await fetch(`/api/classes/${classId}/students/export`, { cache: 'no-store' });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || 'Could not export roster');
+      }
+      const url = URL.createObjectURL(await response.blob());
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'roster.csv';
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (err) { toast.error(err instanceof Error ? err.message : 'Could not export roster'); }
+    finally { setExporting(false); }
   }
 
   return (
     <div className="space-y-4">
+      <Dialog open={credentials.length > 0} onOpenChange={open => { if (!open) setCredentials([]); }}>
+        <DialogContent><DialogHeader><DialogTitle>Save new student credentials</DialogTitle><DialogDescription>Share each credential privately with its student. Passwords can also be viewed or exported from this roster.</DialogDescription></DialogHeader>
+          <div className="max-h-80 overflow-auto space-y-3">{credentials.map(c => <div key={c.idNumber} className="rounded-lg border border-line p-3"><p>{c.name} / {c.idNumber}</p><code className="select-all break-all">{c.initialPassword}</code></div>)}</div>
+          <button type="button" className="btn-primary" onClick={() => setCredentials([])}>I have saved the credentials</button>
+        </DialogContent>
+      </Dialog>
       <details className="rounded-2xl border border-line bg-card p-4">
         <summary className="cursor-pointer text-sm font-medium touch-manipulation">Manage roster</summary>
         <div className="mt-4 space-y-4">
-      <form onSubmit={saveClassPassword} className="card space-y-2">
-        <label className="label">Class default password</label>
-        <div className="flex flex-wrap items-end gap-3">
-          <input
-            className="input max-w-xs"
-            value={classPassword}
-            onChange={(e) => setClassPassword(e.target.value)}
-          />
-          <button type="submit" className="btn-primary" disabled={savingPassword}>
-            {savingPassword ? 'Saving…' : 'Save'}
-          </button>
-        </div>
-        <p className="text-sm text-muted">
-          New and imported students get this password. Edit a student to override.
-        </p>
-      </form>
-
+      <p className="text-sm text-muted">New students start with password 2026. View a student&apos;s password in their details, or export the roster with passwords.</p>
       <div className="flex justify-between">
         <button className="btn-secondary" onClick={() => setShowImport((s) => !s)}>
           Import .txt
         </button>
-        <button className="btn-secondary" onClick={exportCsv} disabled={students.length === 0}>
-          Export roster CSV
+        <button className="btn-secondary" onClick={exportCsv} disabled={exporting || students.length === 0}>
+          {exporting ? 'Exporting…' : 'Export roster CSV'}
         </button>
       </div>
       {showImport && (
@@ -351,7 +320,7 @@ export function RosterTab({
             </div>
             <div>
               <label htmlFor="roster-edit-password" className="label">Password</label>
-              <input id="roster-edit-password" className="input" required value={editPassword} onChange={(e) => setEditPassword(e.target.value)} />
+              <input id="roster-edit-password" className="input" type="password" placeholder="2026 or a password of at least 12 characters; blank keeps current" value={editPassword} onChange={(e) => setEditPassword(e.target.value)} />
             </div>
             {error && <p role="alert" className="text-sm text-danger">{error}</p>}
             <DialogFooter className="gap-2">
@@ -371,11 +340,7 @@ export function RosterTab({
               <DialogDescription>Student details · <span className="font-mono">{selected.idNumber}</span></DialogDescription>
             </DialogHeader>
             <div className="rounded-2xl bg-secondary/40 p-4 space-y-2 text-sm">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-muted">Password</span>
-                <span className="font-mono">{showPasswords ? selected.password : '••••••'}</span>
-                <button type="button" className="ml-auto text-accent min-h-11 px-2 rounded-lg focus-visible:ring-2 focus-visible:ring-accent" onClick={() => setShowPasswords(!showPasswords)}>{showPasswords ? 'Hide password' : 'Show password'}</button>
-              </div>
+              <StudentPassword key={selected.id} classId={classId} studentId={selected.id} />
               <p className="text-muted">{selected.lastLoginAt ? `Last login ${new Date(selected.lastLoginAt).toLocaleString()}` : 'Never logged in'}</p>
               {selected.isActive === false && <p className="text-danger">Inactive student</p>}
             </div>

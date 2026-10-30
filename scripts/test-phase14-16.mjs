@@ -1,16 +1,25 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import { dirname, resolve, relative } from 'node:path';
 import vm from 'node:vm';
 import ts from 'typescript';
 import { PgDialect } from 'drizzle-orm/pg-core';
 const require = createRequire(import.meta.url);
+// Synthetic key only: tests never load the local deployment's encryption key.
+process.env.STUDENT_PASSWORD_KEY = Buffer.alloc(32, 7).toString('base64');
 function load(file, mocks = {}) {
-  const code = ts.transpileModule(readFileSync(file, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText;
+  const code = ts.transpileModule(readFileSync(file, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, esModuleInterop: true, target: ts.ScriptTarget.ES2020 } }).outputText;
   const exports = {};
-  vm.runInNewContext(`(function(require, exports) { ${code}\n})`, { Response, Request, console, Date, URL })(name => {
+  vm.runInNewContext(`(function(require, exports) { ${code}\n})`, { Response, Request, console, Date, URL, Buffer, TextEncoder, process: { env: { JWT_SECRET: "isolated-test-secret", NODE_ENV: "production" } } })(name => {
     if (name in mocks) return mocks[name];
+    if (name.endsWith('.mjs')) return require(resolve(name.startsWith('@/') ? `src/${name.slice(2)}` : resolve(dirname(file), name)));
     if (name.startsWith('@/')) return load(`src/${name.slice(2)}.ts`, mocks);
+    if (name.startsWith('.')) {
+      const localFile = resolve(dirname(file), `${name}.ts`);
+      const alias = `@/${relative(resolve('src'), localFile).replace(/\\/g, '/').replace(/\.ts$/, '')}`;
+      return alias in mocks ? mocks[alias] : load(localFile, mocks);
+    }
     return require(name);
   }, exports);
   return exports;
@@ -26,14 +35,16 @@ function database(rows = []) {
     const query = { operation };
     queries.push(query);
     const chain = {};
-    for (const name of ['from', 'where', 'limit', 'values', 'set', 'returning', 'orderBy', 'innerJoin', 'leftJoin']) chain[name] = value => { query[name] = value; return chain; };
+    for (const name of ['from', 'where', 'limit', 'values', 'set', 'returning', 'orderBy', 'innerJoin', 'leftJoin', 'onConflictDoUpdate']) chain[name] = value => { query[name] = value; return chain; };
     chain.then = (resolve, reject) => Promise.resolve(rows).then(resolve, reject);
     return chain;
   };
+  db.execute = value => ({ value });
+  db.batch = async () => [];
   return { db, queries };
 }
 const request = body => new Request('http://localhost/api/test', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-const common = { '@/lib/auth': auth, '@/lib/schema': schema, '@/lib/helpers': helpers, '@/lib/project-updates': { logProgressChange: async () => {} }, '@/lib/rate-limit': { assertActionRateLimit: async () => null } };
+const common = { '@/lib/student-title-access': { requireStudentTitleAccess: async () => null }, '@/lib/task-access': { assertTaskAssignee: async () => null }, '@/lib/auth': auth, '@/lib/schema': schema, '@/lib/helpers': helpers, '@/lib/project-updates': { logProgressChange: async () => {} }, '@/lib/rate-limit': { assertActionRateLimit: async () => null } };
 const similarDb = database([{ id: 'duplicate', text: 'Inventory manager' }]);
 const duplicate = load('src/lib/title-duplicates.ts', { ...common, '@/lib/db': similarDb });
 await duplicate.findSimilarTitles('class', 'slot', 'Inventory %_', 'self');

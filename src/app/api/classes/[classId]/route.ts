@@ -5,9 +5,10 @@ import { eq } from 'drizzle-orm';
 import { getProfSession } from '@/lib/auth';
 import { assertClassOwnedByProf, jsonError } from '@/lib/helpers';
 
-type Params = { params: { classId: string } };
+type Params = { params: Promise<{ classId: string }> };
 
-export async function GET(_req: Request, { params }: Params) {
+export async function GET(_req: Request, { params: promisedParams }: Params) {
+  const params = await promisedParams;
   const prof = await getProfSession();
   if (!prof) return jsonError('Not authenticated', 401);
 
@@ -17,7 +18,8 @@ export async function GET(_req: Request, { params }: Params) {
   return NextResponse.json({ class: cls });
 }
 
-export async function PATCH(req: Request, { params }: Params) {
+export async function PATCH(req: Request, { params: promisedParams }: Params) {
+  const params = await promisedParams;
   const prof = await getProfSession();
   if (!prof) return jsonError('Not authenticated', 401);
 
@@ -29,11 +31,7 @@ export async function PATCH(req: Request, { params }: Params) {
     updatedAt: new Date(),
   };
 
-  if (typeof body?.defaultStudentPassword === 'string') {
-    const value = body.defaultStudentPassword.trim();
-    if (!value) return jsonError('defaultStudentPassword cannot be empty', 422);
-    patch.defaultStudentPassword = value;
-  }
+  if ('defaultStudentPassword' in (body || {})) return jsonError('Shared class passwords are no longer supported', 422);
   if (typeof body?.name === 'string') {
     const value = body.name.trim();
     if (!value) return jsonError('name cannot be empty', 422);
@@ -54,7 +52,8 @@ export async function PATCH(req: Request, { params }: Params) {
   return NextResponse.json({ class: row });
 }
 
-export async function DELETE(req: Request, { params }: Params) {
+export async function DELETE(req: Request, { params: promisedParams }: Params) {
+  const params = await promisedParams;
   const prof = await getProfSession();
   if (!prof) return jsonError('Not authenticated', 401);
 

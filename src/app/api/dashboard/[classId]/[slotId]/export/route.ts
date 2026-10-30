@@ -7,13 +7,10 @@ import { assertClassOwnedByProf, assertSlotInClass, jsonError } from '@/lib/help
 import { isSchemaDrift } from '@/lib/pg-errors';
 import { selectTitles, titleConditions } from '@/lib/titles-query';
 
-function csvCell(value: unknown) {
-  const text = value == null ? '' : String(value);
-  if (/[",\n]/.test(text)) return `"${text.replace(/"/g, '""')}"`;
-  return text;
-}
+import { csvCell } from '@/lib/csv';
 
-export async function GET(req: NextRequest, { params }: { params: { classId: string; slotId: string } }) {
+export async function GET(req: NextRequest, { params: promisedParams }: { params: Promise<{ classId: string; slotId: string }> }) {
+  const params = await promisedParams;
   const prof = await getProfSession();
   if (!prof) return jsonError('Not authenticated', 401);
 

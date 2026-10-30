@@ -1,3 +1,4 @@
+import { requireStudentTitleAccess } from '@/lib/student-title-access';
 import { NextRequest, NextResponse } from 'next/server';
 import { and, desc, eq } from 'drizzle-orm';
 import { db } from '@/lib/db';
@@ -7,12 +8,15 @@ import { jsonError } from '@/lib/helpers';
 import { isSchemaDrift } from '@/lib/pg-errors';
 import { selectTitleBy } from '@/lib/titles-query';
 
-export async function GET(_req: NextRequest, { params }: { params: { titleId: string } }) {
+export async function GET(_req: NextRequest, { params: promisedParams }: { params: Promise<{ titleId: string }> }) {
+  const params = await promisedParams;
   const session = await getStudentSession();
   if (!session) return jsonError('Not authenticated', 401);
 
   const title = await selectTitleBy(and(eq(titles.id, params.titleId), eq(titles.classId, session.classId))!);
   if (!title) return jsonError('Title not found', 404);
+  const accessError = await requireStudentTitleAccess(title, session);
+  if (accessError) return accessError;
 
   try {
     const rows = await db

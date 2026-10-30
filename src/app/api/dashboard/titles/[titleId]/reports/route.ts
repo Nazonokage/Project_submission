@@ -7,7 +7,8 @@ import { assertClassOwnedByProf, jsonError } from '@/lib/helpers';
 import { isSchemaDrift } from '@/lib/pg-errors';
 import { selectTitleBy } from '@/lib/titles-query';
 
-export async function GET(_req: NextRequest, { params }: { params: { titleId: string } }) {
+export async function GET(_req: NextRequest, { params: promisedParams }: { params: Promise<{ titleId: string }> }) {
+  const params = await promisedParams;
   const prof = await getProfSession();
   if (!prof) return jsonError('Not authenticated', 401);
 

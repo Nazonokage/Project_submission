@@ -18,7 +18,7 @@ let failCreate = true;
 let createdBody;
 try {
   const context = await browser.newContext();
-  const token = await new SignJWT({ profId: 'prof-test' }).setProtectedHeader({ alg: 'HS256' }).setExpirationTime('1h').sign(new TextEncoder().encode('phase14-16-local-test-only'));
+  const token = await new SignJWT({ profId: 'prof-test' , email: 'synthetic@example.invalid'}).setAudience('professor-session').setProtectedHeader({ alg: 'HS256' }).setExpirationTime('1h').sign(new TextEncoder().encode('phase14-16-local-test-only'));
   await context.addCookies([{ name: 'prof_token', value: token, url: base }]);
   await context.route('**/api/**', async route => {
     const request = route.request(); const path = new URL(request.url()).pathname;

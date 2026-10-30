@@ -1,3 +1,4 @@
+import { externalUrlError } from '@/lib/safe-url';
 import { requireStudentProjectReady } from '@/lib/student-project-access';
 import { NextRequest, NextResponse } from 'next/server';
 import { and, eq } from 'drizzle-orm';
@@ -24,12 +25,13 @@ async function resolveUpdate(updateId: string, studentId: string, classId: strin
     .where(and(eq(studentGroupSlots.studentId, studentId), eq(studentGroupSlots.groupId, update.groupId)))
     .limit(1);
   if (!membership) return { update: null, error: jsonError('You are no longer a member of this group', 403) };
-  const requiredInfo = await requireStudentProjectReady(update.titleId, classId);
+  const requiredInfo = await requireStudentProjectReady(update.titleId, classId, studentId);
   if (requiredInfo) return { update: null, error: requiredInfo };
   return { update, error: null };
 }
 
-export async function PATCH(req: NextRequest, { params }: { params: { updateId: string } }) {
+export async function PATCH(req: NextRequest, { params: promisedParams }: { params: Promise<{ updateId: string }> }) {
+  const params = await promisedParams;
   const session = await getStudentSession();
   if (!session) return jsonError('Not authenticated', 401);
 
@@ -37,6 +39,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { updateId: 
   if (error) return error;
 
   const body = await req.json().catch(() => null);
+  for (const field of ["commitUrl"]) {
+    const invalid = externalUrlError(body?.[field]);
+    if (invalid) return jsonError(invalid, 422);
+  }
   const patch: Record<string, unknown> = { updatedAt: new Date() };
   if (typeof body?.headline === 'string') patch.headline = body.headline.trim();
   if (typeof body?.body === 'string') patch.body = body.body.trim();
@@ -63,7 +69,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { updateId: 
   return NextResponse.json({ update: row });
 }
 
-export async function DELETE(_req: NextRequest, { params }: { params: { updateId: string } }) {
+export async function DELETE(_req: NextRequest, { params: promisedParams }: { params: Promise<{ updateId: string }> }) {
+  const params = await promisedParams;
   const session = await getStudentSession();
   if (!session) return jsonError('Not authenticated', 401);
 

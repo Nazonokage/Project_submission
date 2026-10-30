@@ -1,8 +1,9 @@
 'use client';
+import { safeExternalUrl } from '@/lib/safe-url';
 
 import { useState } from 'react';
 import { ProgressSelect } from '@/components/student/progress-select';
-import { PROGRESS_LABELS, PROGRESS_STATUSES, type ProgressStatus } from '@/lib/progress';
+import { PROGRESS_LABELS, PROGRESS_STATUSES, projectProgressStatus, type ProgressStatus } from '@/lib/progress';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
@@ -45,7 +46,7 @@ export function ProgressBoard({
     <>
     <div className="-mx-1 flex snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain pb-2 md:mx-0 md:grid md:grid-cols-4 md:overflow-visible md:snap-none items-start">
       {PROGRESS_STATUSES.map((status) => {
-        const col = titles.filter((t) => (t.progressStatus || 'planning') === status);
+        const col = titles.filter((t) => projectProgressStatus(t) === status);
         return (
           <section key={status} className="doodle-border bg-secondary/50 p-2 space-y-2 min-h-[12rem] min-w-[min(16.5rem,calc(100vw-2.5rem))] snap-start md:min-w-0">
             <h2 className="text-xs font-medium uppercase tracking-wide text-muted px-1">
@@ -82,7 +83,7 @@ export function ProgressBoard({
                     </button>
                     <div className="flex flex-wrap items-center gap-2">
                       <span className={`badge ${STATUS_STYLES[t.status] || ''}`}>{t.status}</span>
-                      <ProgressSelect value={t.progressStatus} onChange={(next) => onProgress(t.id, next)} />
+                      <ProgressSelect value={projectProgressStatus(t)} disabled={t.status !== 'verified'} onChange={(next) => onProgress(t.id, next)} />
                     </div>
                     <div className="flex gap-2">
                       {t.latestReport && (
@@ -119,7 +120,7 @@ export function ProgressBoard({
           <div className="space-y-4 text-sm">
             <section><p className="font-medium">Progress summary</p><p className="mt-1 whitespace-pre-wrap text-muted">{reportDetail.latestReport.progressSummary || 'No summary provided.'}</p></section>
             {reportDetail.latestReport.changelog && <section><p className="font-medium">Changelog</p><p className="mt-1 whitespace-pre-wrap text-muted">{reportDetail.latestReport.changelog}</p></section>}
-            {(reportDetail.latestReport.repoUrl || reportDetail.latestReport.deploymentUrl || reportDetail.latestReport.extraLinks?.length) && <section className="space-y-1"><p className="font-medium">Links</p>{reportDetail.latestReport.repoUrl && <a className="block text-primary hover:underline" href={reportDetail.latestReport.repoUrl} target="_blank" rel="noreferrer">Repository</a>}{reportDetail.latestReport.deploymentUrl && <a className="block text-primary hover:underline" href={reportDetail.latestReport.deploymentUrl} target="_blank" rel="noreferrer">Deployment</a>}{reportDetail.latestReport.extraLinks?.map((link) => <a key={link} className="block text-primary hover:underline truncate" href={link} target="_blank" rel="noreferrer">{link}</a>)}</section>}
+            {(reportDetail.latestReport.repoUrl || reportDetail.latestReport.deploymentUrl || reportDetail.latestReport.extraLinks?.length) && <section className="space-y-1"><p className="font-medium">Links</p>{reportDetail.latestReport.repoUrl && <a className="block text-primary hover:underline" href={safeExternalUrl(reportDetail.latestReport.repoUrl)} target="_blank" rel="noreferrer">Repository</a>}{reportDetail.latestReport.deploymentUrl && <a className="block text-primary hover:underline" href={safeExternalUrl(reportDetail.latestReport.deploymentUrl)} target="_blank" rel="noreferrer">Deployment</a>}{reportDetail.latestReport.extraLinks?.map((link) => <a key={link} className="block text-primary hover:underline truncate" href={safeExternalUrl(link)} target="_blank" rel="noreferrer">{link}</a>)}</section>}
           </div>
         )}
       </DialogContent>

@@ -11,3 +11,7 @@ export const PROGRESS_LABELS: Record<ProgressStatus, string> = {
 export function isProgressStatus(value: unknown): value is ProgressStatus {
   return typeof value === 'string' && (PROGRESS_STATUSES as readonly string[]).includes(value);
 }
+
+export function projectProgressStatus(title: { status?: unknown; progressStatus?: unknown }): ProgressStatus {
+  return title.status === 'verified' && isProgressStatus(title.progressStatus) ? title.progressStatus : 'planning';
+}

@@ -1,3 +1,5 @@
+import { requireStudentTitleAccess } from '@/lib/student-title-access';
+import { consolidateDescription, missingDocumentationCount, projectDescription } from '@/lib/project-description';
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { documentationFieldTemplates, studentGroupSlots, titles } from '@/lib/schema';
@@ -6,12 +8,15 @@ import { getStudentSession } from '@/lib/auth';
 import { jsonError } from '@/lib/helpers';
 import { selectTitleBy } from '@/lib/titles-query';
 
-export async function GET(_req: NextRequest, { params }: { params: { titleId: string } }) {
+export async function GET(_req: NextRequest, { params: promisedParams }: { params: Promise<{ titleId: string }> }) {
+  const params = await promisedParams;
   const session = await getStudentSession();
   if (!session) return jsonError('Not authenticated', 401);
 
   const title = await selectTitleBy(and(eq(titles.id, params.titleId), eq(titles.classId, session.classId))!);
   if (!title) return jsonError('Title not found', 404);
+  const accessError = await requireStudentTitleAccess(title, session);
+  if (accessError) return accessError;
 
   const templates = await db
     .select()
@@ -19,30 +24,25 @@ export async function GET(_req: NextRequest, { params }: { params: { titleId: st
     .where(eq(documentationFieldTemplates.slotId, title.slotId))
     .orderBy(asc(documentationFieldTemplates.sortOrder));
 
-  const doc = (title.documentation as Record<string, unknown> | null) || {};
-  let missingRequiredCount = 0;
-  for (const t of templates) {
-    if (t.required) {
-      const val = doc[t.fieldKey];
-      if (val === undefined || val === null || (typeof val === 'string' && !val.trim())) {
-        missingRequiredCount++;
-      }
-    }
-  }
+  const missingRequiredCount = missingDocumentationCount(templates, title);
 
   return NextResponse.json({
-    documentation: title.documentation || {},
+    description: projectDescription(title),
+    documentation: consolidateDescription(title).documentation,
     docFields: templates,
     missingRequiredCount,
   });
 }
 
-export async function POST(req: NextRequest, { params }: { params: { titleId: string } }) {
+export async function POST(req: NextRequest, { params: promisedParams }: { params: Promise<{ titleId: string }> }) {
+  const params = await promisedParams;
   const session = await getStudentSession();
   if (!session) return jsonError('Not authenticated', 401);
 
   const title = await selectTitleBy(and(eq(titles.id, params.titleId), eq(titles.classId, session.classId))!);
   if (!title) return jsonError('Title not found', 404);
+  const accessError = await requireStudentTitleAccess(title, session);
+  if (accessError) return accessError;
 
   const [membership] = await db
     .select()
@@ -66,14 +66,15 @@ export async function POST(req: NextRequest, { params }: { params: { titleId: st
     .where(eq(documentationFieldTemplates.slotId, title.slotId))
     .orderBy(asc(documentationFieldTemplates.sortOrder));
 
-  const normalizedDoc: Record<string, unknown> = { ...rawDoc };
-  let missingRequiredCount = 0;
+  if (body && 'description' in body && (typeof body.description !== 'string' || !body.description.trim())) return jsonError('Description / Abstract is required', 422);
+  const consolidated = consolidateDescription(title, typeof body?.description === 'string' ? body.description : undefined, rawDoc);
+  const normalizedDoc = consolidated.documentation;
 
   for (const t of templates) {
+    if (t.fieldKey === 'abstract') continue;
     const val = rawDoc[t.fieldKey];
     if (val === undefined || val === null || (typeof val === 'string' && !val.trim())) {
       normalizedDoc[t.fieldKey] = null;
-      if (t.required) missingRequiredCount++;
     } else if (typeof val === 'string') {
       normalizedDoc[t.fieldKey] = val.trim();
     } else {
@@ -81,10 +82,11 @@ export async function POST(req: NextRequest, { params }: { params: { titleId: st
     }
   }
 
+  const missingRequiredCount = missingDocumentationCount(templates, consolidated);
   const [updated] = await db
     .update(titles)
     .set({
-      documentation: normalizedDoc,
+      ...consolidated,
       updatedAt: new Date(),
       updatedByStudentId: session.studentId,
     })
@@ -92,6 +94,7 @@ export async function POST(req: NextRequest, { params }: { params: { titleId: st
     .returning();
 
   return NextResponse.json({
+    description: updated.description,
     documentation: updated.documentation,
     missingRequiredCount,
     title: updated,
