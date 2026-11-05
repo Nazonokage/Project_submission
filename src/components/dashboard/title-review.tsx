@@ -2,6 +2,8 @@
 import { safeExternalUrl } from '@/lib/safe-url';
 import { projectDescription } from '@/lib/project-description';
 import { useQueryClient } from '@tanstack/react-query';
+import { TaskCard } from '@/components/student/task-card';
+import type { Member, TaskItem } from '@/components/student/types';
 import { useBoardQuery } from '@/lib/board-query';
 import { boardKeys } from '@/lib/query-keys';
 
@@ -167,18 +169,6 @@ export type ReportRow = {
   createdAt: string;
 };
 
-export type TaskItemRow = {
-  id: string;
-  name: string;
-  description: string | null;
-  status: string;
-  assigneeName?: string | null;
-  dueDate: string | null;
-  createdAt: string;
-  updatedAt?: string | null;
-  deletedAt?: string | null;
-};
-
 export type UpdateItem = {
   id: string;
   kind: string;
@@ -208,26 +198,39 @@ export function TitleReviewDialog({
   open,
   onOpenChange,
   asProfessor,
+  members,
+  projectControls,
+  onEdit,
+  onDelete,
 }: {
   titleId: string;
   titleText: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   asProfessor?: boolean;
+  members?: Member[];
+  projectControls?: React.ReactNode;
+  onEdit?: () => void;
+  onDelete?: () => Promise<void>;
 }) {
   const client = useQueryClient();
   const role = asProfessor ? 'prof' : 'student';
   const key = boardKeys.title(role, titleId);
-  const titleQuery = useBoardQuery<{ title: { description: string; documentation: Record<string, unknown> | null }; docFields: DocFieldTemplate[] }>([...key, 'documentation'], `/api/${asProfessor ? 'dashboard' : 'student'}/titles/${titleId}`, open);
+  const titleQuery = useBoardQuery<{ title: { description: string; techStack?: string[] | null; targetUsers?: string | null; repoUrl: string | null; deploymentUrl: string | null; documentation: Record<string, unknown> | null }; docFields: DocFieldTemplate[] }>([...key, 'documentation'], `/api/${asProfessor ? 'dashboard' : 'student'}/titles/${titleId}`, open);
   const reportsQuery = useBoardQuery<{ reports: ReportRow[] }>([...key, 'reports'], `/api/${asProfessor ? 'dashboard' : 'student'}/titles/${titleId}/reports`, open);
-  const tasksQuery = useBoardQuery<{ tasks: TaskItemRow[] }>(boardKeys.tasks(role, titleId), `/api/${role}/tasks?titleId=${titleId}`, open, key);
+  const tasksQuery = useBoardQuery<{ tasks: TaskItem[]; members?: Member[] }>(boardKeys.tasks(role, titleId), `/api/${role}/tasks?titleId=${titleId}`, open, key);
   const updatesQuery = useBoardQuery<{ updates: UpdateItem[] }>(boardKeys.updates(role, titleId), `/api/${role}/updates?titleId=${titleId}`, open, key);
   const notesQuery = useBoardQuery<{ feedback: FeedbackItem[] }>(boardKeys.feedback(role, titleId), asProfessor ? `/api/dashboard/feedback?titleId=${titleId}` : `/api/student/titles/${titleId}/feedback`, open, key);
   const reports = reportsQuery.data?.reports || [];
   const tasks = tasksQuery.data?.tasks || [];
   const updates = updatesQuery.data?.updates || [];
   const notes = notesQuery.data?.feedback || [];
-  const titleDoc = titleQuery.data?.title?.documentation || null;
+  const [deleting, setDeleting] = useState(false);
+  const project = titleQuery.data?.title;
+  const repoUrl = safeExternalUrl(project?.repoUrl);
+  const deploymentUrl = safeExternalUrl(project?.deploymentUrl);
+  const description = projectDescription(project || {});
+  const titleDoc = project?.documentation || null;
   const docFields = titleQuery.data?.docFields || [];
   const queries = [titleQuery, reportsQuery, tasksQuery, updatesQuery, notesQuery];
   const loading = queries.some(query => query.isPending && !query.data);
@@ -250,22 +253,32 @@ export function TitleReviewDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-xl max-h-[85vh] overflow-y-auto">
+      <DialogContent className="max-h-[85dvh] w-[calc(100%-2rem)] max-w-3xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{titleText}</DialogTitle>
           <DialogDescription>Project documentation, version reports, tasks, updates, and feedback for this title.</DialogDescription>
         </DialogHeader>
+        <div className="space-y-3 text-sm">
+          {members && <p className="text-muted">{members.map((member) => member.name).join(', ') || 'No members listed'}</p>}
+          {description && <p className="whitespace-pre-wrap break-words">{description}</p>}
+          {!!project?.techStack?.length && <p><strong>Tech stack:</strong> {project.techStack.join(', ')}</p>}
+          {project?.targetUsers && <p><strong>Target users:</strong> {project.targetUsers}</p>}
+          <div className="flex flex-wrap items-center gap-3">
+            {projectControls}
+            {repoUrl && <a className="text-primary underline" href={repoUrl} target="_blank" rel="noreferrer">Repository</a>}
+            {deploymentUrl && <a className="text-primary underline" href={deploymentUrl} target="_blank" rel="noreferrer">Deployment</a>}
+          </div>
+        </div>
         {queries.some(query => query.error) && <p role="alert" className="text-sm text-danger">Some project data could not refresh. Retrying automatically.</p>}
         {loading ? (
           <p className="text-sm text-muted">Loading…</p>
         ) : (
           <div className="space-y-5">
-            {/* Project Documentation Section */}
-            <section className="space-y-2">
-              <h3 className="text-sm font-semibold flex items-center gap-2">
+            <details className="rounded-lg border border-line bg-secondary/15 p-3">
+              <summary className="cursor-pointer rounded-sm text-sm font-semibold focus-visible:ring-2 focus-visible:ring-primary">
                 Project Documentation
-              </h3>
-              <div className="rounded-lg border border-line p-3 space-y-3 bg-secondary/15 text-sm">
+              </summary>
+              <div className="mt-3 space-y-3 border-t border-line pt-3 text-sm">
                 {docFields.length > 0 ? (
                   docFields.map((field) => {
                     const rawVal = field.fieldKey === 'abstract' ? projectDescription(titleQuery.data?.title || {}) : titleDoc?.[field.fieldKey];
@@ -306,7 +319,7 @@ export function TitleReviewDialog({
                   <p className="text-xs text-muted italic">No documentation recorded yet.</p>
                 )}
               </div>
-            </section>
+            </details>
 
             {/* Reports Section */}
             <section className="space-y-2">
@@ -355,6 +368,10 @@ export function TitleReviewDialog({
                         )}
                       </div>
                     )}
+                    {r.extraLinks?.map((link) => {
+                      const href = safeExternalUrl(link);
+                      return href && <a key={link} className="block break-all text-xs text-primary underline" href={href} target="_blank" rel="noreferrer">{link}</a>;
+                    })}
                     {asProfessor && (
                       <div className="pt-1">
                         <button
@@ -380,28 +397,18 @@ export function TitleReviewDialog({
                 <p className="text-sm text-muted">No tasks tracked yet.</p>
               ) : (
                 <div className="space-y-2">
-                  {tasks.map((t) => (
-                    <div
-                      key={t.id}
-                      className={`rounded-lg border p-2.5 text-xs space-y-1 ${
-                        t.deletedAt ? 'border-destructive/30 bg-destructive/5 opacity-70' : 'border-line bg-secondary/20'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium text-ink">{t.name}</span>
-                          <span className="badge text-[10px] uppercase">{t.status.replace('_', ' ')}</span>
-                          {t.deletedAt && (
-                            <span className="badge text-[10px] bg-destructive/20 text-destructive">deleted</span>
-                          )}
-                        </div>
-                        {t.assigneeName && <span className="text-muted">Assigned: {t.assigneeName}</span>}
-                      </div>
-                      {t.description && <p className="text-muted line-clamp-2">{t.description}</p>}
-                      {t.dueDate && (
-                        <p className="text-[11px] text-muted">Due: {new Date(t.dueDate).toLocaleDateString()}</p>
-                      )}
-                    </div>
+                  {tasks.map((task) => (
+                    <TaskCard
+                      key={task.id}
+                      task={{ ...task, titleId }}
+                      project={{
+                        text: titleText,
+                        repoUrl: titleQuery.data?.title?.repoUrl ?? null,
+                        deploymentUrl: titleQuery.data?.title?.deploymentUrl ?? null,
+                      }}
+                      members={tasksQuery.data?.members ?? []}
+                      role={role}
+                    />
                   ))}
                 </div>
               )}
@@ -477,6 +484,19 @@ export function TitleReviewDialog({
           </div>
         )}
         <DialogFooter>
+          {onDelete && (
+            <Button type="button" variant="destructive" disabled={deleting} onClick={async () => {
+              setDeleting(true);
+              try {
+                await onDelete();
+              } finally {
+                setDeleting(false);
+              }
+            }}>
+              {deleting ? 'Deleting...' : 'Delete project'}
+            </Button>
+          )}
+          {onEdit && <Button type="button" disabled={deleting} onClick={onEdit}>Edit project</Button>}
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             Close
           </Button>

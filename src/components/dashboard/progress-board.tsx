@@ -1,11 +1,5 @@
 'use client';
-import { safeExternalUrl } from '@/lib/safe-url';
-
-import { useState } from 'react';
-import { ProgressSelect } from '@/components/student/progress-select';
-import { PROGRESS_LABELS, PROGRESS_STATUSES, projectProgressStatus, type ProgressStatus } from '@/lib/progress';
-import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { PROGRESS_LABELS, PROGRESS_STATUSES, projectProgressStatus } from '@/lib/progress';
 
 export type BoardTitle = {
   id: string;
@@ -29,21 +23,13 @@ const STATUS_STYLES: Record<string, string> = {
 export function ProgressBoard({
   titles,
   highlightStudentId,
-  onProgress,
   onOpen,
-  onEdit,
-  onDelete,
 }: {
   titles: BoardTitle[];
   highlightStudentId?: string | null;
-  onProgress: (titleId: string, next: ProgressStatus) => void;
-  onOpen?: (title: BoardTitle) => void;
-  onEdit?: (title: BoardTitle) => void;
-  onDelete?: (title: BoardTitle) => void;
+  onOpen: (title: BoardTitle) => void;
 }) {
-  const [reportDetail, setReportDetail] = useState<BoardTitle | null>(null);
   return (
-    <>
     <div className="-mx-1 flex snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain pb-2 md:mx-0 md:grid md:grid-cols-4 md:overflow-visible md:snap-none items-start">
       {PROGRESS_STATUSES.map((status) => {
         const col = titles.filter((t) => t.status === 'verified' && projectProgressStatus(t) === status);
@@ -60,49 +46,31 @@ export function ProgressBoard({
                   ? t.members.some((m) => m.id === highlightStudentId)
                   : false;
                 return (
-                  <div
+                  <button
                     key={t.id}
                     id={`group-card-${t.groupId}`}
-                    className={`card p-3 space-y-2 ${highlighted ? 'ring-2 ring-accent' : ''}`}
+                    type="button"
+                    aria-label={t.text}
+                    aria-haspopup="dialog"
+                    onClick={() => onOpen(t)}
+                    className={`card block w-full space-y-2 p-3 text-left hover:border-primary/50 focus-visible:ring-2 focus-visible:ring-primary ${highlighted ? 'ring-2 ring-accent' : ''}`}
                   >
-                    <button
-                      type="button"
-                      className="text-left w-full"
-                      onClick={() => onOpen?.(t)}
-                    >
-                      <p className="text-sm font-medium leading-snug">{t.text}</p>
-                      <p className="text-xs text-muted mt-1">
-                        {t.members.map((m) => m.name).join(', ') || 'No members listed'}
-                      </p>
-                      {t.latestReport && (
-                        <div className="mt-2 rounded-md border border-primary/15 bg-primary/5 p-2">
-                          <p className="text-[11px] font-semibold uppercase tracking-wide text-primary">Latest report{t.latestReport.version ? ` · v${t.latestReport.version}` : ''}</p>
-                          <p className="text-xs text-muted mt-1 line-clamp-2">{t.latestReport.progressSummary || 'Latest report on file'}</p>
-                        </div>
-                      )}
-                    </button>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className={`badge ${STATUS_STYLES[t.status] || ''}`}>{t.status}</span>
-                      <ProgressSelect value={projectProgressStatus(t)} disabled={t.status !== 'verified'} onChange={(next) => onProgress(t.id, next)} />
-                    </div>
-                    <div className="flex gap-2">
-                      {t.latestReport && (
-                        <button className="btn-secondary text-xs py-1" onClick={() => setReportDetail(t)}>
-                          Latest report
-                        </button>
-                      )}
-                      {onEdit && (
-                        <button className="btn-secondary text-xs py-1" onClick={() => onEdit(t)}>
-                          Edit
-                        </button>
-                      )}
-                      {onDelete && (
-                        <button className="btn-danger text-xs py-1" onClick={() => onDelete(t)}>
-                          Delete
-                        </button>
-                      )}
-                    </div>
-                  </div>
+                    <span className="block break-words text-sm font-medium leading-snug">{t.text}</span>
+                    <span className="block text-xs text-muted">
+                      {t.members.map((m) => m.name).join(', ') || 'No members listed'}
+                    </span>
+                    <span className={`badge ${STATUS_STYLES[t.status] || ''}`}>{t.status}</span>
+                    {t.latestReport && (
+                      <span className="block rounded-md border border-primary/15 bg-primary/5 p-2">
+                        <span className="block text-[11px] font-semibold uppercase tracking-wide text-primary">
+                          Latest report{t.latestReport.version ? ` · v${t.latestReport.version}` : ''}
+                        </span>
+                        <span className="mt-1 line-clamp-2 text-xs text-muted">
+                          {t.latestReport.progressSummary || 'Latest report on file'}
+                        </span>
+                      </span>
+                    )}
+                  </button>
                 );
               })
             )}
@@ -110,22 +78,6 @@ export function ProgressBoard({
         );
       })}
     </div>
-    <Dialog open={!!reportDetail} onOpenChange={(open) => !open && setReportDetail(null)}>
-      <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>{reportDetail?.text}</DialogTitle>
-          <DialogDescription>Latest submitted version report{reportDetail?.latestReport?.version ? ` · v${reportDetail.latestReport.version}` : ''}</DialogDescription>
-        </DialogHeader>
-        {reportDetail?.latestReport && (
-          <div className="space-y-4 text-sm">
-            <section><p className="font-medium">Progress summary</p><p className="mt-1 whitespace-pre-wrap text-muted">{reportDetail.latestReport.progressSummary || 'No summary provided.'}</p></section>
-            {reportDetail.latestReport.changelog && <section><p className="font-medium">Changelog</p><p className="mt-1 whitespace-pre-wrap text-muted">{reportDetail.latestReport.changelog}</p></section>}
-            {(reportDetail.latestReport.repoUrl || reportDetail.latestReport.deploymentUrl || reportDetail.latestReport.extraLinks?.length) && <section className="space-y-1"><p className="font-medium">Links</p>{reportDetail.latestReport.repoUrl && <a className="block text-primary hover:underline" href={safeExternalUrl(reportDetail.latestReport.repoUrl)} target="_blank" rel="noreferrer">Repository</a>}{reportDetail.latestReport.deploymentUrl && <a className="block text-primary hover:underline" href={safeExternalUrl(reportDetail.latestReport.deploymentUrl)} target="_blank" rel="noreferrer">Deployment</a>}{reportDetail.latestReport.extraLinks?.map((link) => <a key={link} className="block text-primary hover:underline truncate" href={safeExternalUrl(link)} target="_blank" rel="noreferrer">{link}</a>)}</section>}
-          </div>
-        )}
-      </DialogContent>
-    </Dialog>
-    </>
   );
 }
 

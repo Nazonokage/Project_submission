@@ -24,6 +24,7 @@ type KanbanDndValue = {
   setOverStatus: (status: ProgressStatus | null) => void;
   beginHtml5Drag: (taskId: string) => void;
   endDrag: () => void;
+  wasDragged: () => boolean;
   onCardPointerDown: (event: ReactPointerEvent, taskId: string, label: string) => void;
 };
 
@@ -60,6 +61,8 @@ export function KanbanDndProvider({
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [overStatus, setOverStatus] = useState<ProgressStatus | null>(null);
   const [preview, setPreview] = useState<{ label: string; x: number; y: number } | null>(null);
+  const didDrag = useRef(false);
+  const wasDragged = useCallback(() => didDrag.current, []);
   const dragRef = useRef<{
     taskId: string;
     pointerId: number;
@@ -79,6 +82,7 @@ export function KanbanDndProvider({
   }, []);
 
   const beginHtml5Drag = useCallback((taskId: string) => {
+    didDrag.current = true;
     setDraggingId(taskId);
   }, []);
 
@@ -93,6 +97,7 @@ export function KanbanDndProvider({
     if (!current || current.taskId !== taskId) return;
     current.active = true;
     current.timer = null;
+    didDrag.current = true;
     setDraggingId(taskId);
     setOverStatus(columnFromPoint(x, y));
     setPreview({ label, x, y });
@@ -100,9 +105,8 @@ export function KanbanDndProvider({
 
   const onCardPointerDown = useCallback(
     (event: ReactPointerEvent, taskId: string, label: string) => {
+      didDrag.current = false;
       if (event.pointerType !== 'touch' && event.pointerType !== 'pen') return;
-      const target = event.target as Element | null;
-      if (target?.closest('button, a, input, select, textarea, label')) return;
 
       const startX = event.clientX;
       const startY = event.clientY;
@@ -165,9 +169,10 @@ export function KanbanDndProvider({
       setOverStatus,
       beginHtml5Drag,
       endDrag,
+      wasDragged,
       onCardPointerDown,
     }),
-    [beginHtml5Drag, draggingId, endDrag, onCardPointerDown, overStatus]
+    [beginHtml5Drag, draggingId, endDrag, onCardPointerDown, overStatus, wasDragged]
   );
 
   return (
@@ -191,8 +196,4 @@ export function KanbanDndProvider({
         )}
     </KanbanDndContext.Provider>
   );
-}
-
-export function isKanbanInteractiveTarget(target: EventTarget | null) {
-  return target instanceof Element && !!target.closest('button, a, input, select, textarea, label');
 }

@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { KanbanDndProvider, useKanbanDnd } from '@/components/student/kanban-dnd';
 import { TaskCard } from '@/components/student/task-card';
-import type { Member, TaskItem } from '@/components/student/types';
+import type { Member, ProjectTitle, TaskItem } from '@/components/student/types';
 import { PROGRESS_LABELS, PROGRESS_STATUSES, type ProgressStatus } from '@/lib/progress';
 import { cn } from '@/lib/utils';
 
@@ -17,7 +17,7 @@ function KanbanColumn({
   loading,
   onAdd,
   onStatusChange,
-  onDelete,
+  project,
 }: {
   status: ProgressStatus;
   tasks: TaskItem[];
@@ -25,7 +25,7 @@ function KanbanColumn({
   loading: boolean;
   onAdd: (status: ProgressStatus) => void;
   onStatusChange: (taskId: string, next: ProgressStatus) => void;
-  onDelete: (taskId: string) => void;
+  project: ProjectTitle;
 }) {
   const dnd = useKanbanDnd();
   const isOver = dnd?.overStatus === status;
@@ -96,8 +96,7 @@ function KanbanColumn({
               key={task.id}
               task={task}
               members={members}
-              onStatusChange={onStatusChange}
-              onDelete={onDelete}
+              project={project}
             />
           ))
         )}
@@ -112,14 +111,14 @@ export function KanbanBoard({
   loading,
   onAdd,
   onStatusChange,
-  onDelete,
+  project,
 }: {
   tasks: TaskItem[];
   members: Member[];
   loading: boolean;
   onAdd: (status: ProgressStatus) => void;
   onStatusChange: (taskId: string, next: ProgressStatus) => void;
-  onDelete: (taskId: string) => void;
+  project: ProjectTitle;
 }) {
   return (
     <KanbanDndProvider onMove={onStatusChange}>
@@ -136,7 +135,7 @@ export function KanbanBoard({
             loading={loading}
             onAdd={onAdd}
             onStatusChange={onStatusChange}
-            onDelete={onDelete}
+            project={project}
           />
         ))}
       </div>

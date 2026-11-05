@@ -30,6 +30,18 @@ const create = load('src/app/api/student/tasks/route.ts', { ...common, '@/lib/db
 assert.equal((await create.POST(request({ titleId: 'title', name: 'Task', status: 'done' }))).status, 201);
 assert.equal(creation.queries.find(q => q.operation === 'insert').values.status, 'planning');
 console.log('PASS pending/rejected completion blocked, approved completion allowed, creation always Planning');
+const ownedTask = { ...title, id: 'task', titleId: title.id, status: 'planning' };
+const taskContext = { params: { taskId: 'task' } };
+for (const [method, body] of [['PATCH', { status: 'done' }], ['DELETE', {}]]) {
+  for (const ownsClass of [false, true]) {
+    const fixture = sequence([ownedTask], ownsClass ? [{ id: title.classId }] : []);
+    const route = load('src/app/api/prof/tasks/[taskId]/route.ts', { ...common, '@/lib/db': fixture });
+    assert.equal((await route[method](request(body), taskContext)).status, ownsClass ? 200 : 403);
+    assert.equal(fixture.queries.some(q => q.operation === 'update'), ownsClass);
+  }
+}
+console.log('PASS professor task edits and deletions require class ownership');
+
 const rosterDb = sequence(
   [{ id: 'solo', name: 'Solo', idNumber: '001' }, { id: 'member', name: 'Member', idNumber: '002' }],
   [{ studentId: 'member', groupId: 'group', slotId: 'slot' }],

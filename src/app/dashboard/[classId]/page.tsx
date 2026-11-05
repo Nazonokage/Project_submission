@@ -16,8 +16,8 @@ import { ProgressBoard, STATUS_STYLES, type BoardTitle } from '@/components/dash
 import { TitleReviewDialog } from '@/components/dashboard/title-review';
 import { StalledWidget } from '@/components/dashboard/stalled-widget';
 import { ThemeToggle } from '@/components/theme-toggle';
+import { projectProgressStatus, type ProgressStatus } from '@/lib/progress';
 import { ProgressSelect } from '@/components/student/progress-select';
-import { type ProgressStatus } from '@/lib/progress';
 import {
   DEFAULT_SLOT_RULES,
   loadClassDefaults,
@@ -177,14 +177,16 @@ export default function ClassPage() {
   async function removeTitle(title: Title) {
     const ok = window.confirm(`Delete “${title.text}”? Related progress notes for this title will also be removed.`);
     if (!ok) return;
-    const res = await fetch(`/api/dashboard/titles/${title.id}`, { method: 'DELETE' });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      toast.error(data.error || 'Could not delete title');
-      return;
+    try {
+      const res = await fetch(`/api/dashboard/titles/${title.id}`, { method: 'DELETE' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Could not delete title');
+      toast.success('Title deleted');
+      setReviewing((current) => current?.id === title.id ? null : current);
+      if (slotId) void loadTitles(slotId);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not delete title');
     }
-    toast.success('Title deleted');
-    if (slotId) loadTitles(slotId);
   }
 
   async function exportCsv() {
@@ -323,13 +325,7 @@ export default function ClassPage() {
             <ProgressBoard
               titles={titles}
               highlightStudentId={highlightStudentId}
-              onProgress={setProgress}
               onOpen={(t) => setReviewing(titles.find((x) => x.id === t.id) || null)}
-              onEdit={(t) => setEditing(titles.find((x) => x.id === t.id) || null)}
-              onDelete={(t) => {
-                const full = titles.find((x) => x.id === t.id);
-                if (full) removeTitle(full);
-              }}
             />
           </div>
         )
@@ -409,6 +405,18 @@ export default function ClassPage() {
         <TitleReviewDialog
           titleId={reviewing.id}
           titleText={reviewing.text}
+          members={reviewing.members}
+          projectControls={reviewing.status === 'verified' && (
+            <ProgressSelect
+              value={projectProgressStatus(titles.find((title) => title.id === reviewing.id) ?? reviewing)}
+              onChange={(next) => setProgress(reviewing.id, next)}
+            />
+          )}
+          onEdit={() => {
+            setEditing(titles.find((title) => title.id === reviewing.id) ?? reviewing);
+            setReviewing(null);
+          }}
+          onDelete={() => removeTitle(reviewing)}
           open={!!reviewing}
           asProfessor
           onOpenChange={(open) => {

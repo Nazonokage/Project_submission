@@ -17,18 +17,18 @@ export function useBoardQuery<T>(key: QueryKey, url: string, enabled = true, mut
   });
 }
 // Capture the affected title in mutation variables, even if the user switches titles mid-request.
-export function useBoardRequest(titleId: string) {
+export function useBoardRequest(titleId: string, role: 'student' | 'prof' = 'student') {
   const client = useQueryClient();
   const mutation = useMutation({
-    mutationKey: boardKeys.title('student', titleId),
-    scope: { id: `student-board:${titleId}` },
+    mutationKey: boardKeys.title(role, titleId),
+    scope: { id: `${role}-board:${titleId}` },
     mutationFn: async ({ url, init }: { url: string; init: RequestInit; titleId: string }) => {
       const res = await fetch(url, init);
       if (!res.ok) { const data = await res.clone().json().catch(() => ({})); throw new Error(data.error || 'Could not save board change'); }
       return res;
     },
-    onMutate: ({ titleId }) => client.cancelQueries({ queryKey: boardKeys.title('student', titleId) }),
-    onSettled: (_data, _error, { titleId }) => client.invalidateQueries({ queryKey: boardKeys.title('student', titleId) }),
+    onMutate: ({ titleId }) => client.cancelQueries({ queryKey: boardKeys.title(role, titleId) }),
+    onSettled: (_data, _error, { titleId }) => client.invalidateQueries({ queryKey: boardKeys.title(role, titleId) }),
   });
   return (url: string, init: RequestInit) => mutation.mutateAsync({ url, init, titleId });
 }

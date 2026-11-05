@@ -3,20 +3,20 @@ import { useBoardRequest } from '@/lib/board-query';
 import { toast } from 'sonner';
 
 import { useState } from 'react';
-import { Calendar, Clock, GripVertical, Pencil, Trash2, User } from 'lucide-react';
-import { isKanbanInteractiveTarget, useKanbanDnd } from '@/components/student/kanban-dnd';
-import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import { Calendar, Clock, GripVertical, User } from 'lucide-react';
+import { useKanbanDnd } from '@/components/student/kanban-dnd';
 import { Button } from '@/components/ui/button';
-import { ProgressSelect } from '@/components/student/progress-select';
-import type { Member, ProgressStatus, TaskItem } from '@/components/student/types';
+import type { Member, ProgressStatus, ProjectTitle, TaskItem } from '@/components/student/types';
 import { PROGRESS_LABELS, PROGRESS_STATUSES } from '@/lib/progress';
+import { safeExternalUrl } from '@/lib/safe-url';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -24,23 +24,20 @@ import { Label } from '@/components/ui/label';
 
 export function TaskCard({
   task,
-  members = [],
-  readOnly = false,
-  onStatusChange,
-  onEdit,
-  onDelete,
+  members,
+  project,
+  role = 'student',
 }: {
   task: TaskItem;
-  members?: Member[];
-  readOnly?: boolean;
-  onStatusChange?: (taskId: string, status: ProgressStatus) => void;
-  onEdit?: (task: TaskItem) => void;
-  onDelete?: (taskId: string) => void;
+  members: Member[];
+  project: Pick<ProjectTitle, 'text' | 'repoUrl' | 'deploymentUrl'>;
+  role?: 'student' | 'prof';
 }) {
-  const request = useBoardRequest(task.titleId);
+  const request = useBoardRequest(task.titleId, role);
   const dnd = useKanbanDnd();
-  const [editOpen, setEditOpen] = useState(false);
-  const [moveOpen, setMoveOpen] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [name, setName] = useState(task.name);
   const [description, setDescription] = useState(task.description || '');
   const [assigneeId, setAssigneeId] = useState(task.assigneeStudentId || '');
@@ -60,26 +57,52 @@ export function TaskCard({
       })
     : null;
 
-  async function handleSave() {
-    if (!name.trim()) return;
+  const repoUrl = safeExternalUrl(project.repoUrl);
+  const deploymentUrl = safeExternalUrl(project.deploymentUrl);
+  const canDrag = !!dnd && !task.deletedAt;
+  const assignee = task.assigneeName || members.find((member) => member.id === task.assigneeStudentId)?.name;
+
+  function startEditing() {
+    setName(task.name);
+    setDescription(task.description || '');
+    setAssigneeId(task.assigneeStudentId || '');
+    setDueDate(task.dueDate ? task.dueDate.split('T')[0] : '');
+    setStatus(task.status);
+    setEditing(true);
+  }
+
+  async function handleDelete() {
     setSaving(true);
     try {
-      const res = await request(`/api/student/tasks/${task.id}`, {
+      await request(`/api/${role}/tasks/${task.id}`, { method: 'DELETE' });
+      toast.success('Task deleted');
+      setOpen(false);
+      setConfirmDelete(false);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not delete task');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleSave() {
+    if (saving || !name.trim()) return;
+    setSaving(true);
+    try {
+      await request(`/api/${role}/tasks/${task.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: name.trim(),
           description: description.trim() || null,
-          assigneeStudentId: assigneeId || null,
+          assigneeStudentId: assigneeId === (task.assigneeStudentId || '') ? undefined : assigneeId || null,
           dueDate: dueDate ? new Date(dueDate).toISOString() : null,
           status,
         }),
       });
-      if (res.ok) {
-        const data = await res.json();
-        setEditOpen(false);
-        onEdit?.(data.task);
-      }
+      toast.success('Task updated');
+      setOpen(false);
+      setEditing(false);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Could not save task');
     } finally {
@@ -88,68 +111,48 @@ export function TaskCard({
   }
 
   return (
-    <>
-      <Card
-        draggable={!readOnly}
-        onDragStart={(e) => {
-          if (readOnly || isKanbanInteractiveTarget(e.target)) {
-            e.preventDefault();
-            return;
-          }
-          e.dataTransfer.setData('text/plain', task.id);
-          e.dataTransfer.effectAllowed = 'move';
-          dnd?.beginHtml5Drag(task.id);
-        }}
-        onDragEnd={() => dnd?.endDrag()}
-        onPointerDown={(e) => {
-          if (!readOnly) dnd?.onCardPointerDown(e, task.id, task.name);
-        }}
-        className={`rounded-xl shadow-xs border bg-card hover:border-primary/40 transition-colors overflow-visible ${
-          !readOnly ? 'cursor-grab active:cursor-grabbing' : ''
-        } ${dnd?.draggingId === task.id ? 'opacity-60' : ''}`}
-      >
-        <CardContent className="p-3 space-y-2.5">
-          <div className="flex items-start justify-between gap-2">
-            {!readOnly && (
-              <span className="mt-0.5 text-muted-foreground/70 shrink-0" aria-hidden>
-                <GripVertical className="h-4 w-4" />
-              </span>
-            )}
-            <p className="text-sm font-medium leading-snug break-words flex-1 min-w-0">
-              {task.name}
-            </p>
-            {!readOnly && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 md:h-6 md:w-6 text-muted-foreground hover:text-foreground shrink-0"
-                onClick={() => {
-                  setName(task.name);
-                  setDescription(task.description || '');
-                  setAssigneeId(task.assigneeStudentId || '');
-                  setDueDate(task.dueDate ? task.dueDate.split('T')[0] : '');
-                  setStatus(task.status);
-                  setEditOpen(true);
-                }}
-              >
-                <Pencil className="h-3.5 w-3.5" />
-                <span className="sr-only">Edit task</span>
-              </Button>
-            )}
-          </div>
+    <Dialog open={open} onOpenChange={(next) => {
+      if (saving) return;
+      setOpen(next);
+      if (!next) {
+        setEditing(false);
+        setConfirmDelete(false);
+      }
+    }}>
+      <DialogTrigger asChild>
+        <button
+          type="button"
+          draggable={canDrag}
+          aria-label={task.name}
+          onDragStart={(e) => {
+            e.dataTransfer.setData('text/plain', task.id);
+            e.dataTransfer.effectAllowed = 'move';
+            dnd?.beginHtml5Drag(task.id);
+          }}
+          onDragEnd={() => dnd?.endDrag()}
+          onPointerDown={(e) => dnd?.onCardPointerDown(e, task.id, task.name)}
+          onClick={(e) => {
+            if (e.detail > 0 && dnd?.wasDragged()) e.preventDefault();
+          }}
+          className={`block w-full cursor-pointer space-y-2.5 rounded-xl border bg-card p-3 text-left shadow-xs transition-colors hover:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${dnd?.draggingId === task.id ? 'opacity-60' : ''}`}
+        >
+          <span className="flex items-start gap-2">
+            {canDrag && <GripVertical className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground/70" aria-hidden />}
+            <span className="min-w-0 break-words text-sm font-medium leading-snug">{task.name}</span>
+          </span>
 
           {task.description && (
-            <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
+            <span className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
               {task.description}
-            </p>
+            </span>
           )}
 
-          <div className="flex flex-wrap items-center gap-1.5 pt-1">
-            {task.assigneeName ? (
-              <Badge variant="secondary" className="text-[11px] font-normal gap-1 py-0.5 px-2">
+          <span className="flex flex-wrap items-center gap-1.5 pt-1">
+            {assignee ? (
+              <span className="inline-flex items-center rounded-full bg-secondary px-2 py-0.5 text-[11px] gap-1">
                 <User className="h-3 w-3" />
-                {task.assigneeName}
-              </Badge>
+                {assignee}
+              </span>
             ) : (
               <span className="text-[11px] text-muted-foreground flex items-center gap-1">
                 <User className="h-3 w-3" /> Unassigned
@@ -157,150 +160,142 @@ export function TaskCard({
             )}
 
             {formattedDue && (
-              <Badge
-                variant={isOverdue ? 'destructive' : 'outline'}
-                className="text-[11px] font-normal gap-1 py-0.5 px-2"
-              >
+              <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] ${isOverdue ? 'text-destructive' : ''}`}>
                 {isOverdue ? <Clock className="h-3 w-3" /> : <Calendar className="h-3 w-3" />}
                 {isOverdue ? `Overdue (${formattedDue})` : formattedDue}
-              </Badge>
+              </span>
             )}
-          </div>
+            {role === 'prof' && <span className="text-xs text-muted-foreground">{PROGRESS_LABELS[task.status]}</span>}
+            {task.deletedAt && <span className="text-xs text-destructive">Deleted</span>}
+          </span>
+        </button>
+      </DialogTrigger>
 
-          <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-border/50">
-            <ProgressSelect
-              value={task.status}
-              disabled={readOnly}
-              className="min-h-10 min-w-[9.5rem] flex-1 md:min-h-0 md:py-1"
-              onChange={(next) => onStatusChange?.(task.id, next)}
-            />
-            {!readOnly && (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="h-10 px-2 text-xs md:hidden"
-                onClick={() => setMoveOpen(true)}
-              >
-                Move
-              </Button>
-            )}
-            {!readOnly && onDelete && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-10 w-10 md:h-7 md:w-7 text-muted-foreground hover:text-destructive shrink-0"
-                onClick={() => onDelete(task.id)}
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-                <span className="sr-only">Delete task</span>
-              </Button>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
-      <Dialog open={moveOpen} onOpenChange={setMoveOpen}>
-        <DialogContent className="left-0 right-0 top-auto bottom-0 max-w-none translate-x-0 translate-y-0 rounded-b-none rounded-t-2xl sm:left-[50%] sm:right-auto sm:top-[50%] sm:bottom-auto sm:max-w-sm sm:translate-x-[-50%] sm:translate-y-[-50%] sm:rounded-xl">
-          <DialogHeader>
-            <DialogTitle>Move task</DialogTitle>
-          </DialogHeader>
-          <div className="grid gap-2">
-            {PROGRESS_STATUSES.map((next) => (
-              <Button
-                key={next}
-                type="button"
-                variant={task.status === next ? 'default' : 'outline'}
-                className="h-11 justify-start"
-                onClick={() => {
-                  onStatusChange?.(task.id, next);
-                  setMoveOpen(false);
-                }}
-              >
-                {PROGRESS_LABELS[next]}
-              </Button>
-            ))}
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Edit Task Dialog */}
-      <Dialog open={editOpen} onOpenChange={setEditOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Edit Task</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3.5">
-            <div className="space-y-1.5">
-              <Label htmlFor="task-edit-name">Task Name</Label>
-              <Input
-                id="task-edit-name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="e.g. Design database schema"
-                required
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="task-edit-desc">Description</Label>
-              <Textarea
-                id="task-edit-desc"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="Details, requirements, checklist..."
-                className="min-h-20 text-sm"
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
+      <DialogContent className="max-h-[90dvh] w-[calc(100%-2rem)] max-w-lg overflow-y-auto">
+        <DialogHeader className="pr-6">
+          <DialogTitle className="break-words">{editing ? 'Edit Task' : task.name}</DialogTitle>
+          <DialogDescription>{project.text}</DialogDescription>
+        </DialogHeader>
+        {editing ? (
+          <form onSubmit={(e) => { e.preventDefault(); void handleSave(); }} className="space-y-3.5">
+            <div className="space-y-3.5">
               <div className="space-y-1.5">
-                <Label>Assignee</Label>
+                <Label htmlFor="task-edit-name">Task Name</Label>
+                <Input
+                  id="task-edit-name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="e.g. Design database schema"
+                  required
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="task-edit-desc">Description</Label>
+                <Textarea
+                  id="task-edit-desc"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Details, requirements, checklist..."
+                  className="min-h-20 text-sm"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="task-edit-assignee">Assignee</Label>
+                  <select
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-xs"
+                    id="task-edit-assignee"
+                    value={assigneeId}
+                    onChange={(e) => setAssigneeId(e.target.value)}
+                  >
+                    <option value="">Unassigned</option>
+                    {task.assigneeStudentId && !members.some((member) => member.id === task.assigneeStudentId) && (
+                      <option value={task.assigneeStudentId}>{assignee || 'Current assignee'}</option>
+                    )}
+                    {members.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.name} ({m.idNumber})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="task-edit-due">Due Date</Label>
+                  <Input
+                    id="task-edit-due"
+                    type="date"
+                    value={dueDate}
+                    onChange={(e) => setDueDate(e.target.value)}
+                  />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="task-edit-status">Status</Label>
                 <select
                   className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-xs"
-                  value={assigneeId}
-                  onChange={(e) => setAssigneeId(e.target.value)}
+                  id="task-edit-status"
+                  value={status}
+                  onChange={(e) => setStatus(e.target.value as ProgressStatus)}
                 >
-                  <option value="">Unassigned</option>
-                  {members.map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {m.name} ({m.idNumber})
-                    </option>
+                  {PROGRESS_STATUSES.map((value) => (
+                    <option key={value} value={value}>{PROGRESS_LABELS[value]}</option>
                   ))}
                 </select>
               </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="task-edit-due">Due Date</Label>
-                <Input
-                  id="task-edit-due"
-                  type="date"
-                  value={dueDate}
-                  onChange={(e) => setDueDate(e.target.value)}
-                />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" disabled={saving} onClick={() => setEditing(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={saving || !name.trim()}>
+                {saving ? 'Saving…' : 'Save Changes'}
+              </Button>
+            </DialogFooter>
+          </form>
+        ) : (
+          <>
+            <div className="space-y-4 text-sm">
+              <div>
+                <p className="font-medium">Description</p>
+                <p className="whitespace-pre-wrap break-words text-muted-foreground">{task.description || 'No description'}</p>
               </div>
+              <dl className="grid grid-cols-2 gap-3 break-words [&_dd]:text-muted-foreground [&_dt]:font-medium">
+                <div><dt>Status</dt><dd>{PROGRESS_LABELS[task.status]}{task.deletedAt && ' · Deleted'}</dd></div>
+                <div><dt>Assignee</dt><dd>{assignee || 'Unassigned'}</dd></div>
+                <div><dt>Due date</dt><dd>{task.dueDate ? new Date(task.dueDate).toLocaleDateString() : 'No due date'}</dd></div>
+                <div><dt>Created</dt><dd>{new Date(task.createdAt).toLocaleDateString()}</dd></div>
+                {task.updatedAt && <div><dt>Last updated</dt><dd>{new Date(task.updatedAt).toLocaleDateString()}</dd></div>}
+                <div>
+                  <dt>Repository</dt>
+                  <dd>{repoUrl ? <a className="text-primary underline" href={repoUrl} target="_blank" rel="noreferrer">Open repository</a> : 'No repository linked'}</dd>
+                </div>
+                {deploymentUrl && (
+                  <div>
+                    <dt>Deployment</dt>
+                    <dd><a className="text-primary underline" href={deploymentUrl} target="_blank" rel="noreferrer">Open deployment</a></dd>
+                  </div>
+                )}
+              </dl>
             </div>
-            <div className="space-y-1.5">
-              <Label>Status</Label>
-              <select
-                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-xs"
-                value={status}
-                onChange={(e) => setStatus(e.target.value as ProgressStatus)}
-              >
-                <option value="planning">Planning</option>
-                <option value="in_progress">In Progress</option>
-                <option value="review">Review</option>
-                <option value="done">Done</option>
-              </select>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setEditOpen(false)}>
-              Cancel
-            </Button>
-            <Button type="button" disabled={saving || !name.trim()} onClick={handleSave}>
-              {saving ? 'Saving…' : 'Save Changes'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </>
+            {confirmDelete && <p role="alert" className="text-sm">Delete this task from the board?</p>}
+            {!task.deletedAt && <DialogFooter>
+              {confirmDelete ? (
+                <>
+                  <Button type="button" variant="outline" disabled={saving} onClick={() => setConfirmDelete(false)}>Cancel</Button>
+                  <Button type="button" variant="destructive" disabled={saving} onClick={handleDelete}>
+                    {saving ? 'Deleting…' : 'Confirm delete'}
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button type="button" variant="outline" onClick={() => setConfirmDelete(true)}>Delete task</Button>
+                  <Button type="button" onClick={startEditing}>Edit task</Button>
+                </>
+              )}
+            </DialogFooter>}
+          </>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }

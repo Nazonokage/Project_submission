@@ -615,10 +615,6 @@ function BoardTab({
     if (client.isMutating({ mutationKey: titleKey })) return;
     move.mutate({ taskId, next, titleId });
   }
-  async function handleDeleteTask(taskId: string) {
-    try { await request(`/api/student/tasks/${taskId}`, { method: 'DELETE' }); toast.success('Task deleted'); }
-    catch (error) { toast.error(error instanceof Error ? error.message : 'Could not delete task'); }
-  }
   async function deleteUpdate(updateId: string) {
     try { await request(`/api/student/updates/${updateId}`, { method: 'DELETE' }); toast.success('Update deleted'); }
     catch (error) { toast.error(error instanceof Error ? error.message : 'Could not delete update'); }
@@ -699,12 +695,12 @@ function BoardTab({
             tasks={displayedTasks}
             members={members}
             loading={tasksLoading}
-            onAdd={(status) => {
+            onAdd={() => {
               setAddTaskInitialStatus('planning');
               setAddTaskOpen(true);
             }}
             onStatusChange={handleStatusChange}
-            onDelete={handleDeleteTask}
+            project={selectedTitle}
           />
 
           {/* Activity & Updates Feed */}

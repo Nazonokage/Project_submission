@@ -1,3 +1,8 @@
+## [1.8.1] - 2026-11-05
+
+- Open teacher project details from anywhere on a progress board card. Project actions now live in a wider modal with collapsible documentation.
+- Open task details, repository links, editing, and deletion from student Kanban cards and teacher Project Review. Teachers can modify tasks in classes they own.
+
 ## [1.8.0] - 2026-10-30
 
 ### Security and authentication

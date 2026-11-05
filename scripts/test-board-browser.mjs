@@ -67,7 +67,7 @@ async function context(role, options = {}) {
     else if (/\/titles\/title-\d$/.test(path)) data = { title: titles.find(t => path.endsWith(t.id)), docFields: [] };
     else if (path.endsWith('/tasks') && method === 'GET') {
       await new Promise(r => setTimeout(r, 350));
-      data = { tasks: tasks.filter(t => t.titleId === url.searchParams.get('titleId')) };
+      data = { tasks: tasks.filter(t => t.titleId === url.searchParams.get('titleId') && (path.startsWith('/api/prof/') || !t.deletedAt)) };
     } else if (path.endsWith('/tasks') && method === 'POST') {
       const task = { ...body, id: 'task-created', createdAt: now };
       tasks.push(task); data = { task };
@@ -75,7 +75,7 @@ async function context(role, options = {}) {
       await new Promise(r => setTimeout(r, 600));
       if (failMove) { status = 500; data = { error: 'Simulated move failure' }; failMove = false; }
       else { const task = tasks.find(t => path.endsWith(t.id)); Object.assign(task, body); data = { task }; }
-    } else if (path.includes('/tasks/') && method === 'DELETE') { tasks = tasks.filter(t => !path.endsWith(t.id)); data = { ok: true }; }
+    } else if (path.includes('/tasks/') && method === 'DELETE') { const task = tasks.find(t => path.endsWith(t.id)); task.deletedAt = now; data = { ok: true }; }
     else if (path.endsWith('/updates') && method === 'GET') data = { updates: updates.filter(u => u.titleId === url.searchParams.get('titleId')) };
     else if (path.endsWith('/updates') && method === 'POST') { const update = { ...body, id: `update-${updates.length}`, postedByStudentId: 'student-test', createdAt: now }; updates.push(update); data = { update }; }
     else if (path.includes('/updates/') && method === 'PATCH') { const update = updates.find(u => path.endsWith(u.id)); Object.assign(update, body, { updatedAt: now }); data = { update }; }
@@ -159,30 +159,34 @@ try {
   await page.getByRole('combobox', { name: 'Active project' }).selectOption('title-0');
   assert.equal(await page.getByText('Task 0', { exact: true }).isVisible(), true, 'Cached project should display immediately');
   const taskCard = () => page.locator('[draggable="true"]').filter({ hasText: 'Task 0' });
-  const select = taskCard().getByRole('combobox');
-  await select.selectOption('in_progress');
-  assert.equal(await select.inputValue(), 'in_progress');
+  const column = (status) => page.locator(`[data-kanban-column="${status}"]`);
+  await taskCard().dragTo(column('in_progress'));
+  await visible(column('in_progress').getByRole('button', { name: 'Task 0', exact: true }));
   await page.waitForTimeout(1000);
   failMove = true;
-  await select.selectOption('done');
-  assert.equal(await select.inputValue(), 'done');
+  await taskCard().dragTo(column('done'));
+  await visible(column('done').getByRole('button', { name: 'Task 0', exact: true }));
   await visible(page.getByText('Simulated move failure', { exact: true }));
-  assert.equal(await select.inputValue(), 'in_progress', 'Failed move rolls back');
+  await visible(column('in_progress').getByRole('button', { name: 'Task 0', exact: true }));
   await page.waitForTimeout(500);
-  await taskCard().dragTo(page.locator('p').filter({ hasText: /^Review$/ }), { sourcePosition: { x: 10, y: 10 } });
-  await page.waitForTimeout(100);
-  assert.equal(await select.inputValue(), 'review', 'Drag updates status immediately');
+  await taskCard().dragTo(column('review'));
+  await visible(column('review').getByRole('button', { name: 'Task 0', exact: true }));
   await page.waitForTimeout(1100);
   await page.getByRole('button', { name: 'New Task', exact: true }).click();
   await page.getByRole('dialog').getByLabel('Task Name').fill('Created task');
   await page.getByRole('dialog').getByRole('button', { name: 'Create Task', exact: true }).click();
   await visible(page.getByText('Created task', { exact: true }));
   const createdCard = page.locator('[draggable="true"]').filter({ hasText: 'Created task' });
-  await createdCard.getByRole('button', { name: 'Edit task' }).click();
+  await createdCard.press('Enter');
+  const taskDialog = page.getByRole('dialog');
+  assert.equal(await taskDialog.getByRole('link', { name: 'Open repository' }).getAttribute('href'), titles[0].repoUrl);
+  await taskDialog.getByRole('button', { name: 'Edit task' }).click();
   await page.getByRole('dialog').getByLabel('Task Name').fill('Edited task');
   await page.getByRole('dialog').getByRole('button', { name: 'Save Changes' }).click();
   await visible(page.getByText('Edited task', { exact: true }));
-  await page.locator('[draggable="true"]').filter({ hasText: 'Edited task' }).getByRole('button', { name: 'Delete task' }).click();
+  await page.getByRole('button', { name: 'Edited task', exact: true }).click();
+  await taskDialog.getByRole('button', { name: 'Delete task' }).click();
+  await taskDialog.getByRole('button', { name: 'Confirm delete' }).click();
   await page.getByText('Edited task', { exact: true }).waitFor({ state: 'detached' });
   await page.getByRole('button', { name: 'Log for this project' }).click();
   const dialog = page.getByRole('dialog');
@@ -232,9 +236,12 @@ try {
   const scroller = mobile.page.locator('[data-kanban-scroller]');
   assert.ok(await scroller.evaluate(el => el.scrollWidth > el.clientWidth), 'Kanban columns should scroll horizontally on a phone');
   const phoneCard = mobile.page.locator('[draggable="true"]').filter({ hasText: 'Task 0' });
-  await visible(phoneCard.getByRole('button', { name: 'Move', exact: true }));
-  await phoneCard.getByRole('combobox').selectOption('done');
-  assert.equal(await phoneCard.getByRole('combobox').inputValue(), 'done');
+  await phoneCard.tap();
+  const phoneDialog = mobile.page.getByRole('dialog');
+  await phoneDialog.getByRole('button', { name: 'Edit task' }).click();
+  await phoneDialog.getByLabel('Status').selectOption('done');
+  await phoneDialog.getByRole('button', { name: 'Save Changes' }).click();
+  await visible(mobile.page.locator('[data-kanban-column="done"]').getByRole('button', { name: 'Task 0', exact: true }));
   await mobile.ctx.close();
   console.log('PASS Phase 19: phone layout, horizontal column scroller, reachable controls, status fallback');
   console.log('PASS student: instructions, title cache isolation, optimistic move/rollback, drag-and-drop, task create/edit/delete, hidden/visible polling, update create/edit/delete, two-context polling, tab cache');
@@ -274,8 +281,30 @@ try {
   await detail.waitFor({ state: 'hidden' });
   await prof.page.setViewportSize({ width: 1280, height: 900 });
   console.log('PASS simplified roster, group members/titles, search/filter, keyboard modal/focus restore, edit cancel, profile link and tablet board action');
-  await prof.page.getByText('Alpha project', { exact: true }).click();
-  await visible(prof.page.getByRole('dialog').getByText('Task 0', { exact: true }));
+  const projectCard = prof.page.getByRole('button', { name: 'Alpha project', exact: true });
+  assert.equal(await projectCard.locator('button, select').count(), 0);
+  await projectCard.press('Enter');
+  const projectReview = prof.page.getByRole('dialog');
+  await visible(projectReview.getByRole('button', { name: 'Edit project' }));
+  await visible(projectReview.getByRole('button', { name: 'Delete project' }));
+  assert.equal(await projectReview.getByRole('link', { name: 'Repository', exact: true }).getAttribute('href'), titles[0].repoUrl);
+  await projectReview.getByRole('button', { name: 'Task 0', exact: true }).click();
+  const profTask = prof.page.getByRole('dialog').filter({ has: prof.page.getByRole('heading', { name: 'Task 0', exact: true }) });
+  assert.equal(await profTask.getByRole('link', { name: 'Open repository' }).getAttribute('href'), titles[0].repoUrl);
+  await profTask.getByRole('button', { name: 'Edit task' }).click();
+  const profEdit = prof.page.getByRole('dialog').filter({ has: prof.page.getByRole('heading', { name: 'Edit Task', exact: true }) });
+  await profEdit.getByLabel('Task Name').fill('Teacher edited task');
+  await profEdit.getByRole('button', { name: 'Save Changes' }).click();
+  await prof.page.getByRole('button', { name: 'Teacher edited task', exact: true }).click();
+  const editedTask = prof.page.getByRole('dialog').filter({ has: prof.page.getByRole('heading', { name: 'Teacher edited task', exact: true }) });
+  await editedTask.getByRole('button', { name: 'Delete task' }).click();
+  await editedTask.getByRole('button', { name: 'Confirm delete' }).click();
+  await editedTask.waitFor({ state: 'hidden' });
+  await prof.page.getByRole('button', { name: 'Teacher edited task', exact: true }).click();
+  await visible(editedTask.getByText(/· Deleted/));
+  assert.equal(await editedTask.getByRole('button', { name: 'Edit task' }).count(), 0);
+  await prof.page.keyboard.press('Escape');
+  assert.ok(requests.some(({ path, method }) => path === '/api/prof/tasks/task-0' && method === 'DELETE'));
   await prof.page.keyboard.press('Escape');
   const queue = prof.page.getByRole('region', { name: 'Verification queue' });
   await visible(queue.getByRole('article', { name: 'Gamma proposal' }));

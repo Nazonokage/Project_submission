@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { and, desc, eq, asc } from 'drizzle-orm';
 import { db } from '@/lib/db';
-import { classes, students, tasks, titles } from '@/lib/schema';
+import { classes, studentGroupSlots, students, tasks, titles } from '@/lib/schema';
 import { getProfSession } from '@/lib/auth';
 import { jsonError } from '@/lib/helpers';
 
@@ -53,5 +53,16 @@ export async function GET(req: NextRequest) {
     .where(eq(tasks.titleId, titleId))
     .orderBy(asc(tasks.sortOrder), desc(tasks.createdAt));
 
-  return NextResponse.json({ tasks: rows });
+  const members = title.groupId ? await db
+    .select({ id: students.id, name: students.name, idNumber: students.idNumber })
+    .from(studentGroupSlots)
+    .innerJoin(students, eq(students.id, studentGroupSlots.studentId))
+    .where(and(
+      eq(studentGroupSlots.groupId, title.groupId),
+      eq(studentGroupSlots.slotId, title.slotId),
+      eq(students.classId, title.classId),
+      eq(students.isActive, true)
+    )) : [];
+
+  return NextResponse.json({ tasks: rows, members });
 }
