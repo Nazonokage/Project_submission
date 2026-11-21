@@ -86,6 +86,7 @@ export function RosterTab({
     const progress = progressFor(s).filter(p => p.enrolled !== false);
     return matches && (enrolled(s) || showExcluded) && (filter === 'all' ||
       (filter === 'no-group' && enrolled(s) && (selectedSlotId ? !s.memberships?.some(m => m.slotId === selectedSlotId) : !s.memberships?.length)) ||
+      (filter === 'no-project' && enrolled(s) && !progress.some(p => p.titles?.length || p.latestTitleText)) ||
       (filter === 'never' && !s.lastLoginAt) ||
       (filter === 'pending' && progress.some((p) => p.pendingCount > 0)) ||
       (filter === 'verified' && progress.some((p) => p.verifiedCount > 0)) ||
@@ -320,7 +321,7 @@ export function RosterTab({
       {error && !selected && <p role="alert" className="text-sm text-danger">{error}</p>}
       <div className="flex flex-wrap items-center gap-2">
         <input aria-label="Search students by name or ID" className="input max-w-xs" placeholder="Search name or ID" value={search} onChange={(e) => setSearch(e.target.value)} />
-        {([['all', 'All'], ['no-group', 'No group'], ['never', 'Never logged in'], ['pending', 'Has pending'], ['verified', 'Has verified']] as const).map(([value, label]) => (
+        {([['all', 'All'], ['no-group', 'No group'], ['no-project', 'No project'], ['never', 'Never logged in'], ['pending', 'Has pending'], ['verified', 'Has verified']] as const).map(([value, label]) => (
           <button type="button" key={value} aria-pressed={filter === value} className={filter === value ? 'btn-primary' : 'btn-secondary'} onClick={() => setFilter(value)}>{label}</button>
         ))}
         {totalDuplicatesCount > 0 && (
